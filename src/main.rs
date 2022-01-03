@@ -1,37 +1,42 @@
 /// Contains all base functionalities that the game needs to work.
 mod base_game;
+/// Contains functions that help to read and parse the user input
+mod data_stream;
 /// Contains all functionalities that are required to play the game. This includes the setting up
 /// of new games, management of players and more.
 mod game;
-/// Contains functions that help to read and parse the user input
-mod data_stream;
-
-use std::slice::SliceIndex;
 
 use base_game::{Board, Hotel, Letter, Position};
 use game::game::Game;
 use miette::Result;
+use clap::Parser;
+
+#[derive(Parser)]
+#[clap(about = "The board game Acquire fia command line in Rust")]
+struct Opts {
+    #[clap(short, long, help = "The number of players", possible_values = ["2", "3", "4", "5", "6"], required = true)]
+    players: u8,
+}
+
 
 fn main() -> miette::Result<()> {
-//    let mut board = Board::new();
-//    board.print();
-//    board.place_hotel(Position::new(Letter::E, 6))?;
-//    board.print();
-//    board.place_hotel_debug(Position::new(Letter::D, 2), Hotel::Airport)?;
-//    place_test_hotels(&mut board)?;
-//    board.print();
+    let opts = Opts::parse();
+    //    let mut board = Board::new();
+    //    board.print();
+    //    board.place_hotel(Position::new(Letter::E, 6))?;
+    //    board.print();
+    //    board.place_hotel_debug(Position::new(Letter::D, 2), Hotel::Airport)?;
+    //    place_test_hotels(&mut board)?;
+    //    board.print();
     print_welcome();
-    println!("Please enter the number of players:");
-    let number_of_players = data_stream::read_number()?;
-    let mut game = Game::new(number_of_players)?;
+    let mut game = Game::new(opts.players)?;
     game.start_game()?;
-    game.print_player_cards(1);
     //Board::print(&game.board);
-//    game.board.print();
-//    for position in game.position_cards {
-//        game.board.place_hotel(position)?;
-//    }
-//    game.board.print();
+    //    game.board.print();
+    //    for position in game.position_cards {
+    //        game.board.place_hotel(position)?;
+    //    }
+    //    game.board.print();
     Ok(())
 }
 
@@ -45,4 +50,3 @@ fn place_test_hotels(board: &mut Board) -> Result<()> {
     }
     Ok(())
 }
-

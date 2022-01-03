@@ -1,12 +1,12 @@
 /// Contains all functionalities that are required to play the game.
 pub mod game {
-    use miette::{miette, Result, IntoDiagnostic};
+    use miette::{miette, IntoDiagnostic, Result};
     use rand::Rng;
 
-    use crate::base_game::{Letter, Piece, Position, Board};
+    use crate::base_game::{Board, Letter, Piece, Position};
 
     use super::player::Player;
-    
+
     //TODO Check what field are required to be public, make private if not used
     pub struct Game {
         /// The board that belongs to this game
@@ -25,13 +25,13 @@ pub mod game {
         /// Initializes a new game
         pub fn new(number_of_players: u8) -> Result<Self> {
             // verify that the amout of players entered is between 2 and 6
-            if number_of_players < 2 || number_of_players > 6{
-                return Err(miette!("Unable to create new game: The amount of players is invalid. Valid: 2-6, entered: {}", number_of_players))
+            if number_of_players < 2 || number_of_players > 6 {
+                return Err(miette!("Unable to create new game: The amount of players is invalid. Valid: 2-6, entered: {}", number_of_players));
             }
 
             let mut position_cards = Game::init_position_cards();
             let players = Game::init_players(number_of_players, &mut position_cards)?;
-            Ok (Self {
+            Ok(Self {
                 board: Board::new(),
                 position_cards,
                 bank: Bank::Bank::new(),
@@ -40,13 +40,15 @@ pub mod game {
                 game_started: false,
             })
         }
-       
+
         /// Starts the game that has been created previously.
         /// Returns an Error when the game has already been started.
         pub fn start_game(&mut self) -> Result<()> {
             println!("Starting game!");
             if self.game_started {
-                return Err(miette!("Unable to start game: Game has already been started!"))
+                return Err(miette!(
+                    "Unable to start game: Game has already been started!"
+                ));
             } else {
                 self.game_started = true;
             }
@@ -65,7 +67,10 @@ pub mod game {
         }
 
         /// Initializes all players and puts them in the vector
-        fn init_players(number_of_players: u8, position_cards: &mut Vec<Position>) -> Result<Vec<Player>> {
+        fn init_players(
+            number_of_players: u8,
+            position_cards: &mut Vec<Position>,
+        ) -> Result<Vec<Player>> {
             let mut players: Vec<Player> = Vec::new();
             // Contains the position cards for each player.
             let mut player_cards: Vec<Vec<Position>> = Vec::new();
@@ -75,14 +80,17 @@ pub mod game {
             }
             // Get the starting cards for the player
             for _i in 1..=6 {
-                for player in 0..=number_of_players-1 {
-                    let random_number = rand::thread_rng().gen_range(0..=position_cards.len()-1);
+                for player in 0..=number_of_players - 1 {
+                    let random_number = rand::thread_rng().gen_range(0..=position_cards.len() - 1);
                     if let Some(position) = position_cards.get(random_number) {
-                        player_cards.get_mut(usize::try_from(player).unwrap()).unwrap().push(*position);
+                        player_cards
+                            .get_mut(usize::try_from(player).unwrap())
+                            .unwrap()
+                            .push(*position);
                         position_cards.remove(usize::try_from(random_number).unwrap());
                     } else {
                         println!("position_cards length: {}", position_cards.len());
-                        return Err(miette!("Unable to add position to list. The index {} does not exist in the position_cards vector!", random_number))
+                        return Err(miette!("Unable to add position to list. The index {} does not exist in the position_cards vector!", random_number));
                     }
                 }
             }
@@ -205,7 +213,7 @@ mod tests {
         while index <= 1000 {
             let game = Game::new(2).unwrap();
             assert_eq!(game.position_cards.len(), 96);
-            index+=1;
+            index += 1;
         }
     }
 }
