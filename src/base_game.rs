@@ -242,13 +242,15 @@ pub mod board {
 /// Contains all functionalities related to the hotel buildings. Like name, information about stock
 /// values and more.
 pub mod hotel {
-    use std::slice::Iter;
+    use std::{slice::Iter, fmt::{Display, Formatter, self}};
 
     use colored::Color;
 
+    use super::stock;
+
     //TODO See if it would be a better idea to remove the clone, copy
     /// All different hotel types that exist in the game
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
     pub enum Hotel {
         Airport,
         Continental,
@@ -315,7 +317,7 @@ pub mod hotel {
         }
 
         pub fn iterator() -> Iter<'static, Hotel> {
-            static HOTELS: [Hotel; 7] = [
+            const HOTELS: [Hotel; 7] = [
                 Hotel::Airport,
                 Hotel::Continental,
                 Hotel::Festival,
@@ -325,6 +327,150 @@ pub mod hotel {
                 Hotel::Prestige,
             ];
             HOTELS.iter()
+        }
+
+        /// Returns the value of a single stock for the hotel chain.
+        /// Value is returned with help of [`super::stock::stock_price`].
+        /// # Arguments
+        /// * 'number_of_hotels' - The number of hotels that currently belong to the hotel chain
+        pub fn stock_value(&self, number_of_hotels: u8) -> i32 {
+            stock::stock_price(self.price_level(), number_of_hotels)
+        }
+        
+        /// Returns the price level of the hotel. This has an influence on the stock value.
+        pub fn price_level(&self) -> PriceLevel {
+            match *self {
+                Hotel::Airport => PriceLevel::Low,
+                Hotel::Continental => PriceLevel::High,
+                Hotel::Festival => PriceLevel::Low,
+                Hotel::Imperial => PriceLevel::Medium,
+                Hotel::Luxor => PriceLevel::Medium,
+                Hotel::Oriental => PriceLevel::Medium,
+                Hotel::Prestige => PriceLevel::High
+            }
+        }
+    }
+
+    /// Used to set the price level for an hotel. This has an influence on the stock value.
+    pub enum PriceLevel {
+        Low,
+        Medium,
+        High,
+    }
+
+    impl PriceLevel {
+        pub fn iterator() -> Iter<'static, PriceLevel> {
+            const PRICE_LEVELS: [PriceLevel; 3] = [
+                PriceLevel::Low,
+                PriceLevel::Medium,
+                PriceLevel::High,
+            ];
+            PRICE_LEVELS.iter()
+        }
+    }
+
+    impl Display for Hotel {
+        fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+            write!(f, "{:?}", self)
+        }
+    }
+    
+    #[cfg(test)]
+    mod tests {
+        use crate::base_game::hotel::Hotel;
+
+        #[test]
+        fn name() {
+            assert_eq!("Airport", Hotel::Airport.to_string());
+            assert_eq!("Continental", Hotel::Continental.to_string());
+            assert_eq!("Festival", Hotel::Festival.to_string());
+            assert_eq!("Imperial", Hotel::Imperial.to_string());
+            assert_eq!("Luxor", Hotel::Luxor.to_string());
+            assert_eq!("Oriental", Hotel::Oriental.to_string());
+            assert_eq!("Prestige", Hotel::Prestige.to_string());
+        }
+    }
+}
+
+/// Contains all functions for the stocks.
+pub mod stock {
+    use std::collections::HashMap;
+
+    use super::hotel::{Hotel, PriceLevel};
+
+
+    /// Used to symbolize how many stocks a player has/the bank has left for a specific hotel
+    pub struct Stocks {
+        // Contains the stocks.
+        stocks: HashMap<Hotel, u8>,
+    }
+
+    impl Stocks {
+        /// Initializes a new stock struct. Member variables are set to 0
+        pub fn new() -> Self {
+            let mut stocks: HashMap<Hotel, u8> = HashMap::new();
+            for hotel in Hotel::iterator() {
+                stocks.insert(*hotel, 0);
+            }
+            Self {
+                stocks,
+            }
+        }
+
+        /// Initializes a new stock struct. Member variables are set to 25. This is used so that
+        /// the bank works get all available stocks at the start.
+        pub fn new_bank() -> Self {
+            let mut stocks: HashMap<Hotel, u8> = HashMap::new();
+            for hotel in Hotel::iterator() {
+                stocks.insert(*hotel, 25);
+            }
+            Self {
+                stocks,
+            }
+        }
+    }
+    
+    /// The base prices for a single stock
+    const STOCK_BASE_PRICE: [i32; 11] = [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200];
+
+    /// Calculates the current stock price for the hotel.
+    /// # Arguments
+    /// * `price_level` - Of what price level the stock is
+    /// * `number_of_hotels` - The number of hotels that belong to the chain
+    pub fn stock_price(price_level: PriceLevel, number_of_hotels: u8) -> i32 {
+        // Offset ist added to increate the stock price for hotels that have higher prices
+        let offset = match price_level {
+            PriceLevel::Low => 0,
+            PriceLevel::Medium => 1,
+            PriceLevel::High => 2,
+        };
+        // The index that should be pulled from the vector, determined by number of hotels
+        let stock_price_level = match number_of_hotels {
+            2 => 0,
+            3 => 1,
+            4 => 2,
+            5 => 3,
+            6..=10 => 4,
+            11..=20 => 5,
+            21..=30 => 6,
+            31..=40 => 7,
+            _ => 8,
+        };
+        *STOCK_BASE_PRICE.get(stock_price_level+offset).unwrap()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use crate::base_game::{hotel::PriceLevel, stock::stock_price};
+
+        #[test]
+        fn test_stock_price() {
+            assert_eq!(stock_price(PriceLevel::Low, 2), 200);
+            assert_eq!(stock_price(PriceLevel::Low, 40), 900);
+            assert_eq!(stock_price(PriceLevel::Medium, 4), 500);
+            assert_eq!(stock_price(PriceLevel::Medium, 20), 800);
+            assert_eq!(stock_price(PriceLevel::High, 4), 600);
+            assert_eq!(stock_price(PriceLevel::High, 20), 900);
         }
     }
 }

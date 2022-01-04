@@ -8,6 +8,7 @@ mod game;
 
 use base_game::board::{Board, Letter, Position};
 use base_game::hotel::Hotel;
+use base_game::stock;
 use clap::Parser;
 use game::game::Game;
 use miette::Result;
@@ -36,8 +37,8 @@ fn main() -> miette::Result<()> {
     //        board.print();
     print_welcome();
     let mut game = Game::new(opts.players, opts.large_board)?;
-    game.start_game()?;
-    //    test_things(game)?;
+    //game.start_game()?;
+    test_things(game)?;
     Ok(())
 }
 
@@ -62,5 +63,7 @@ fn test_things(mut game: Game) -> Result<()> {
     }
     //    place_test_hotels(&mut game.board)?;
     game.board.print();
+    println!("High Price Hotel with 40 Hotels: {}", stock::stock_price(base_game::hotel::PriceLevel::High, 40));
+    println!("High Price Hotel with 41 Hotels: {}", stock::stock_price(base_game::hotel::PriceLevel::High, 41));
     Ok(())
 }

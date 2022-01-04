@@ -122,7 +122,7 @@ pub mod game {
 
     /// Manages the currently available stocks and the money
     mod Bank {
-        use crate::game::stock::Stocks;
+        use crate::base_game::stock::Stocks;
 
         pub struct Bank {
             available_stocks: Stocks,
@@ -160,7 +160,7 @@ pub mod game {
 
 /// Player management
 mod player {
-    use crate::{base_game::board::Position, game::stock::Stocks};
+    use crate::{base_game::board::Position, base_game::stock::Stocks};
     /// Stores all variables that belong to the player
     pub struct Player {
         money: i32,
@@ -186,49 +186,6 @@ mod player {
                 print!("[{}{:2}]", position.letter, position.number);
             }
             println!();
-        }
-    }
-}
-
-/// Contains all functions for the stocks
-mod stock {
-
-    /// Used to symbolize how many stocks a player has of a specific hotel
-    pub struct Stocks {
-        airport: u8,
-        continental: u8,
-        festival: u8,
-        imperial: u8,
-        luxor: u8,
-        oriental: u8,
-        prestige: u8,
-    }
-
-    impl Stocks {
-        /// Initializes a new Stock struct. Member variables are set to 0
-        pub fn new() -> Self {
-            Self {
-                airport: 0,
-                continental: 0,
-                festival: 0,
-                imperial: 0,
-                luxor: 0,
-                oriental: 0,
-                prestige: 0,
-            }
-        }
-
-        /// Initializes a new Stock struct. Member variables are set to 25
-        pub fn new_bank() -> Self {
-            Self {
-                airport: 25,
-                continental: 25,
-                festival: 25,
-                imperial: 25,
-                luxor: 25,
-                oriental: 25,
-                prestige: 25,
-            }
         }
     }
 }
