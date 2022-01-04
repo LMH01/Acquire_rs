@@ -149,6 +149,8 @@ pub mod board {
     }
 
     impl Position {
+        //TODO Change return type to Result<Self> and return error when number > 12 has been
+        //entered.
         /// Creates a new position
         pub fn new(letter: Letter, number: u8) -> Self {
             Self { letter, number }
@@ -242,7 +244,10 @@ pub mod board {
 /// Contains all functionalities related to the hotel buildings. Like name, information about stock
 /// values and more.
 pub mod hotel {
-    use std::{slice::Iter, fmt::{Display, Formatter, self}};
+    use std::{
+        fmt::{self, Display, Formatter},
+        slice::Iter,
+    };
 
     use colored::Color;
 
@@ -336,7 +341,7 @@ pub mod hotel {
         pub fn stock_value(&self, number_of_hotels: u8) -> i32 {
             stock::stock_price(self.price_level(), number_of_hotels)
         }
-        
+
         /// Returns the price level of the hotel. This has an influence on the stock value.
         pub fn price_level(&self) -> PriceLevel {
             match *self {
@@ -346,7 +351,7 @@ pub mod hotel {
                 Hotel::Imperial => PriceLevel::Medium,
                 Hotel::Luxor => PriceLevel::Medium,
                 Hotel::Oriental => PriceLevel::Medium,
-                Hotel::Prestige => PriceLevel::High
+                Hotel::Prestige => PriceLevel::High,
             }
         }
     }
@@ -360,11 +365,8 @@ pub mod hotel {
 
     impl PriceLevel {
         pub fn iterator() -> Iter<'static, PriceLevel> {
-            const PRICE_LEVELS: [PriceLevel; 3] = [
-                PriceLevel::Low,
-                PriceLevel::Medium,
-                PriceLevel::High,
-            ];
+            const PRICE_LEVELS: [PriceLevel; 3] =
+                [PriceLevel::Low, PriceLevel::Medium, PriceLevel::High];
             PRICE_LEVELS.iter()
         }
     }
@@ -374,7 +376,7 @@ pub mod hotel {
             write!(f, "{:?}", self)
         }
     }
-    
+
     #[cfg(test)]
     mod tests {
         use crate::base_game::hotel::Hotel;
@@ -398,7 +400,6 @@ pub mod stock {
 
     use super::hotel::{Hotel, PriceLevel};
 
-
     /// Used to symbolize how many stocks a player has/the bank has left for a specific hotel
     pub struct Stocks {
         // Contains the stocks.
@@ -412,9 +413,7 @@ pub mod stock {
             for hotel in Hotel::iterator() {
                 stocks.insert(*hotel, 0);
             }
-            Self {
-                stocks,
-            }
+            Self { stocks }
         }
 
         /// Initializes a new stock struct. Member variables are set to 25. This is used so that
@@ -424,12 +423,10 @@ pub mod stock {
             for hotel in Hotel::iterator() {
                 stocks.insert(*hotel, 25);
             }
-            Self {
-                stocks,
-            }
+            Self { stocks }
         }
     }
-    
+
     /// The base prices for a single stock
     const STOCK_BASE_PRICE: [i32; 11] = [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200];
 
@@ -456,7 +453,7 @@ pub mod stock {
             31..=40 => 7,
             _ => 8,
         };
-        *STOCK_BASE_PRICE.get(stock_price_level+offset).unwrap()
+        *STOCK_BASE_PRICE.get(stock_price_level + offset).unwrap()
     }
 
     #[cfg(test)]
@@ -471,6 +468,24 @@ pub mod stock {
             assert_eq!(stock_price(PriceLevel::Medium, 20), 800);
             assert_eq!(stock_price(PriceLevel::High, 4), 600);
             assert_eq!(stock_price(PriceLevel::High, 20), 900);
+        }
+    }
+}
+
+/// Manages the currently available stocks and the money.
+pub mod bank {
+    use crate::base_game::stock::Stocks;
+
+    pub struct Bank {
+        available_stocks: Stocks,
+    }
+
+    impl Bank {
+        /// Creates a new bank
+        pub fn new() -> Self {
+            Self {
+                available_stocks: Stocks::new_bank(),
+            }
         }
     }
 }

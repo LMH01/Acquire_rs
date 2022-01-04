@@ -58,12 +58,23 @@ fn test_things(mut game: Game) -> Result<()> {
     //    game.board.print();
     //        Board::print(&game.board);
     //        game.board.print();
-    for position in game.position_cards {
-        game.board.place_hotel(position)?;
-    }
+    //    for position in &game.position_cards {
+    //        game.board.place_hotel(*position)?;
+    //    }
     //    place_test_hotels(&mut game.board)?;
+    //    place_test_hotels(&mut game.board)?;
+    game.board
+        .place_hotel_debug(Position::new(Letter::B, 10), Hotel::Oriental)?;
+    game.board
+        .place_hotel_debug(Position::new(Letter::E, 9), Hotel::Continental)?;
     game.board.print();
-    println!("High Price Hotel with 40 Hotels: {}", stock::stock_price(base_game::hotel::PriceLevel::High, 40));
-    println!("High Price Hotel with 41 Hotels: {}", stock::stock_price(base_game::hotel::PriceLevel::High, 41));
+    println!(
+        "High Price Hotel with 40 Hotels: {}",
+        stock::stock_price(base_game::hotel::PriceLevel::High, 40)
+    );
+    println!(
+        "High Price Hotel with 41 Hotels: {}",
+        stock::stock_price(base_game::hotel::PriceLevel::High, 41)
+    );
     Ok(())
 }

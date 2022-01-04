@@ -3,7 +3,10 @@ pub mod game {
     use miette::{miette, IntoDiagnostic, Result};
     use rand::Rng;
 
-    use crate::base_game::board::{Board, Letter, Piece, Position};
+    use crate::base_game::{
+        board::{Board, Letter, Piece, Position},
+        bank::Bank,
+    };
 
     use super::player::Player;
 
@@ -13,7 +16,7 @@ pub mod game {
         /// The board that belongs to this game
         pub board: Board,
         /// The bank that manages the stocks and the money
-        bank: Bank::Bank,
+        bank: Bank,
         /// The positions that can be drawn
         pub position_cards: Vec<Position>,
         /// A vector that contains all players that participate in the game
@@ -35,7 +38,7 @@ pub mod game {
             Ok(Self {
                 board: Board::new(large_board),
                 position_cards,
-                bank: Bank::Bank::new(),
+                bank: Bank::new(),
                 players,
                 number_of_players,
                 game_started: false,
@@ -54,6 +57,14 @@ pub mod game {
                 self.game_started = true;
             }
             println!("Each player draws a card now, the player with the lowest card starts.");
+            //TODO Continue to work here
+            // Write function that prints current game information to console:
+            //  Current player: Money, stocks they have, cards they have
+            //  Game stats: How many hotels a chain has, how many stocks are left, how much a stock
+            //  is worth
+            //
+            //  Maybe print the same info card that exists in the real game where the current
+            //  amount of hotels is highlighted
             Ok(())
         }
 
@@ -117,24 +128,6 @@ pub mod game {
             let position = self.position_cards.get(random_number).unwrap().clone();
             self.position_cards.remove(random_number);
             Ok(position)
-        }
-    }
-
-    /// Manages the currently available stocks and the money
-    mod Bank {
-        use crate::base_game::stock::Stocks;
-
-        pub struct Bank {
-            available_stocks: Stocks,
-        }
-
-        impl Bank {
-            /// Creates a new bank
-            pub fn new() -> Self {
-                Self {
-                    available_stocks: Stocks::new_bank(),
-                }
-            }
         }
     }
 
