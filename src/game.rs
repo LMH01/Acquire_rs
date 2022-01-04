@@ -3,7 +3,7 @@ pub mod game {
     use miette::{miette, IntoDiagnostic, Result};
     use rand::Rng;
 
-    use crate::base_game::{Board, Letter, Piece, Position};
+    use crate::base_game::board::{Board, Letter, Piece, Position};
 
     use super::player::Player;
 
@@ -160,7 +160,7 @@ pub mod game {
 
 /// Player management
 mod player {
-    use crate::{base_game::Position, game::stock::Stocks};
+    use crate::{base_game::board::Position, game::stock::Stocks};
     /// Stores all variables that belong to the player
     pub struct Player {
         money: i32,

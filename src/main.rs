@@ -6,7 +6,8 @@ mod data_stream;
 /// of new games, game logic, management of players and more.
 mod game;
 
-use base_game::{Board, Hotel, Letter, Position};
+use base_game::board::{Board, Letter, Position};
+use base_game::hotel::Hotel;
 use clap::Parser;
 use game::game::Game;
 use miette::Result;
@@ -36,7 +37,7 @@ fn main() -> miette::Result<()> {
     print_welcome();
     let mut game = Game::new(opts.players, opts.large_board)?;
     game.start_game()?;
-//    test_things(game)?;
+    //    test_things(game)?;
     Ok(())
 }
 
@@ -52,14 +53,14 @@ fn place_test_hotels(board: &mut Board) -> Result<()> {
 }
 
 fn test_things(mut game: Game) -> Result<()> {
-//    game.board.place_hotel_debug(Position::new(Letter::A, 2), Hotel::Luxor);
-//    game.board.print();
+    //    game.board.place_hotel_debug(Position::new(Letter::A, 2), Hotel::Luxor);
+    //    game.board.print();
     //        Board::print(&game.board);
     //        game.board.print();
     for position in game.position_cards {
         game.board.place_hotel(position)?;
     }
-//    place_test_hotels(&mut game.board)?;
+    //    place_test_hotels(&mut game.board)?;
     game.board.print();
     Ok(())
 }
