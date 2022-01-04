@@ -6,28 +6,44 @@ use self::Letter::*;
 use colored::*;
 
 pub struct Piece {
-    chain: Option<Hotel>, // Stores what hotel chain this piece belongs to
-    position: Position,   // Stores the position on the board of this piece
-    piece_set: bool,      // Stores if the piece has been set yet
+    /// Stores what hotel chain this piece belongs to
+    chain: Option<Hotel>, 
+    /// Stores the position on the board of this piece
+    position: Position,
+    /// Stores if the piece has been set yet
+    piece_set: bool,
 }
 
 impl Piece {
-    fn print_text(&self) -> ColoredString {
+    fn print_text(&self, compact: bool) -> ColoredString {
         if self.piece_set {
             if self.chain.is_some() {
-                let mut string = String::from(" ");
-                string.push(self.chain.as_ref().unwrap().identifier());
-                string.push(' ');
-                string.color(Hotel::color(&self.chain.as_ref().unwrap()))
+                if compact {
+                    String::from(self.chain.as_ref().unwrap().identifier())
+                        .color(Hotel::color(&self.chain.as_ref().unwrap()))
+                } else {
+                    let mut string = String::from(" ");
+                    string.push(self.chain.as_ref().unwrap().identifier());
+                    string.push(' ');
+                    string.color(Hotel::color(&self.chain.as_ref().unwrap()))
+                }
             } else {
-                String::from("XXX").bright_white()
+                if compact {
+                    String::from("X").bright_white()
+                } else {
+                    String::from("XXX").bright_white()
+                }
             }
         } else {
-            String::from(format!(
-                "{}{:2}",
-                self.position.letter, self.position.number
-            ))
-            .white()
+            if compact {
+                String::from(' ').white()
+            } else {
+                String::from(format!(
+                    "{}{:2}",
+                    self.position.letter, self.position.number
+                ))
+                .white()
+            }
         }
     }
 }
@@ -168,10 +184,39 @@ impl Display for Letter {
 
 pub struct Board {
     pieces: Vec<Vec<Piece>>,
+    /// Determines how the board should be printed.
+    /// This behaviour can be set with the -l flag.
+    /// If true the (empty) board is printed this way:
+    /// ``` none
+    /// A [A 1] [A 2] [A 3] [A 4] [A 5] [A 6] [A 7] [A 8] [A 9] [A10] [A11] [A12]
+    /// B [B 1] [B 2] [B 3] [B 4] [B 5] [B 6] [B 7] [B 8] [B 9] [B10] [B11] [B12]
+    /// C [C 1] [C 2] [C 3] [C 4] [C 5] [C 6] [C 7] [C 8] [C 9] [C10] [C11] [C12]
+    /// D [D 1] [D 2] [D 3] [D 4] [D 5] [D 6] [D 7] [D 8] [D 9] [D10] [D11] [D12]
+    /// E [E 1] [E 2] [E 3] [E 4] [E 5] [E 6] [E 7] [E 8] [E 9] [E10] [E11] [E12]
+    /// F [F 1] [F 2] [F 3] [F 4] [F 5] [F 6] [F 7] [F 8] [F 9] [F10] [F11] [F12]
+    /// G [G 1] [G 2] [G 3] [G 4] [G 5] [G 6] [G 7] [G 8] [G 9] [G10] [G11] [G12]
+    /// H [H 1] [H 2] [H 3] [H 4] [H 5] [H 6] [H 7] [H 8] [H 9] [H10] [H11] [H12]
+    /// I [I 1] [I 2] [I 3] [I 4] [I 5] [I 6] [I 7] [I 8] [I 9] [I10] [I11] [I12]
+    ///      1     2     3     4     5     6     7     8     9    10    11    12
+    /// ```
+    /// If false the (empty) board is printed this way:
+    /// ```none
+    /// A
+    /// B
+    /// C
+    /// D
+    /// E
+    /// F
+    /// G
+    /// H
+    /// I
+    ///   1  2  3  4  5  6  7  8  9 10 11 12
+    /// ```
+    large_board: bool,
 }
 
 impl Board {
-    pub fn new() -> Self {
+    pub fn new(large_board: bool) -> Self {
         let mut pieces: Vec<Vec<Piece>> = Vec::new();
         // initialize pieces
         for c in Letter::iterator() {
@@ -185,17 +230,38 @@ impl Board {
             }
             pieces.push(x_pieces);
         }
-        Self { pieces }
+        Self {
+            pieces,
+            large_board,
+        }
     }
 
     pub fn print(&self) {
         println!();
+        let mut letters = Letter::iterator();
         for x in &self.pieces {
+            print!("{} ", letters.next().unwrap());
             for y in x {
-                print!("[{}] ", y.print_text());
+                if self.large_board {
+                    print!("[{}] ", y.print_text(false));
+                } else {
+                    print!("{}  ", y.print_text(true))
+                }
             }
             println!()
         }
+        if self.large_board {
+            print!("    ");
+            for x in 1..=12 {
+                print!("{:2}    ", &x);
+            }
+        } else {
+            print!(" ");
+            for x in 1..=12 {
+                print!("{:2} ", &x);
+            }
+        }
+        println!("");
     }
 
     /// Places a hotel at the designated coordinates

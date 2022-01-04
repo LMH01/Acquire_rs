@@ -8,6 +8,7 @@ pub mod game {
     use super::player::Player;
 
     //TODO Check what field are required to be public, make private if not used
+    /// Contains all variables required to play a game
     pub struct Game {
         /// The board that belongs to this game
         pub board: Board,
@@ -23,7 +24,7 @@ pub mod game {
 
     impl Game {
         /// Initializes a new game
-        pub fn new(number_of_players: u8) -> Result<Self> {
+        pub fn new(number_of_players: u8, large_board: bool) -> Result<Self> {
             // verify that the amout of players entered is between 2 and 6
             if number_of_players < 2 || number_of_players > 6 {
                 return Err(miette!("Unable to create new game: The amount of players is invalid. Valid: 2-6, entered: {}", number_of_players));
@@ -32,7 +33,7 @@ pub mod game {
             let mut position_cards = Game::init_position_cards();
             let players = Game::init_players(number_of_players, &mut position_cards)?;
             Ok(Self {
-                board: Board::new(),
+                board: Board::new(large_board),
                 position_cards,
                 bank: Bank::Bank::new(),
                 players,
@@ -52,6 +53,7 @@ pub mod game {
             } else {
                 self.game_started = true;
             }
+            println!("Each player draws a card now, the player with the lowest card starts.");
             Ok(())
         }
 
@@ -104,6 +106,18 @@ pub mod game {
         pub fn print_player_cards(&self, player: usize) {
             self.players.get(player).unwrap().print_cards();
         }
+
+        /// Draw a card from the ['game::Game#position_cards']position_cards deck
+        fn draw_card(&mut self) -> Result<Position> {
+            let random_number = rand::thread_rng().gen_range(0..=self.position_cards.len() - 1);
+            if let None = self.position_cards.get(random_number) {
+                println!("position_cards length: {}", self.position_cards.len());
+                return Err(miette!("Unable to add position to list. The index {} does not exist in the position_cards vector!", random_number));
+            }
+            let position = self.position_cards.get(random_number).unwrap().clone();
+            self.position_cards.remove(random_number);
+            Ok(position)
+        }
     }
 
     /// Manages the currently available stocks and the money
@@ -125,7 +139,23 @@ pub mod game {
     }
 
     /// Manages a single round. A round consists of each player doing a move.
-    mod Round {}
+    mod round {}
+
+    #[cfg(test)]
+    mod game_tests {
+        use crate::game::game::Game;
+
+        #[test]
+        fn test_draw_card() {
+            let mut game = Game::new(2, false).unwrap();
+            game.draw_card().unwrap();
+            game.draw_card().unwrap();
+            assert_eq!(game.position_cards.len(), 94);
+            game = Game::new(6, false).unwrap();
+            game.draw_card().unwrap();
+            assert_eq!(game.position_cards.len(), 71);
+        }
+    }
 }
 
 /// Player management
@@ -211,7 +241,7 @@ mod tests {
     fn test_position_card_amount() {
         let mut index = 0;
         while index <= 1000 {
-            let game = Game::new(2).unwrap();
+            let game = Game::new(2, false).unwrap();
             assert_eq!(game.position_cards.len(), 96);
             index += 1;
         }
