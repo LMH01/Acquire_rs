@@ -215,12 +215,18 @@ pub mod game {
 
 /// Player management
 pub mod player {
-    use crate::{base_game::board::Position, base_game::stock::Stocks};
+    use std::slice::SliceIndex;
+
+    use crate::{
+        base_game::board::Position,
+        base_game::{hotel::Hotel, stock::Stocks},
+    };
     /// Stores all variables that belong to the player
     pub struct Player {
-        pub money: u32,
+        /// The money the player currently has
+        money: u32,
         /// The stocks that the player currently owns
-        pub owned_stocks: Stocks,
+        owned_stocks: Stocks,
         /// Contains the cards that the player currently has on his hand and that could be played
         cards: Vec<Position>,
     }
@@ -234,12 +240,52 @@ pub mod player {
             }
         }
 
+        /// Returns the players money
+        pub fn money(&self) -> u32 {
+            self.money
+        }
+
+        /// Returns the players owned stocks
+        pub fn owned_stocks(&self) -> &Stocks {
+            &self.owned_stocks
+        }
+
+        /// Returns the players cards
+        pub fn cards(&self) -> &Vec<Position> {
+            &self.cards
+        }
+
+        /// The the players money
+        pub fn set_money(&mut self, money: u32) {
+            self.money = money;
+        }
+
+        /// Add money to the player
+        pub fn add_money(&mut self, money: u32) {
+            self.money += money;
+        }
+
+        /// Remove money to the player
+        pub fn remove_money(&mut self, money: u32) {
+            self.money -= money;
+        }
+
+        /// Add stocks that the player owns
+        pub fn add_stocks(&mut self, hotel: &Hotel, amount: u32) {
+            self.owned_stocks.increase_stocks(hotel, amount);
+        }
+
+        /// Remove stocks that the player owns
+        pub fn remove_stocks(&mut self, hotel: &Hotel, amount: u32) {
+            self.owned_stocks.decrease_stocks(hotel, amount);
+        }
+
         /// Print the cards the player currently has
         pub fn print_cards(&self) {
             println!();
             print!("Your current cards: ");
             for position in &self.cards {
-                print!("[{}{:2}]", position.letter, position.number);
+                print!("[{}{:2}]", position.letter(), position.number());
             }
             println!();
         }
