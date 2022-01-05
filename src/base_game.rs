@@ -511,11 +511,8 @@ pub mod bank {
     use miette::{miette, Result};
 
     use crate::{
-        base_game::stock::Stocks,
-        game::{
-            game::{hotel_manager::HotelManager, Game},
-            player::Player,
-        },
+        base_game::{stock::Stocks, player::Player},
+        game::game::{hotel_manager::HotelManager, Game},
     };
 
     use super::hotel::Hotel;
@@ -628,6 +625,85 @@ pub mod bank {
                 Err(_) => true,
                 Ok(_) => false,
             };
+        }
+    }
+}
+
+/// Player management
+pub mod player {
+    use std::slice::SliceIndex;
+
+    use crate::{
+        base_game::board::Position,
+        base_game::{hotel::Hotel, stock::Stocks},
+    };
+    /// Stores all variables that belong to the player
+    pub struct Player {
+        /// The money the player currently has
+        money: u32,
+        /// The stocks that the player currently owns
+        owned_stocks: Stocks,
+        /// Contains the cards that the player currently has on his hand and that could be played
+        cards: Vec<Position>,
+    }
+
+    impl Player {
+        pub fn new(start_cards: Vec<Position>) -> Self {
+            Self {
+                money: 6000,
+                owned_stocks: Stocks::new(),
+                cards: start_cards,
+            }
+        }
+
+        /// Returns the players money
+        pub fn money(&self) -> u32 {
+            self.money
+        }
+
+        /// Returns the players owned stocks
+        pub fn owned_stocks(&self) -> &Stocks {
+            &self.owned_stocks
+        }
+
+        /// Returns the players cards
+        pub fn cards(&self) -> &Vec<Position> {
+            &self.cards
+        }
+
+        /// The the players money
+        pub fn set_money(&mut self, money: u32) {
+            self.money = money;
+        }
+
+        /// Add money to the player
+        pub fn add_money(&mut self, money: u32) {
+            self.money += money;
+        }
+
+        /// Remove money to the player
+        pub fn remove_money(&mut self, money: u32) {
+            self.money -= money;
+        }
+
+        /// Add stocks that the player owns
+        pub fn add_stocks(&mut self, hotel: &Hotel, amount: u32) {
+            self.owned_stocks.increase_stocks(hotel, amount);
+        }
+
+        /// Remove stocks that the player owns
+        pub fn remove_stocks(&mut self, hotel: &Hotel, amount: u32) {
+            self.owned_stocks.decrease_stocks(hotel, amount);
+        }
+
+        /// Print the cards the player currently has
+        pub fn print_cards(&self) {
+            println!();
+            print!("Your current cards: ");
+            for position in &self.cards {
+                print!("[{}{:2}]", position.letter(), position.number());
+            }
+            println!();
         }
     }
 }
