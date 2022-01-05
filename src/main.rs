@@ -10,12 +10,15 @@ use base_game::board::{Board, Letter, Position};
 use base_game::hotel::Hotel;
 use base_game::stock;
 use clap::Parser;
-use game::game::Game;
+use game::game::GameManager;
 use miette::Result;
+
+use crate::base_game::board::Piece;
 
 //TODO Make all fields that i made public in the struct private and provide getters and, where
 //needed setters
 //TODO See if i can remove the clone, copy trait from the hotel enum
+//TODO Move player module from game.rs to base_game.rs
 
 #[derive(Parser)]
 #[clap(about = "The board game Acquire fia command line in Rust")]
@@ -40,9 +43,9 @@ fn main() -> miette::Result<()> {
     //        place_test_hotels(&mut board)?;
     //        board.print();
     print_welcome();
-    let mut game = Game::new(opts.players, opts.large_board)?;
-    //game.start_game()?;
-    test_things(game)?;
+    let mut game_manager = GameManager::new(opts.players, opts.large_board)?;
+    //game_manager.start_game()?;
+    test_things(game_manager)?;
     Ok(())
 }
 
@@ -57,7 +60,7 @@ fn place_test_hotels(board: &mut Board) -> Result<()> {
     Ok(())
 }
 
-fn test_things(mut game: Game) -> Result<()> {
+fn test_things(mut game: GameManager) -> Result<()> {
     //    game.board.place_hotel_debug(Position::new(Letter::A, 2), Hotel::Luxor);
     //    game.board.print();
     //        Board::print(&game.board);
@@ -80,6 +83,10 @@ fn test_things(mut game: Game) -> Result<()> {
         "High Price Hotel with 41 Hotels: {}",
         stock::stock_price(base_game::hotel::PriceLevel::High, 41)
     );
-    game.bank.buy_stock(&game.hotel_manager, &Hotel::Airport, game.players.get_mut(0).unwrap())?;
+    game.bank.buy_stock(
+        &game.hotel_manager,
+        &Hotel::Airport,
+        game.players.get_mut(0).unwrap(),
+    )?;
     Ok(())
 }

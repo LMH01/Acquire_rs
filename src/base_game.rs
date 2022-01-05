@@ -512,7 +512,7 @@ pub mod bank {
 
     use crate::{
         base_game::{stock::Stocks, player::Player},
-        game::game::{hotel_manager::HotelManager, Game},
+        game::game::{hotel_manager::HotelManager, GameManager},
     };
 
     use super::hotel::Hotel;
@@ -588,11 +588,11 @@ pub mod bank {
 
         use miette::{MietteError, Result};
 
-        use crate::{base_game::hotel::Hotel, game::game::Game};
+        use crate::{base_game::hotel::Hotel, game::game::GameManager};
 
         #[test]
         fn test_buy_stock() {
-            let mut game = Game::new(2, false).unwrap();
+            let mut game = GameManager::new(2, false).unwrap();
             // Test if Hotel is not active error works
             let mut input = game.bank.buy_stock(
                 &game.hotel_manager,

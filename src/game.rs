@@ -15,8 +15,20 @@ pub mod game {
 
     //TODO Rename to GameManager
     //TODO Check what field are required to be public, make private if not used
-    /// Contains all variables required to play a game
-    pub struct Game {
+    /// Contains all variables required to play a game.\
+    /// This is the main interface to access game functions. Everything that happens in the game
+    /// will run through this object.\
+    /// A new game can be started this way:
+    /// ```
+    /// use game::game::GameManager;
+    /// fn main() {
+    ///     let number_of_players = 3;
+    ///     let large_board = false;
+    ///     let game_manager = GameManager::new(number_of_players, large_board);
+    ///     game_manager.start_game();
+    /// }
+    /// ```
+    pub struct GameManager {
         /// The board that belongs to this game
         pub board: Board,
         /// The bank that manages the stocks and the money
@@ -31,7 +43,7 @@ pub mod game {
         game_started: bool,
     }
 
-    impl Game {
+    impl GameManager {
         /// Initializes a new game
         pub fn new(number_of_players: u32, large_board: bool) -> Result<Self> {
             // verify that the amout of players entered is between 2 and 6
@@ -39,8 +51,8 @@ pub mod game {
                 return Err(miette!("Unable to create new game: The amount of players is invalid. Valid: 2-6, entered: {}", number_of_players));
             }
 
-            let mut position_cards = Game::init_position_cards();
-            let players = Game::init_players(number_of_players, &mut position_cards)?;
+            let mut position_cards = GameManager::init_position_cards();
+            let players = GameManager::init_players(number_of_players, &mut position_cards)?;
             Ok(Self {
                 board: Board::new(large_board),
                 position_cards,
@@ -196,15 +208,15 @@ pub mod game {
 
     #[cfg(test)]
     mod game_tests {
-        use crate::game::game::Game;
+        use crate::game::game::GameManager;
 
         #[test]
         fn test_draw_card() {
-            let mut game = Game::new(2, false).unwrap();
+            let mut game = GameManager::new(2, false).unwrap();
             game.draw_card().unwrap();
             game.draw_card().unwrap();
             assert_eq!(game.position_cards.len(), 94);
-            game = Game::new(6, false).unwrap();
+            game = GameManager::new(6, false).unwrap();
             game.draw_card().unwrap();
             assert_eq!(game.position_cards.len(), 71);
         }
@@ -213,13 +225,13 @@ pub mod game {
 
 #[cfg(test)]
 mod tests {
-    use crate::game::game::Game;
+    use crate::game::game::GameManager;
 
     #[test]
     fn test_position_card_amount() {
         let mut index = 0;
         while index <= 1000 {
-            let game = Game::new(2, false).unwrap();
+            let game = GameManager::new(2, false).unwrap();
             assert_eq!(game.position_cards.len(), 96);
             index += 1;
         }
