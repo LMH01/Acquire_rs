@@ -145,14 +145,14 @@ pub mod board {
     #[derive(Clone, Copy)]
     pub struct Position {
         pub letter: Letter,
-        pub number: u8,
+        pub number: u32,
     }
 
     impl Position {
         //TODO Change return type to Result<Self> and return error when number > 12 has been
         //entered.
         /// Creates a new position
-        pub fn new(letter: Letter, number: u8) -> Self {
+        pub fn new(letter: Letter, number: u32) -> Self {
             Self { letter, number }
         }
     }
@@ -403,13 +403,13 @@ pub mod stock {
     /// Used to symbolize how many stocks a player has/the bank has left for a specific hotel
     pub struct Stocks {
         // Contains the stocks.
-        pub stocks: HashMap<Hotel, u8>,
+        pub stocks: HashMap<Hotel, u32>,
     }
 
     impl Stocks {
         /// Initializes a new stock struct. Member variables are set to 0
         pub fn new() -> Self {
-            let mut stocks: HashMap<Hotel, u8> = HashMap::new();
+            let mut stocks: HashMap<Hotel, u32> = HashMap::new();
             for hotel in Hotel::iterator() {
                 stocks.insert(*hotel, 0);
             }
@@ -419,7 +419,7 @@ pub mod stock {
         /// Initializes a new stock struct. Member variables are set to 25. This is used so that
         /// the bank works get all available stocks at the start.
         pub fn new_bank() -> Self {
-            let mut stocks: HashMap<Hotel, u8> = HashMap::new();
+            let mut stocks: HashMap<Hotel, u32> = HashMap::new();
             for hotel in Hotel::iterator() {
                 stocks.insert(*hotel, 25);
             }
@@ -529,7 +529,7 @@ pub mod bank {
         }
 
         /// Returns how many stocks of the given hotel are still available to be bought
-        pub fn hotel_stocks_available(&self, hotel: &Hotel) -> &u8 {
+        pub fn hotel_stocks_available(&self, hotel: &Hotel) -> &u32 {
             self.stocks_for_sale.stocks.get(hotel).unwrap()
         }
     }

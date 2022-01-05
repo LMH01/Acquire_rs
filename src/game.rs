@@ -29,13 +29,13 @@ pub mod game {
         pub position_cards: Vec<Position>,
         /// A vector that contains all players that participate in the game
         pub players: Vec<Player>,
-        number_of_players: u8,
+        number_of_players: u32,
         game_started: bool,
     }
 
     impl Game {
         /// Initializes a new game
-        pub fn new(number_of_players: u8, large_board: bool) -> Result<Self> {
+        pub fn new(number_of_players: u32, large_board: bool) -> Result<Self> {
             // verify that the amout of players entered is between 2 and 6
             if number_of_players < 2 || number_of_players > 6 {
                 return Err(miette!("Unable to create new game: The amount of players is invalid. Valid: 2-6, entered: {}", number_of_players));
@@ -90,7 +90,7 @@ pub mod game {
 
         /// Initializes all players and puts them in the vector
         fn init_players(
-            number_of_players: u8,
+            number_of_players: u32,
             position_cards: &mut Vec<Position>,
         ) -> Result<Vec<Player>> {
             let mut players: Vec<Player> = Vec::new();

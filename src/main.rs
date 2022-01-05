@@ -13,11 +13,15 @@ use clap::Parser;
 use game::game::Game;
 use miette::Result;
 
+//TODO Make all fields that i made public in the struct private and provide getters and, where
+//needed setters
+//TODO See if i can remove the clone, copy trait from the hotel enum
+
 #[derive(Parser)]
 #[clap(about = "The board game Acquire fia command line in Rust")]
 struct Opts {
     #[clap(short, long, help = "The number of players", possible_values = ["2", "3", "4", "5", "6"], required = true)]
-    players: u8,
+    players: u32,
     #[clap(
         short,
         long,
@@ -48,7 +52,7 @@ fn print_welcome() {
 
 fn place_test_hotels(board: &mut Board) -> Result<()> {
     for (index, h) in Hotel::iterator().enumerate() {
-        board.place_hotel_debug(Position::new(Letter::A, u8::try_from(index).unwrap()), *h)?;
+        board.place_hotel_debug(Position::new(Letter::A, index.try_into().unwrap()), *h)?;
     }
     Ok(())
 }
@@ -76,5 +80,6 @@ fn test_things(mut game: Game) -> Result<()> {
         "High Price Hotel with 41 Hotels: {}",
         stock::stock_price(base_game::hotel::PriceLevel::High, 41)
     );
+    game.bank.buy_stock(&game.hotel_manager, &Hotel::Airport, game.players.get_mut(0).unwrap())?;
     Ok(())
 }
