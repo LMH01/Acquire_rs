@@ -338,7 +338,7 @@ pub mod hotel {
         /// Value is returned with help of [`super::stock::stock_price`].
         /// # Arguments
         /// * 'number_of_hotels' - The number of hotels that currently belong to the hotel chain
-        pub fn stock_value(&self, number_of_hotels: u8) -> i32 {
+        pub fn stock_value(&self, number_of_hotels: u32) -> u32 {
             stock::stock_price(self.price_level(), number_of_hotels)
         }
 
@@ -403,7 +403,7 @@ pub mod stock {
     /// Used to symbolize how many stocks a player has/the bank has left for a specific hotel
     pub struct Stocks {
         // Contains the stocks.
-        stocks: HashMap<Hotel, u8>,
+        pub stocks: HashMap<Hotel, u8>,
     }
 
     impl Stocks {
@@ -428,13 +428,13 @@ pub mod stock {
     }
 
     /// The base prices for a single stock
-    const STOCK_BASE_PRICE: [i32; 11] = [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200];
+    const STOCK_BASE_PRICE: [u32; 11] = [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200];
 
     /// Calculates the current stock price for the hotel.
     /// # Arguments
     /// * `price_level` - Of what price level the stock is
     /// * `number_of_hotels` - The number of hotels that belong to the chain
-    pub fn stock_price(price_level: PriceLevel, number_of_hotels: u8) -> i32 {
+    pub fn stock_price(price_level: PriceLevel, number_of_hotels: u32) -> u32 {
         // Offset ist added to increate the stock price for hotels that have higher prices
         let offset = match price_level {
             PriceLevel::Low => 0,
@@ -474,18 +474,97 @@ pub mod stock {
 
 /// Manages the currently available stocks and the money.
 pub mod bank {
-    use crate::base_game::stock::Stocks;
+    use std::slice::SliceIndex;
+
+    use miette::{miette, Result};
+
+    use crate::{base_game::stock::Stocks, game::{player::Player, game::{Game, hotel_manager::HotelManager}}};
+
+    use super::hotel::Hotel;
 
     pub struct Bank {
-        available_stocks: Stocks,
+        stocks_for_sale: Stocks,
     }
 
     impl Bank {
         /// Creates a new bank
         pub fn new() -> Self {
             Self {
-                available_stocks: Stocks::new_bank(),
+                stocks_for_sale: Stocks::new_bank(),
             }
+        }
+
+        /// Buy a single stock from the bank.
+        /// # Arguments
+        /// * `hotel_manager` - The hotel manager for the current match
+        /// * `hotel` - The hotel for which the player buys a stock
+        /// * `player` - The player that buys the stock
+        /// # Returns
+        /// * `Ok(())` - When stock was successfully bought
+        /// * `Err` - When something went wrong while buying the stock
+        pub fn buy_stock(&mut self, hotel_manager: &HotelManager, hotel: &Hotel, player: &mut Player) -> Result<()> {
+            // The currently available stocks for the given hotel that can still be bought
+            let stock_available = self.hotel_stocks_available(hotel);
+            // Check if the stock can be bought (= Is the hotel chain active)
+            if !hotel_manager.hotel_status(hotel) {
+                return Err(miette!("Unable to buy stock from hotel {}: Hotel is not active.", &hotel));
+            }
+            // Check if the desired stock can still be bought
+            if *stock_available == 0 {
+                return Err(miette!(
+                    "Unable to buy stock from hotel {}: No stocks left.",
+                    &hotel
+                ));
+            }
+            let stock_value = hotel.stock_value(hotel_manager.number_of_hotels(hotel));
+            // Check if player has enough money to buy the stock
+            if player.money <= stock_value {
+                return Err(miette!("Unable to buy stock from hotel {}: Not enough money.", &hotel));
+            }
+            // Finally buy the stock
+            *self.stocks_for_sale.stocks.get_mut(hotel).unwrap() -= 1;
+            *player.owned_stocks.stocks.get_mut(hotel).unwrap() +=1;
+            player.money = player.money - stock_value;
+            Ok(())
+        }
+
+        /// Returns how many stocks of the given hotel are still available to be bought
+        pub fn hotel_stocks_available(&self, hotel: &Hotel) -> &u8 {
+            self.stocks_for_sale.stocks.get(hotel).unwrap()
+        }
+    }
+
+    #[cfg(test)]
+    mod test {
+        use std::{io, slice::SliceIndex};
+
+        use miette::{MietteError, Result};
+
+        use crate::{game::game::Game, base_game::hotel::Hotel};
+
+        #[test]
+        fn test_buy_stock() {
+            let mut game = Game::new(2, false).unwrap();
+            // Test if Hotel is not active error works
+            let mut input = game.bank.buy_stock(&game.hotel_manager, &Hotel::Airport, game.players.get_mut(0).unwrap());
+            assert!(is_error(input));
+            // Test if no stocks left error works
+            *game.bank.stocks_for_sale.stocks.get_mut(&Hotel::Airport).unwrap() = 0;
+            game.hotel_manager.set_hotel_status(&Hotel::Airport, true);
+            input = game.bank.buy_stock(&game.hotel_manager, &Hotel::Airport, game.players.get_mut(0).unwrap());
+            assert!(is_error(input));
+            // Test if not enough money error works
+            *game.bank.stocks_for_sale.stocks.get_mut(&Hotel::Airport).unwrap() = 5;
+            game.players.get_mut(0).unwrap().money = 0;
+            input = game.bank.buy_stock(&game.hotel_manager, &Hotel::Airport, game.players.get_mut(0).unwrap());
+            assert!(is_error(input));
+        }
+
+        fn is_error(input: Result<()>) -> bool {
+            return match input {
+                Err(_) => true,
+                Ok(_) => false,
+            };
         }
     }
 }

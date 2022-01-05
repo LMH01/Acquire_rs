@@ -1,22 +1,30 @@
 /// Contains all functionalities that are required to play the game.
 pub mod game {
+    use std::collections::HashMap;
+
     use miette::{miette, IntoDiagnostic, Result};
     use rand::Rng;
 
     use crate::base_game::{
-        board::{Board, Letter, Piece, Position},
         bank::Bank,
+        board::{Board, Letter, Piece, Position},
+        hotel::Hotel,
     };
+
+    use self::hotel_manager::HotelManager;
 
     use super::player::Player;
 
+    //TODO Rename to GameManager
     //TODO Check what field are required to be public, make private if not used
     /// Contains all variables required to play a game
     pub struct Game {
         /// The board that belongs to this game
         pub board: Board,
         /// The bank that manages the stocks and the money
-        bank: Bank,
+        pub bank: Bank,
+        /// The hotel manager for this game
+        pub hotel_manager: HotelManager,
         /// The positions that can be drawn
         pub position_cards: Vec<Position>,
         /// A vector that contains all players that participate in the game
@@ -39,6 +47,7 @@ pub mod game {
                 board: Board::new(large_board),
                 position_cards,
                 bank: Bank::new(),
+                hotel_manager: HotelManager::new(),
                 players,
                 number_of_players,
                 game_started: false,
@@ -131,6 +140,59 @@ pub mod game {
         }
     }
 
+    /// Manages the currently active hotel chains
+    pub mod hotel_manager {
+        use std::collections::HashMap;
+
+        use crate::base_game::hotel::Hotel;
+
+        /// Store the currently active hotel chains
+        pub struct HotelManager {
+            /// Stores if the hotel is currently active on the board
+            hotel_status: HashMap<Hotel, bool>,
+            /// Stores the number of currently build hotels that belong to the chain
+            hotel_buildings: HashMap<Hotel, u32>,
+        }
+
+        impl HotelManager {
+            /// Create a new hotel manager that is used to manage the currently active hotel chains
+            pub fn new() -> Self {
+                let mut hotel_active: HashMap<Hotel, bool> = HashMap::new();
+                let mut hotel_buildings: HashMap<Hotel, u32> = HashMap::new();
+                // Fill the hash maps
+                for hotel in Hotel::iterator() {
+                    hotel_active.insert(*hotel, false);
+                    hotel_buildings.insert(*hotel, 0);
+                }
+                Self {
+                    hotel_status: hotel_active,
+                    hotel_buildings,
+                }
+            }
+
+            /// Returns the number of hotels currently built for the specified chain
+            pub fn number_of_hotels(&self, hotel: &Hotel) -> u32 {
+                *self.hotel_buildings.get(hotel).unwrap()
+            }
+
+            /// Returns true if the hotel is currently active
+            pub fn hotel_status(&self, hotel: &Hotel) -> bool {
+                *self.hotel_status.get(hotel).unwrap()
+            }
+
+            //TODO Decide if i want to increase the amount of hotel buildings to 2 when this
+            //function is called. Also decide if i would like to reset the hotel buildings to 0
+            //when hotel is disabled
+            /// Changes that status of the hotel.
+            /// This decides if stocks can be bought for this hotel.
+            /// # Arguments
+            /// * `active` - If true the hotel is set active, if false the hotel is set inactive
+            pub fn set_hotel_status(&mut self, hotel: &Hotel, active: bool) {
+                *self.hotel_status.get_mut(&hotel).unwrap() = active;
+            }
+        }
+    }
+
     /// Manages a single round. A round consists of each player doing a move.
     mod round {}
 
@@ -152,12 +214,13 @@ pub mod game {
 }
 
 /// Player management
-mod player {
+pub mod player {
     use crate::{base_game::board::Position, base_game::stock::Stocks};
     /// Stores all variables that belong to the player
     pub struct Player {
-        money: i32,
-        stocks: Stocks,
+        pub money: u32,
+        /// The stocks that the player currently owns
+        pub owned_stocks: Stocks,
         /// Contains the cards that the player currently has on his hand and that could be played
         cards: Vec<Position>,
     }
@@ -166,7 +229,7 @@ mod player {
         pub fn new(start_cards: Vec<Position>) -> Self {
             Self {
                 money: 6000,
-                stocks: Stocks::new(),
+                owned_stocks: Stocks::new(),
                 cards: start_cards,
             }
         }
