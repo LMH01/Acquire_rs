@@ -564,6 +564,7 @@ pub mod player {
         pub owned_stocks: Stocks,
         /// Contains the cards that the player currently has on his hand and that could be played
         pub cards: Vec<Position>,
+        pub bonuses: Bonuses,
     }
 
     impl Player {
@@ -572,6 +573,7 @@ pub mod player {
                 money: 6000,
                 owned_stocks: Stocks::new(),
                 cards: start_cards,
+                bonuses: Bonuses::new(),
             }
         }
 
@@ -647,9 +649,32 @@ pub mod player {
                 );
             }
             println!();
-            //TODO Maybe add another field "Current estimated wealth". That displayes the amount of
-            //money the player would have now if all shares where sold and the rewards for the
-            //largest shareholders where given now.
+            //TODO Maybe add fields:
+            //- "Current estimated wealth". That displayes the amount of
+            //  money the player would have now if all shares where sold and the rewards for the
+            //  largest shareholders where given now. (But is only enabled if special info flag is
+            //  given)
+            //- "Current stock value" - Value of alls stocks if sold now
+            //- "Total stocks" - Amount of all stocks the player has
+            //- Net profit: Stores all expenses the player made and calculate the net profit the
+            // would make if all stocks where sold now
+        }
+    }
+
+    /// Used to store if the player is a largest or second largest shareholder
+    pub struct Bonuses {
+        /// Hotels where the player is the larges shareholder
+        largest_shareholder: Vec<Hotel>,
+        /// Hotels where the player is the second largest shareholder
+        second_largest_shareholder: Vec<Hotel>,
+    }
+
+    impl Bonuses {
+        pub fn new() -> Self {
+            Self {
+                largest_shareholder: Vec::new(),
+                second_largest_shareholder: Vec::new(),
+            }
         }
     }
 }

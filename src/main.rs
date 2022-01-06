@@ -24,11 +24,9 @@ use crate::base_game::ui::print_main_ui;
 //make them public. Also remove the getters/setters
 //TODO Start with gameplay
 //While doing that add functionality that stores the currently largest and second largest shareholder
-//Also remove the functions that are gameplay relevant from the base_game.rs file and move them to
-//game.rs
-//base_game.rs should only contain the very basic data types all logic related will be written in
-//game.rs
 //TODO See if i can remove the clone, copy trait from the hotel enum
+//TODO Add flag with which the help card can be enabled. This will cause to print a copy of the
+//info card from the real game to the console
 
 #[derive(Parser)]
 #[clap(about = "The board game Acquire fia command line in Rust")]
@@ -41,6 +39,11 @@ struct Opts {
         help = "Use to make the board larger and to write the coordinates into the field"
     )]
     large_board: bool,
+    #[clap(
+        long,
+        help = "Use to run the test function instead of the main game"
+        )]
+    test: bool,
 }
 
 fn main() -> miette::Result<()> {
@@ -54,8 +57,11 @@ fn main() -> miette::Result<()> {
     //        board.print();
     print_welcome();
     let mut game_manager = GameManager::new(opts.players, opts.large_board)?;
-    //game_manager.start_game()?;
-    test_things(game_manager)?;
+    if opts.test {
+        test_things(game_manager);
+    } else {
+        game_manager.start_game();
+    }
     Ok(())
 }
 
@@ -108,6 +114,13 @@ fn test_things(mut game_manager: GameManager) -> Result<()> {
         game_manager.hotel_manager.set_hotel_status(&hotel, true); 
         let random_number = rand::thread_rng().gen_range(2..=41);
         game_manager.hotel_manager.add_hotel_buildings(hotel, random_number).unwrap();
+        for player in &mut game_manager.players {
+            for i in 1..=rand::thread_rng().gen_range(1..=5) {
+                if game_manager.bank.buy_stock(&game_manager.hotel_manager, hotel, player).is_err() {
+                    //Stock could not be bought
+                };
+            }
+        }
     }
     print_main_ui(&game_manager);
     Ok(())
