@@ -7,8 +7,8 @@ name = "acquire_rs"
 version = "0.1.0"
 dependencies = [
  "clap",
- "colored",
  "miette",
+ "owo-colors 3.2.0",
  "rand",
 ]
 
@@ -117,17 +117,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "colored"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3616f750b84d8f0de8a58bda93e08e2a81ad3f523089b05f1dffecab48c6cbd"
-dependencies = [
- "atty",
- "lazy_static",
- "winapi",
-]
-
-[[package]]
 name = "getrandom"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -212,7 +201,7 @@ dependencies = [
  "backtrace",
  "miette-derive",
  "once_cell",
- "owo-colors",
+ "owo-colors 2.1.0",
  "supports-color",
  "supports-hyperlinks",
  "supports-unicode",
@@ -271,6 +260,12 @@ name = "owo-colors"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a61765925aec40abdb23812a3a1a01fafc6ffb9da22768b2ce665a9e84e527c"
+
+[[package]]
+name = "owo-colors"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20448fd678ec04e6ea15bbe0476874af65e98a01515d667aa49f1434dc44ebf4"
 
 [[package]]
 name = "ppv-lite86"

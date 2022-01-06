@@ -2,8 +2,8 @@
 /// board and the board itself.
 pub mod board {
     use self::Letter::*;
-    use colored::{ColoredString, Colorize};
     use miette::{miette, Result};
+    use owo_colors::OwoColorize;
     use std::{
         fmt::{self, Display, Formatter},
         slice::Iter,
@@ -190,34 +190,35 @@ pub mod board {
 
     impl Piece {
         //TODO Write new() method
-        fn print_text(&self, compact: bool) -> ColoredString {
+        fn print_text(&self, compact: bool) -> String {
             if self.piece_set {
                 if self.chain.is_some() {
                     if compact {
-                        String::from(self.chain.as_ref().unwrap().identifier())
+                        self.chain
+                            .as_ref()
+                            .unwrap()
+                            .identifier()
                             .color(Hotel::color(&self.chain.as_ref().unwrap()))
+                            .to_string()
                     } else {
-                        let mut string = String::from(" ");
-                        string.push(self.chain.as_ref().unwrap().identifier());
-                        string.push(' ');
-                        string.color(Hotel::color(&self.chain.as_ref().unwrap()))
+                        format!(" {} ", self.chain.as_ref().unwrap().identifier())
+                            .color(Hotel::color(&self.chain.as_ref().unwrap()))
+                            .to_string()
                     }
                 } else {
                     if compact {
-                        String::from("X").bright_white()
+                        "X".bright_white().to_string()
                     } else {
-                        String::from("XXX").bright_white()
+                        "XXX".bright_white().to_string()
                     }
                 }
             } else {
                 if compact {
-                    String::from(' ').white()
+                    ' '.white().to_string()
                 } else {
-                    String::from(format!(
-                        "{}{:2}",
-                        self.position.letter, self.position.number
-                    ))
-                    .white()
+                    format!("{}{:2}", self.position.letter, self.position.number)
+                        .white()
+                        .to_string()
                 }
             }
         }
@@ -232,7 +233,7 @@ pub mod hotel {
         slice::Iter,
     };
 
-    use colored::Color;
+    use owo_colors::Rgb;
 
     use super::stock;
 
@@ -264,43 +265,15 @@ pub mod hotel {
         }
 
         /// Returns the specific color for the hotel
-        pub fn color(&self) -> Color {
+        pub fn color(&self) -> Rgb {
             match *self {
-                Hotel::Airport => Color::TrueColor {
-                    r: 107,
-                    g: 141,
-                    b: 165,
-                },
-                Hotel::Continental => Color::TrueColor {
-                    r: 32,
-                    g: 64,
-                    b: 136,
-                },
-                Hotel::Festival => Color::TrueColor {
-                    r: 12,
-                    g: 106,
-                    b: 88,
-                },
-                Hotel::Imperial => Color::TrueColor {
-                    r: 198,
-                    g: 83,
-                    b: 80,
-                },
-                Hotel::Luxor => Color::TrueColor {
-                    r: 231,
-                    g: 219,
-                    b: 0,
-                },
-                Hotel::Oriental => Color::TrueColor {
-                    r: 184,
-                    g: 96,
-                    b: 20,
-                },
-                Hotel::Prestige => Color::TrueColor {
-                    r: 99,
-                    g: 47,
-                    b: 107,
-                },
+                Hotel::Airport => Rgb(107, 141, 165),
+                Hotel::Continental => Rgb(32, 64, 136),
+                Hotel::Festival => Rgb(12, 106, 88),
+                Hotel::Imperial => Rgb(198, 83, 80),
+                Hotel::Luxor => Rgb(231, 219, 0),
+                Hotel::Oriental => Rgb(184, 96, 20),
+                Hotel::Prestige => Rgb(99, 47, 107),
             }
         }
 
@@ -497,14 +470,7 @@ pub mod stock {
 
 /// Manages the currently available stocks and the money.
 pub mod bank {
-    use std::slice::SliceIndex;
-
-    use miette::{miette, Result};
-
-    use crate::{
-        base_game::{player::Player, stock::Stocks},
-        game::game::{hotel_manager::HotelManager, GameManager},
-    };
+    use crate::{base_game::stock::Stocks, game::game::hotel_manager::HotelManager};
 
     use super::hotel::Hotel;
 
@@ -533,9 +499,6 @@ pub mod bank {
 
     #[cfg(test)]
     mod tests {
-
-        use miette::Result;
-
         use crate::{
             base_game::{bank::Bank, hotel::Hotel},
             game::game::GameManager,
@@ -587,17 +550,11 @@ pub mod bank {
 
 /// Player management
 pub mod player {
-    use std::{
-        fmt::{Display, Formatter, Result},
-        slice::SliceIndex,
-    };
-
-    use colored::Colorize;
-
     use crate::{
         base_game::board::Position,
         base_game::{hotel::Hotel, stock::Stocks},
     };
+    use owo_colors::OwoColorize;
 
     /// Stores all variables that belong to the player
     pub struct Player {
@@ -699,14 +656,11 @@ pub mod player {
 
 /// User interface drawing
 pub mod ui {
-    use std::slice::SliceIndex;
-
-    use colored::{ColoredString, Colorize, Color};
-
     use crate::{
         base_game::{bank::Bank, hotel::Hotel},
         game::game::GameManager,
     };
+    use owo_colors::{AnsiColors, DynColors, OwoColorize, Rgb};
 
     use super::player::Player;
 
@@ -736,12 +690,12 @@ pub mod ui {
             // Set the color of the values
             let enable_color = game_manager.hotel_manager.hotel_status(hotel);
             let color = match enable_color {
-                true => Color::White,
-                false => Color::TrueColor{r: 105, g: 105, b: 105},
+                true => DynColors::Ansi(AnsiColors::White),
+                false => DynColors::Rgb(105, 105, 105),
             };
             let hotel_color = match enable_color {
                 true => hotel.color(),
-                false => Color::TrueColor{r: 105, g: 105, b: 105},
+                false => Rgb(105, 105, 105),
             };
             let formatted_string = format!(
                 "{:15}||   {:2}   || {:7} ||  {:2}  ||   {:2}{} || {:4}$ ||    TO IMPLEMENT     || TO IMPLEMENT",
@@ -765,7 +719,7 @@ pub mod ui {
 
     /// Used to display a little star that indicates if the player is largest or second largest
     /// shareholder
-    fn stock_status_symbol(player: &Player) -> ColoredString {
+    fn stock_status_symbol(player: &Player) -> String {
         // The star should probably be only displayed when a special terminal flag is set (mayber
         // --info or something like that)
         todo!()
