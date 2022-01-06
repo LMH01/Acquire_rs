@@ -266,6 +266,145 @@ pub mod game {
         }
     }
 
+    /// Contains the most part of the game logic.
+    /// This is also used to implement the required functions on existing structs.
+    mod logic {
+        use miette::{miette, Result};
+
+        use crate::base_game::{bank::Bank, hotel::Hotel, player::Player};
+
+        use super::hotel_manager::HotelManager;
+
+        /// Implements all logic
+        impl Bank {
+            /// Buy a single stock from the bank.
+            /// # Arguments
+            /// * `hotel_manager` - The hotel manager for the current match
+            /// * `hotel` - The hotel for which the player buys a stock
+            /// * `player` - The player that buys the stock
+            /// # Returns
+            /// * `Ok(())` - When stock was successfully bought
+            /// * `Err` - When something went wrong while buying the stock
+            pub fn buy_stock(
+                &mut self,
+                hotel_manager: &HotelManager,
+                hotel: &Hotel,
+                player: &mut Player,
+            ) -> Result<()> {
+                // The currently available stocks for the given hotel that can still be bought
+                let stock_available = self.hotel_stocks_available(hotel);
+                // Check if the stock can be bought (= Is the hotel chain active)
+                if !hotel_manager.hotel_status(hotel) {
+                    return Err(miette!(
+                        "Unable to buy stock from hotel {}: Hotel is not active.",
+                        &hotel
+                    ));
+                }
+                // Check if the desired stock can still be bought
+                if *stock_available == 0 {
+                    return Err(miette!(
+                        "Unable to buy stock from hotel {}: No stocks left.",
+                        &hotel
+                    ));
+                }
+                let stock_price = Bank::stock_price(&hotel_manager, &hotel);
+                // Check if player has enough money to buy the stock
+                if player.money <= stock_price {
+                    return Err(miette!(
+                        "Unable to buy stock from hotel {}: Not enough money.",
+                        &hotel
+                    ));
+                }
+                // Finally buy the stock
+                self.stocks_for_sale.decrease_stocks(hotel, 1);
+                player.add_stocks(hotel, 1);
+                player.remove_money(stock_price);
+                Ok(())
+            }
+        }
+
+        #[cfg(test)]
+        mod tests {
+            mod bank {
+
+                use miette::Result;
+
+                use crate::{base_game::hotel::Hotel, game::game::GameManager};
+
+                #[test]
+                fn test_buy_stock() {
+                    let mut game = GameManager::new(2, false).unwrap();
+                    // Test if Hotel is not active error works
+                    let mut input = game.bank.buy_stock(
+                        &game.hotel_manager,
+                        &Hotel::Airport,
+                        game.players.get_mut(0).unwrap(),
+                    );
+                    assert!(is_error(input));
+                    // Test if no stocks left error works
+                    game.bank.stocks_for_sale.set_stocks(&Hotel::Airport, 0);
+                    game.hotel_manager.set_hotel_status(&Hotel::Airport, true);
+                    input = game.bank.buy_stock(
+                        &game.hotel_manager,
+                        &Hotel::Airport,
+                        game.players.get_mut(0).unwrap(),
+                    );
+                    assert!(is_error(input));
+                    // Test if not enough money error works
+                    game.bank.stocks_for_sale.set_stocks(&Hotel::Airport, 5);
+                    game.players.get_mut(0).unwrap().money = 0;
+                    input = game.bank.buy_stock(
+                        &game.hotel_manager,
+                        &Hotel::Airport,
+                        game.players.get_mut(0).unwrap(),
+                    );
+                    assert!(is_error(input));
+                }
+
+                fn is_error(input: Result<()>) -> bool {
+                    return match input {
+                        Err(_) => true,
+                        Ok(_) => false,
+                    };
+                }
+            }
+
+            mod board {
+                use miette::{miette, Result};
+
+                use crate::base_game::board::{Board, Position};
+
+                impl Board {
+                    //TODO Add all functionalities required to place a hotel correctly and accoring to the game
+                    //rules. Decide if i would like that check to be performed here or reather in the game module.
+                    //If i decide to do it this way this function will not check if the placement of the hotel is
+                    //valid.
+                    /// Places a hotel at the designated coordinates. Does not check if this placement is valid
+                    /// acording to the game rules.
+                    /// # Return
+                    /// Ok when the hotel was placed correctly
+                    /// Error when the hotel was already placed
+                    pub fn place_hotel(&mut self, position: Position) -> Result<()> {
+                        for x in self.pieces.iter_mut() {
+                            for y in x.iter_mut() {
+                                if y.position.number.eq(&position.number)
+                                    && y.position.letter == position.letter
+                                {
+                                    if y.piece_set {
+                                        return Err(miette!("Unable to set hotel at [{}{:2}] active: The hotel has already been placed!", position.letter, position.number));
+                                    } else {
+                                        y.piece_set = true;
+                                    }
+                                }
+                            }
+                        }
+                        Ok(())
+                    }
+                }
+            }
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use crate::game::game::GameManager;

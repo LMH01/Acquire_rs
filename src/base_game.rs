@@ -13,7 +13,7 @@ pub mod board {
 
     /// The board object that contains all information about the current state of the board.
     pub struct Board {
-        pieces: Vec<Vec<Piece>>,
+        pub pieces: Vec<Vec<Piece>>,
         /// Determines how the board should be printed.
         /// This behaviour can be set with the -l flag.
         /// If true the (empty) board is printed this way:
@@ -96,32 +96,7 @@ pub mod board {
             println!("");
         }
 
-        //TODO Add all functionalities required to place a hotel correctly and accoring to the game
-        //rules. Decide if i would like that check to be performed here or reather in the game module.
-        //If i decide to do it this way this function will not check if the placement of the hotel is
-        //valid.
-        /// Places a hotel at the designated coordinates. Does not check if this placement is valid
-        /// acording to the game rules.
-        /// # Return
-        /// Ok when the hotel was placed correctly
-        /// Error when the hotel was already placed
-        pub fn place_hotel(&mut self, position: Position) -> Result<()> {
-            for x in self.pieces.iter_mut() {
-                for y in x.iter_mut() {
-                    if y.position.number.eq(&position.number)
-                        && y.position.letter == position.letter
-                    {
-                        if y.piece_set {
-                            return Err(miette!("Unable to set hotel at [{}{:2}] active: The hotel has already been placed!", position.letter, position.number));
-                        } else {
-                            y.piece_set = true;
-                        }
-                    }
-                }
-            }
-            Ok(())
-        }
-
+        /// Place a hotel on the board without abiding by the game rules
         pub fn place_hotel_debug(&mut self, position: Position, chain: Hotel) -> Result<()> {
             'outer: for x in self.pieces.iter_mut() {
                 for y in x.iter_mut() {
@@ -144,8 +119,8 @@ pub mod board {
     /// Symbolizes a position on the board
     #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
     pub struct Position {
-        letter: Letter,
-        number: u32,
+        pub letter: Letter,
+        pub number: u32,
     }
 
     impl Position {
@@ -154,14 +129,6 @@ pub mod board {
         /// Creates a new position
         pub fn new(letter: Letter, number: u32) -> Self {
             Self { letter, number }
-        }
-
-        pub fn letter(&self) -> &Letter {
-            &self.letter
-        }
-
-        pub fn number(&self) -> &u32 {
-            &self.number
         }
     }
 
@@ -214,11 +181,11 @@ pub mod board {
     /// Symbolizes a single piece that can be placed on the board
     pub struct Piece {
         /// Stores what hotel chain this piece belongs to
-        chain: Option<Hotel>,
+        pub chain: Option<Hotel>,
         /// Stores the position on the board of this piece
-        position: Position,
+        pub position: Position,
         /// Stores if the piece has been set yet
-        piece_set: bool,
+        pub piece_set: bool,
     }
 
     impl Piece {
@@ -432,7 +399,7 @@ pub mod stock {
     /// Used to symbolize how many stocks a player has/the bank has left for a specific hotel
     pub struct Stocks {
         // Contains the stocks.
-        stocks: HashMap<Hotel, u32>,
+        pub stocks: HashMap<Hotel, u32>,
     }
 
     impl Stocks {
@@ -542,7 +509,7 @@ pub mod bank {
     use super::hotel::Hotel;
 
     pub struct Bank {
-        stocks_for_sale: Stocks,
+        pub stocks_for_sale: Stocks,
     }
 
     impl Bank {
@@ -551,53 +518,6 @@ pub mod bank {
             Self {
                 stocks_for_sale: Stocks::new_bank(),
             }
-        }
-
-        //TODO Decide if the complete logic for buying a stock should be moved into the game module
-        //and from there the calls to the individual fields are made.
-        /// Buy a single stock from the bank.
-        /// # Arguments
-        /// * `hotel_manager` - The hotel manager for the current match
-        /// * `hotel` - The hotel for which the player buys a stock
-        /// * `player` - The player that buys the stock
-        /// # Returns
-        /// * `Ok(())` - When stock was successfully bought
-        /// * `Err` - When something went wrong while buying the stock
-        pub fn buy_stock(
-            &mut self,
-            hotel_manager: &HotelManager,
-            hotel: &Hotel,
-            player: &mut Player,
-        ) -> Result<()> {
-            // The currently available stocks for the given hotel that can still be bought
-            let stock_available = self.hotel_stocks_available(hotel);
-            // Check if the stock can be bought (= Is the hotel chain active)
-            if !hotel_manager.hotel_status(hotel) {
-                return Err(miette!(
-                    "Unable to buy stock from hotel {}: Hotel is not active.",
-                    &hotel
-                ));
-            }
-            // Check if the desired stock can still be bought
-            if *stock_available == 0 {
-                return Err(miette!(
-                    "Unable to buy stock from hotel {}: No stocks left.",
-                    &hotel
-                ));
-            }
-            let stock_price = Bank::stock_price(&hotel_manager, &hotel);
-            // Check if player has enough money to buy the stock
-            if player.money() <= stock_price {
-                return Err(miette!(
-                    "Unable to buy stock from hotel {}: Not enough money.",
-                    &hotel
-                ));
-            }
-            // Finally buy the stock
-            self.stocks_for_sale.decrease_stocks(hotel, 1);
-            player.add_stocks(hotel, 1);
-            player.remove_money(stock_price);
-            Ok(())
         }
 
         /// Returns how many stocks of the given hotel are still available to be bought
@@ -613,47 +533,13 @@ pub mod bank {
 
     #[cfg(test)]
     mod tests {
-        use std::{io, slice::SliceIndex};
 
-        use miette::{MietteError, Result};
+        use miette::Result;
 
         use crate::{
-            base_game::{
-                bank::Bank,
-                hotel::{self, Hotel},
-            },
+            base_game::{bank::Bank, hotel::Hotel},
             game::game::GameManager,
         };
-
-        #[test]
-        fn test_buy_stock() {
-            let mut game = GameManager::new(2, false).unwrap();
-            // Test if Hotel is not active error works
-            let mut input = game.bank.buy_stock(
-                &game.hotel_manager,
-                &Hotel::Airport,
-                game.players.get_mut(0).unwrap(),
-            );
-            assert!(is_error(input));
-            // Test if no stocks left error works
-            game.bank.stocks_for_sale.set_stocks(&Hotel::Airport, 0);
-            game.hotel_manager.set_hotel_status(&Hotel::Airport, true);
-            input = game.bank.buy_stock(
-                &game.hotel_manager,
-                &Hotel::Airport,
-                game.players.get_mut(0).unwrap(),
-            );
-            assert!(is_error(input));
-            // Test if not enough money error works
-            game.bank.stocks_for_sale.set_stocks(&Hotel::Airport, 5);
-            game.players.get_mut(0).unwrap().set_money(0);
-            input = game.bank.buy_stock(
-                &game.hotel_manager,
-                &Hotel::Airport,
-                game.players.get_mut(0).unwrap(),
-            );
-            assert!(is_error(input));
-        }
 
         #[test]
         fn test_stock_price() {
@@ -696,13 +582,6 @@ pub mod bank {
                 1200
             );
         }
-
-        fn is_error(input: Result<()>) -> bool {
-            return match input {
-                Err(_) => true,
-                Ok(_) => false,
-            };
-        }
     }
 }
 
@@ -723,11 +602,11 @@ pub mod player {
     /// Stores all variables that belong to the player
     pub struct Player {
         /// The money the player currently has
-        money: u32,
+        pub money: u32,
         /// The stocks that the player currently owns
-        owned_stocks: Stocks,
+        pub owned_stocks: Stocks,
         /// Contains the cards that the player currently has on his hand and that could be played
-        cards: Vec<Position>,
+        pub cards: Vec<Position>,
     }
 
     impl Player {
@@ -737,26 +616,6 @@ pub mod player {
                 owned_stocks: Stocks::new(),
                 cards: start_cards,
             }
-        }
-
-        /// Returns the players money
-        pub fn money(&self) -> u32 {
-            self.money
-        }
-
-        /// Returns the players owned stocks
-        pub fn owned_stocks(&self) -> &Stocks {
-            &self.owned_stocks
-        }
-
-        /// Returns the players cards
-        pub fn cards(&self) -> &Vec<Position> {
-            &self.cards
-        }
-
-        /// The the players money
-        pub fn set_money(&mut self, money: u32) {
-            self.money = money;
         }
 
         /// Add money to the player
@@ -784,14 +643,14 @@ pub mod player {
             println!();
             print!("Your current cards: ");
             for position in &self.cards {
-                print!("[{}{:2}]", position.letter(), position.number());
+                print!("[{}{:2}]", position.letter, position.number);
             }
             println!();
         }
 
         /// Sorts the current hand cards and returns a copy
         pub fn sorted_cards(&self) -> Vec<Position> {
-            let mut cards = self.cards().clone();
+            let mut cards = self.cards.clone();
             cards.sort();
             cards
         }
@@ -879,7 +738,7 @@ pub mod ui {
                     .as_ref()
                     .unwrap()
                     .current_player(&game_manager)
-                    .owned_stocks()
+                    .owned_stocks
                     .stocks_for_hotel(hotel),
                 " ",
                 Bank::stock_price(&game_manager.hotel_manager, &hotel),
