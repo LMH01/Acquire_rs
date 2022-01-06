@@ -698,8 +698,7 @@ pub mod ui {
                 false => Rgb(105, 105, 105),
             };
             let formatted_string = format!(
-                "{:15}||   {:2}   || {:7} ||  {:2}  ||   {:2}{} || {:4}$ ||    TO IMPLEMENT     || TO IMPLEMENT",
-                String::from(hotel.name()).color(hotel_color),
+                "||   {:2}   || {:7} ||  {:2}  ||   {:2}{} || {:4}$ ||    TO IMPLEMENT     || TO IMPLEMENT",
                 game_manager.hotel_manager.number_of_hotels(hotel),
                 game_manager.hotel_manager.hotel_range(hotel),
                 game_manager.bank.hotel_stocks_available(&hotel),
@@ -713,7 +712,10 @@ pub mod ui {
                 " ",
                 Bank::stock_price(&game_manager.hotel_manager, &hotel),
                 );
-            println!("{}", formatted_string.color(color));
+            println!("{:15}{}", 
+                hotel.name().color(hotel_color),
+                formatted_string.color(color),
+            );
         }
     }
 
