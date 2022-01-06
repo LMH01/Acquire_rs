@@ -39,10 +39,7 @@ struct Opts {
         help = "Use to make the board larger and to write the coordinates into the field"
     )]
     large_board: bool,
-    #[clap(
-        long,
-        help = "Use to run the test function instead of the main game"
-        )]
+    #[clap(long, help = "Use to run the test function instead of the main game")]
     test: bool,
 }
 
@@ -111,12 +108,19 @@ fn test_things(mut game_manager: GameManager) -> Result<()> {
         if rand::thread_rng().gen_bool(0.4) {
             continue;
         }
-        game_manager.hotel_manager.set_hotel_status(&hotel, true); 
+        game_manager.hotel_manager.set_hotel_status(&hotel, true);
         let random_number = rand::thread_rng().gen_range(2..=41);
-        game_manager.hotel_manager.add_hotel_buildings(hotel, random_number).unwrap();
+        game_manager
+            .hotel_manager
+            .add_hotel_buildings(hotel, random_number)
+            .unwrap();
         for player in &mut game_manager.players {
             for i in 1..=rand::thread_rng().gen_range(1..=5) {
-                if game_manager.bank.buy_stock(&game_manager.hotel_manager, hotel, player).is_err() {
+                if game_manager
+                    .bank
+                    .buy_stock(&game_manager.hotel_manager, hotel, player)
+                    .is_err()
+                {
                     //Stock could not be bought
                 };
             }

@@ -737,7 +737,8 @@ pub mod ui {
                 " ",
                 Bank::stock_price(&game_manager.hotel_manager, &hotel),
                 );
-            println!("{:15}{}", 
+            println!(
+                "{:15}{}",
                 hotel.name().color(hotel_color),
                 formatted_string.color(color),
             );

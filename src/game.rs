@@ -3,14 +3,18 @@ pub mod game {
     use std::collections::HashMap;
 
     use miette::{miette, IntoDiagnostic, Result};
+    use owo_colors::{AnsiColors, OwoColorize};
     use rand::Rng;
 
-    use crate::base_game::{
-        bank::Bank,
-        board::{Board, Letter, Piece, Position},
-        hotel::Hotel,
-        player::Player,
-        ui,
+    use crate::{
+        base_game::{
+            bank::Bank,
+            board::{Board, Letter, Piece, Position},
+            hotel::Hotel,
+            player::Player,
+            ui,
+        },
+        data_stream::{self, read_enter},
     };
 
     use self::{hotel_manager::HotelManager, round::Round};
@@ -85,16 +89,22 @@ pub mod game {
                 self.game_started = true;
             }
             println!("Each player draws a card now, the player with the lowest card starts.");
+            let mut cards: Vec<Position> = Vec::new();
+            for i in 1..=self.players.len() {
+                let card = self.draw_card().unwrap();
+                println!("Press enter to draw the card.");
+                read_enter()?;
+                println!("Drew card {}", &card.color(AnsiColors::Green));
+                println!();
+                cards.push(card);
+            }
+            println!("Press enter to place these hotels and start the first round!");
+            read_enter()?;
+            for card in cards {
+                self.board.place_hotel(card)?;
+            }
             self.round = Some(Round::new());
-            //TODO Continue to work here
-            // Write function that prints current game information to console:
-            //  Current player: Money, stocks they have, cards they have
-            //  Game stats: How many hotels a chain has, how many stocks are left, how much a stock
-            //  is worth
-            //
-            //  Maybe print the same info card that exists in the real game where the current
-            //  amount of hotels is highlighted
-            ui::print_main_ui(self);
+            round::start_round(self);
             Ok(())
         }
 
@@ -197,26 +207,26 @@ pub mod game {
             pub fn number_of_hotels(&self, hotel: &Hotel) -> u32 {
                 *self.hotel_buildings.get(hotel).unwrap()
             }
-            
+
             /// Returns true if the hotel is currently active
             pub fn hotel_status(&self, hotel: &Hotel) -> bool {
                 *self.hotel_status.get(hotel).unwrap()
             }
-            
+
             /// Returns the range in which the current number of hotels is
             pub fn hotel_range(&self, hotel: &Hotel) -> String {
                 let hotels = self.hotel_buildings.get(hotel).unwrap();
                 let range = match hotels {
                     0 => "",
-            2 => "    [2]",
-            3 => "    [3]",
-            4 => "    [4]",
-            5 => "    [5]",
-            6..=10 => " [6-10]",
-            11..=20 => "[11-20]",
-            21..=30 => "[21-30]",
-            31..=40 => "[31-40]",
-            _ => " [41++]",
+                    2 => "    [2]",
+                    3 => "    [3]",
+                    4 => "    [4]",
+                    5 => "    [5]",
+                    6..=10 => " [6-10]",
+                    11..=20 => "[11-20]",
+                    21..=30 => "[21-30]",
+                    31..=40 => "[31-40]",
+                    _ => " [41++]",
                 };
                 let string = format!("{}", range);
                 string
@@ -344,6 +354,40 @@ pub mod game {
             }
         }
 
+        mod board {
+            use miette::{miette, Result};
+
+            use crate::base_game::board::{Board, Position};
+
+            impl Board {
+                //TODO Add all functionalities required to place a hotel correctly and accoring to the game
+                //rules. Decide if i would like that check to be performed here or reather in the game module.
+                //If i decide to do it this way this function will not check if the placement of the hotel is
+                //valid.
+                /// Places a hotel at the designated coordinates. Does not check if this placement is valid
+                /// acording to the game rules.
+                /// # Return
+                /// Ok when the hotel was placed correctly
+                /// Error when the hotel was already placed
+                pub fn place_hotel(&mut self, position: Position) -> Result<()> {
+                    for x in self.pieces.iter_mut() {
+                        for y in x.iter_mut() {
+                            if y.position.number.eq(&position.number)
+                                && y.position.letter == position.letter
+                            {
+                                if y.piece_set {
+                                    return Err(miette!("Unable to set hotel at [{}{:2}] active: The hotel has already been placed!", position.letter, position.number));
+                                } else {
+                                    y.piece_set = true;
+                                }
+                            }
+                        }
+                    }
+                    Ok(())
+                }
+            }
+        }
+
         #[cfg(test)]
         mod tests {
             mod bank {
@@ -387,40 +431,6 @@ pub mod game {
                         Err(_) => true,
                         Ok(_) => false,
                     };
-                }
-            }
-
-            mod board {
-                use miette::{miette, Result};
-
-                use crate::base_game::board::{Board, Position};
-
-                impl Board {
-                    //TODO Add all functionalities required to place a hotel correctly and accoring to the game
-                    //rules. Decide if i would like that check to be performed here or reather in the game module.
-                    //If i decide to do it this way this function will not check if the placement of the hotel is
-                    //valid.
-                    /// Places a hotel at the designated coordinates. Does not check if this placement is valid
-                    /// acording to the game rules.
-                    /// # Return
-                    /// Ok when the hotel was placed correctly
-                    /// Error when the hotel was already placed
-                    pub fn place_hotel(&mut self, position: Position) -> Result<()> {
-                        for x in self.pieces.iter_mut() {
-                            for y in x.iter_mut() {
-                                if y.position.number.eq(&position.number)
-                                    && y.position.letter == position.letter
-                                {
-                                    if y.piece_set {
-                                        return Err(miette!("Unable to set hotel at [{}{:2}] active: The hotel has already been placed!", position.letter, position.number));
-                                    } else {
-                                        y.piece_set = true;
-                                    }
-                                }
-                            }
-                        }
-                        Ok(())
-                    }
                 }
             }
         }

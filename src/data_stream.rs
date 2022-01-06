@@ -10,3 +10,11 @@ pub fn read_number() -> miette::Result<u8> {
     let number = buffer.trim().parse::<u8>().into_diagnostic()?;
     Ok(number)
 }
+
+/// Waits until the user presses enter
+pub fn read_enter() -> miette::Result<()> {
+    let mut buffer = String::new();
+    let stdin = io::stdin();
+    stdin.read_line(&mut buffer).into_diagnostic()?;
+    Ok(())
+}
