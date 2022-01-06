@@ -15,6 +15,7 @@ pub mod game {
             ui,
         },
         data_stream::{self, read_enter},
+        game::game::round::start_round,
     };
 
     use self::{hotel_manager::HotelManager, round::Round};
@@ -46,10 +47,9 @@ pub mod game {
         //a player is currently the largest or second largest share holder
         /// A vector that contains all players that participate in the game
         pub players: Vec<Player>,
-        /// The currently running round
-        pub round: Option<Round>,
         /// The number of the currently running round
         pub round_number: u32,
+        pub round: Option<Round>,
         number_of_players: u32,
         game_started: bool,
     }
@@ -70,8 +70,8 @@ pub mod game {
                 bank: Bank::new(),
                 hotel_manager: HotelManager::new(),
                 players,
-                round: None,
                 round_number: 0,
+                round: None,
                 number_of_players,
                 game_started: false,
             })
@@ -101,10 +101,25 @@ pub mod game {
             println!("Press enter to place these hotels and start the first round!");
             read_enter()?;
             for card in cards {
-                self.board.place_hotel(card)?;
+                self.board.place_hotel(&card)?;
             }
-            self.round = Some(Round::new());
-            round::start_round(self);
+            self.start_rounds()?;
+            Ok(())
+        }
+
+        /// Starts game rounds.
+        /// If one round returns true no new round is started.
+        fn start_rounds(&mut self) -> Result<()> {
+            let mut game_running = true;
+            while game_running {
+                let round = Round::new();
+                self.round = Some(round);
+                let round_status = start_round(self)?;
+                if round_status {
+                    game_running = false;
+                }
+            }
+            //TODO Add final account (=Endabrechnung)
             Ok(())
         }
 
@@ -264,13 +279,16 @@ pub mod game {
     mod round {
         use std::slice::SliceIndex;
 
-        use crate::base_game::player::Player;
+        use miette::{miette, Result};
+
+        use crate::{base_game::{board::Board, player::Player, ui}, game::game::logic::place_hotel};
 
         use super::GameManager;
 
         pub struct Round {
             /// The index of the current player
             pub current_player_index: usize,
+            pub started: bool,
         }
 
         impl Round {
@@ -278,6 +296,7 @@ pub mod game {
             pub fn new() -> Self {
                 Self {
                     current_player_index: 0,
+                    started: false,
                 }
             }
 
@@ -287,11 +306,40 @@ pub mod game {
             }
         }
 
-        /// Starts a new round consisting of each player doing a single turn
-        pub fn start_round(game_manager: &mut GameManager) {
+        /// Starts a new round consisting of each player doing a single turn.
+        /// Does not automatically start a new round when the game is not over yet.
+        /// When the game finishes in this round `true` is returned.
+        /// The final account is not calculated in this function.
+        pub fn start_round(game_manager: &mut GameManager) -> Result<bool> {
+            if game_manager.round.as_ref().unwrap().started {
+                return Err(miette!("Round was already started!"));
+            }
+            game_manager.round.as_mut().unwrap().started = true;
             game_manager.round_number += 1;
+            // Make a surn for each player
+            for i in 0..=game_manager.players.len()-1 {
+                game_manager.round.as_mut().unwrap().current_player_index = i; 
+                let status = player_turn(game_manager)?;
+                if status {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+
+        /// Plays a single player turn
+        /// When this player finishes the game this round `true` is returned
+        fn player_turn(game_manager: &mut GameManager) -> Result<bool> {
+            ui::print_main_ui(game_manager);
+            place_hotel(game_manager);
             //TODO Implemnt function
-            todo!("Implement function");
+            //1. Place piece
+            //2. Check if win condition is meet
+            //      If yes ask give user the option to end the game here
+            //3. Buy stocks
+            //4. Draw new card
+            //todo!("Implement function");
+            Ok(false)
         }
     }
 
@@ -300,11 +348,85 @@ pub mod game {
     /// main impl block.
     /// This is also used to implement the required functions on existing structs.
     mod logic {
+        use std::{slice::Iter, io::{Read, self}};
+
         use miette::{miette, Result};
+        use read_input::{prelude::input, InputBuild};
 
-        use crate::base_game::{bank::Bank, hotel::Hotel, player::Player};
+        use crate::base_game::{bank::Bank, hotel::Hotel, player::Player, board::Position};
 
-        use super::hotel_manager::HotelManager;
+        use super::{hotel_manager::HotelManager, GameManager};
+
+        /// The different ways the game can end.
+        enum EndCondition {
+            /// The game can be finished when all chains on the board have at least 10 hotels and
+            /// when there is no space to found a new chain
+            AllChainsMoreThan10HotelsAndNoSpaceForNewChain,
+            /// The game can be finished when at least one chain has more than 41 hotels
+            OneChainMoreThan41Hotels,
+        }
+
+        impl EndCondition {
+            fn is_condition_meet(&self, game_manager: &GameManager) -> bool {
+                match self {
+                    Self::AllChainsMoreThan10HotelsAndNoSpaceForNewChain => {
+                        todo!();
+                    }
+                    Self::OneChainMoreThan41Hotels => {
+                        todo!();
+                    }
+                }
+            }
+
+            fn iterator() -> Iter<'static, EndCondition> {
+                const END_CONDITION: [EndCondition; 2] = [
+                    EndCondition::AllChainsMoreThan10HotelsAndNoSpaceForNewChain,
+                    EndCondition::OneChainMoreThan41Hotels,
+                ];
+                END_CONDITION.iter()
+            }
+        }
+
+        /// Checks if the game state meets at least one condition because of which the game can be
+        /// finished.
+        /// # Returns
+        /// * `true` - When the game meets at leaste one end condition
+        pub fn check_end_condition(game_manager: &GameManager) -> bool {
+            for end_condition in EndCondition::iterator() {
+                if end_condition.is_condition_meet(game_manager) {
+                    return true;
+                }
+            }
+            false
+        }
+        
+        /// Place a hotel on the board.
+        /// This function will abide by the game rules.
+        /// The player is asked what card to play.
+        pub fn place_hotel(game_manager: &mut GameManager) -> Result<()> {
+            println!("Please choose what hotel card you would like to play.");
+            //TODO Add function that checkes what cards can be played
+            let player = game_manager.round.as_ref().unwrap().current_player(&game_manager);
+            let card = read_card(player);
+            game_manager.board.place_hotel(&card)?;
+            //TODO Add logic for the following cases:
+            //1. The board piece founds a new hotel chain
+            //2. The board piece extends a existing chain
+            //  2.1 The board piece extends a existing chain by more than 1 piece
+            //3. The board piece creates a fusion between chains
+            //  3.1 Add Logic that can handle fusions between two chains
+            //  3.2 Add Logic that can handle fusions between two ore more chains
+            Ok(())
+        }
+
+        /// Prompts the user to select a card
+        fn read_card(player: &Player) -> Position {
+            print!("Enter a number 1-6:");
+            let number = input::<usize>().inside(1..=6).get();
+            let position = player.sorted_cards().get(number-1).unwrap().clone();
+            println!("Entered {}, card {}", &number, player.sorted_cards().get(number-1).unwrap());
+            position
+        }
 
         /// Implements all logic
         impl Bank {
@@ -351,40 +473,6 @@ pub mod game {
                 player.add_stocks(hotel, 1);
                 player.remove_money(stock_price);
                 Ok(())
-            }
-        }
-
-        mod board {
-            use miette::{miette, Result};
-
-            use crate::base_game::board::{Board, Position};
-
-            impl Board {
-                //TODO Add all functionalities required to place a hotel correctly and accoring to the game
-                //rules. Decide if i would like that check to be performed here or reather in the game module.
-                //If i decide to do it this way this function will not check if the placement of the hotel is
-                //valid.
-                /// Places a hotel at the designated coordinates. Does not check if this placement is valid
-                /// acording to the game rules.
-                /// # Return
-                /// Ok when the hotel was placed correctly
-                /// Error when the hotel was already placed
-                pub fn place_hotel(&mut self, position: Position) -> Result<()> {
-                    for x in self.pieces.iter_mut() {
-                        for y in x.iter_mut() {
-                            if y.position.number.eq(&position.number)
-                                && y.position.letter == position.letter
-                            {
-                                if y.piece_set {
-                                    return Err(miette!("Unable to set hotel at [{}{:2}] active: The hotel has already been placed!", position.letter, position.number));
-                                } else {
-                                    y.piece_set = true;
-                                }
-                            }
-                        }
-                    }
-                    Ok(())
-                }
             }
         }
 

@@ -96,6 +96,28 @@ pub mod board {
             println!("");
         }
 
+        /// Places a hotel at the designated coordinates. Does not check if this placement is valid
+        /// acording to the game rules.
+        /// # Return
+        /// Ok when the hotel was placed correctly
+        /// Error when the hotel was already placed
+        pub fn place_hotel(&mut self, position: &Position) -> Result<()> {
+            for x in self.pieces.iter_mut() {
+                for y in x.iter_mut() {
+                    if y.position.number.eq(&position.number)
+                        && y.position.letter == position.letter
+                    {
+                        if y.piece_set {
+                            return Err(miette!("Unable to set hotel at [{}{:2}] active: The hotel has already been placed!", position.letter, position.number));
+                        } else {
+                            y.piece_set = true;
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+
         /// Place a hotel on the board without abiding by the game rules
         pub fn place_hotel_debug(&mut self, position: Position, chain: Hotel) -> Result<()> {
             'outer: for x in self.pieces.iter_mut() {
@@ -693,6 +715,7 @@ pub mod ui {
     pub fn print_main_ui(game_manager: &GameManager) {
         game_manager.board.print();
         println!();
+        println!("Round {}", &game_manager.round_number);
         println!(
             "Player {}:",
             game_manager.round.as_ref().unwrap().current_player_index + 1
