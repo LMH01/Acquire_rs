@@ -8,12 +8,15 @@ mod data_stream;
 /// of new games, game logic, management of players and more.
 mod game;
 
+use std::slice::SliceIndex;
+
 use base_game::board::{Board, Letter, Position};
 use base_game::hotel::Hotel;
 use base_game::{stock, ui};
 use clap::Parser;
 use game::game::GameManager;
 use miette::Result;
+use rand::{random, Rng};
 
 use crate::base_game::board::Piece;
 use crate::base_game::ui::print_main_ui;
@@ -99,7 +102,12 @@ fn test_things(mut game_manager: GameManager) -> Result<()> {
     //    )?;
     game_manager.start_game()?;
     for hotel in Hotel::iterator() {
-        game_manager.hotel_manager.set_hotel_status(&hotel, true);
+        if rand::thread_rng().gen_bool(0.4) {
+            continue;
+        }
+        game_manager.hotel_manager.set_hotel_status(&hotel, true); 
+        let random_number = rand::thread_rng().gen_range(2..=41);
+        game_manager.hotel_manager.add_hotel_buildings(hotel, random_number).unwrap();
     }
     print_main_ui(&game_manager);
     Ok(())

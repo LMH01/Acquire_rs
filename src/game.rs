@@ -197,10 +197,29 @@ pub mod game {
             pub fn number_of_hotels(&self, hotel: &Hotel) -> u32 {
                 *self.hotel_buildings.get(hotel).unwrap()
             }
-
+            
             /// Returns true if the hotel is currently active
             pub fn hotel_status(&self, hotel: &Hotel) -> bool {
                 *self.hotel_status.get(hotel).unwrap()
+            }
+            
+            /// Returns the range in which the current number of hotels is
+            pub fn hotel_range(&self, hotel: &Hotel) -> String {
+                let hotels = self.hotel_buildings.get(hotel).unwrap();
+                let range = match hotels {
+                    0 => "",
+            2 => "    [2]",
+            3 => "    [3]",
+            4 => "    [4]",
+            5 => "    [5]",
+            6..=10 => " [6-10]",
+            11..=20 => "[11-20]",
+            21..=30 => "[21-30]",
+            31..=40 => "[31-40]",
+            _ => " [41++]",
+                };
+                let string = format!("{}", range);
+                string
             }
 
             //TODO Decide if i want to increase the amount of hotel buildings to 2 when this
@@ -267,6 +286,8 @@ pub mod game {
     }
 
     /// Contains the most part of the game logic.
+    /// Does not contain the logic of the different managers. Their logic is implemented in thair
+    /// main impl block.
     /// This is also used to implement the required functions on existing structs.
     mod logic {
         use miette::{miette, Result};

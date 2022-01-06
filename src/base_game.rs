@@ -701,7 +701,7 @@ pub mod player {
 pub mod ui {
     use std::slice::SliceIndex;
 
-    use colored::{ColoredString, Colorize};
+    use colored::{ColoredString, Colorize, Color};
 
     use crate::{
         base_game::{bank::Bank, hotel::Hotel},
@@ -724,14 +724,30 @@ pub mod ui {
             .unwrap()
             .current_player(&game_manager)
             .print_player_ui();
+        //TODO Implement largest shareholder display
+        //Maybe add commandline flag with which it can be enabled to show who is the largest
+        //stareholder currently
         println!();
         println!("{}", String::from("Game stats:").bright_green());
-        println!("{:15}|| bank || owned || value || hotels", "");
-        println!("===================================================");
+        println!("{:15}||      Hotels       ||        Stocks          ||      Bonuses for the majority shareholders", "");
+        println!("{:15}|| Number ||  Range  || Bank || Owned || Value || Largest shareholder || Second largest shareholder", "");
+        println!("==================================================================================================================");
         for hotel in Hotel::iterator() {
-            println!(
-                "{:15}||  {:2}  ||   {:2}{} || {:4}$ ||   {:2}",
-                String::from(hotel.name()).color(hotel.color()),
+            // Set the color of the values
+            let enable_color = game_manager.hotel_manager.hotel_status(hotel);
+            let color = match enable_color {
+                true => Color::White,
+                false => Color::TrueColor{r: 105, g: 105, b: 105},
+            };
+            let hotel_color = match enable_color {
+                true => hotel.color(),
+                false => Color::TrueColor{r: 105, g: 105, b: 105},
+            };
+            let formatted_string = format!(
+                "{:15}||   {:2}   || {:7} ||  {:2}  ||   {:2}{} || {:4}$ ||    TO IMPLEMENT     || TO IMPLEMENT",
+                String::from(hotel.name()).color(hotel_color),
+                game_manager.hotel_manager.number_of_hotels(hotel),
+                game_manager.hotel_manager.hotel_range(hotel),
                 game_manager.bank.hotel_stocks_available(&hotel),
                 game_manager
                     .round
@@ -742,14 +758,16 @@ pub mod ui {
                     .stocks_for_hotel(hotel),
                 " ",
                 Bank::stock_price(&game_manager.hotel_manager, &hotel),
-                game_manager.hotel_manager.number_of_hotels(hotel)
-            );
+                );
+            println!("{}", formatted_string.color(color));
         }
     }
 
     /// Used to display a little star that indicates if the player is largest or second largest
     /// shareholder
     fn stock_status_symbol(player: &Player) -> ColoredString {
+        // The star should probably be only displayed when a special terminal flag is set (mayber
+        // --info or something like that)
         todo!()
     }
 }
