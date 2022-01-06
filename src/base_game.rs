@@ -5,7 +5,7 @@ pub mod board {
     use colored::{ColoredString, Colorize};
     use miette::{miette, Result};
     use std::{
-        fmt::{self, Display},
+        fmt::{self, Display, Formatter},
         slice::Iter,
     };
 
@@ -142,7 +142,7 @@ pub mod board {
         }
     }
     /// Symbolizes a position on the board
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
     pub struct Position {
         letter: Letter,
         number: u32,
@@ -164,8 +164,15 @@ pub mod board {
             &self.number
         }
     }
+
+    impl Display for Position {
+        fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+            write!(f, "{:?}{:?}", self.letter, self.number)
+        }
+    }
+
     /// This enum contains all letters of the board
-    #[derive(Clone, Copy, PartialEq)]
+    #[derive(Clone, Copy, PartialEq, Debug, Eq, PartialOrd, Ord)]
     pub enum Letter {
         A,
         B,
@@ -363,6 +370,19 @@ pub mod hotel {
                 Hotel::Prestige => PriceLevel::High,
             }
         }
+
+        /// Returns the name of the hotel
+        pub fn name(&self) -> &str {
+            match *self {
+                Hotel::Airport => "Airport",
+                Hotel::Continental => "Continental",
+                Hotel::Festival => "Festival",
+                Hotel::Imperial => "Imperial",
+                Hotel::Luxor => "Luxor",
+                Hotel::Oriental => "Oriental",
+                Hotel::Prestige => "Prestige",
+            }
+        }
     }
 
     /// Used to set the price level for an hotel. This has an influence on the stock value.
@@ -467,6 +487,10 @@ pub mod stock {
     /// * `price_level` - Of what price level the stock is
     /// * `number_of_hotels` - The number of hotels that belong to the chain
     pub fn stock_price(price_level: PriceLevel, number_of_hotels: u32) -> u32 {
+        // Check if hotel has at least 2 buildings, otherwise the stock is not worth anything
+        if number_of_hotels < 2 {
+            return 0;
+        }
         // Offset ist added to increate the stock price for hotels that have higher prices
         let offset = match price_level {
             PriceLevel::Low => 0,
@@ -511,7 +535,7 @@ pub mod bank {
     use miette::{miette, Result};
 
     use crate::{
-        base_game::{stock::Stocks, player::Player},
+        base_game::{player::Player, stock::Stocks},
         game::game::{hotel_manager::HotelManager, GameManager},
     };
 
@@ -561,9 +585,9 @@ pub mod bank {
                     &hotel
                 ));
             }
-            let stock_value = hotel.stock_value(hotel_manager.number_of_hotels(hotel));
+            let stock_price = Bank::stock_price(&hotel_manager, &hotel);
             // Check if player has enough money to buy the stock
-            if player.money() <= stock_value {
+            if player.money() <= stock_price {
                 return Err(miette!(
                     "Unable to buy stock from hotel {}: Not enough money.",
                     &hotel
@@ -572,7 +596,7 @@ pub mod bank {
             // Finally buy the stock
             self.stocks_for_sale.decrease_stocks(hotel, 1);
             player.add_stocks(hotel, 1);
-            player.remove_money(stock_value);
+            player.remove_money(stock_price);
             Ok(())
         }
 
@@ -580,15 +604,26 @@ pub mod bank {
         pub fn hotel_stocks_available(&self, hotel: &Hotel) -> &u32 {
             self.stocks_for_sale.stocks_for_hotel(hotel)
         }
+
+        /// Returns the current price for a stock of the given hotel
+        pub fn stock_price(hotel_manager: &HotelManager, hotel: &Hotel) -> u32 {
+            hotel.stock_value(hotel_manager.number_of_hotels(&hotel))
+        }
     }
 
     #[cfg(test)]
-    mod test {
+    mod tests {
         use std::{io, slice::SliceIndex};
 
         use miette::{MietteError, Result};
 
-        use crate::{base_game::hotel::Hotel, game::game::GameManager};
+        use crate::{
+            base_game::{
+                bank::Bank,
+                hotel::{self, Hotel},
+            },
+            game::game::GameManager,
+        };
 
         #[test]
         fn test_buy_stock() {
@@ -620,6 +655,48 @@ pub mod bank {
             assert!(is_error(input));
         }
 
+        #[test]
+        fn test_stock_price() {
+            let mut game_manager = GameManager::new(2, false).unwrap();
+            game_manager
+                .hotel_manager
+                .set_hotel_status(&Hotel::Airport, true);
+            game_manager
+                .hotel_manager
+                .set_hotel_status(&Hotel::Imperial, true);
+            game_manager
+                .hotel_manager
+                .set_hotel_status(&Hotel::Continental, true);
+            game_manager
+                .hotel_manager
+                .add_hotel_buildings(&Hotel::Airport, 20)
+                .unwrap();
+            game_manager
+                .hotel_manager
+                .add_hotel_buildings(&Hotel::Imperial, 15)
+                .unwrap();
+            game_manager
+                .hotel_manager
+                .add_hotel_buildings(&Hotel::Continental, 41)
+                .unwrap();
+            println!(
+                "Number of hotels: {}",
+                game_manager.hotel_manager.number_of_hotels(&Hotel::Airport)
+            );
+            assert_eq!(
+                Bank::stock_price(&game_manager.hotel_manager, &Hotel::Airport),
+                700
+            );
+            assert_eq!(
+                Bank::stock_price(&game_manager.hotel_manager, &Hotel::Imperial),
+                800
+            );
+            assert_eq!(
+                Bank::stock_price(&game_manager.hotel_manager, &Hotel::Continental),
+                1200
+            );
+        }
+
         fn is_error(input: Result<()>) -> bool {
             return match input {
                 Err(_) => true,
@@ -631,12 +708,18 @@ pub mod bank {
 
 /// Player management
 pub mod player {
-    use std::slice::SliceIndex;
+    use std::{
+        fmt::{Display, Formatter, Result},
+        slice::SliceIndex,
+    };
+
+    use colored::Colorize;
 
     use crate::{
         base_game::board::Position,
         base_game::{hotel::Hotel, stock::Stocks},
     };
+
     /// Stores all variables that belong to the player
     pub struct Player {
         /// The money the player currently has
@@ -705,5 +788,109 @@ pub mod player {
             }
             println!();
         }
+
+        /// Sorts the current hand cards and returns a copy
+        pub fn sorted_cards(&self) -> Vec<Position> {
+            let mut cards = self.cards().clone();
+            cards.sort();
+            cards
+        }
+
+        /// Prints the current player to the console
+        pub fn print_player_ui(&self) {
+            // Print money
+            println!("{} {}$", String::from("Money:").bright_green(), self.money);
+            // Print cards
+            print!("{}", String::from("Cards: ").bright_green());
+            let mut first_card = true;
+            for card in &self.sorted_cards() {
+                if first_card {
+                    first_card = false;
+                } else {
+                    print!(", ");
+                }
+                print!("{}", card);
+            }
+            println!();
+            // Print stocks
+            //TODO Add functionality that a * in gold is printed when the player is the largest
+            //shareholder or a silver * when the player is the second largest shareholder.
+            //The star is positioned here: Airport*:
+            print!("{}", String::from("Stocks: ").bright_green());
+            first_card = true;
+            for hotel in Hotel::iterator() {
+                if first_card {
+                    first_card = false;
+                } else {
+                    print!(", ")
+                }
+                print!(
+                    "{}: {}",
+                    hotel.name().color(hotel.color()),
+                    self.owned_stocks.stocks_for_hotel(hotel)
+                );
+            }
+            println!();
+            //TODO Maybe add another field "Current estimated wealth". That displayes the amount of
+            //money the player would have now if all shares where sold and the rewards for the
+            //largest shareholders where given now.
+        }
+    }
+}
+
+/// User interface drawing
+pub mod ui {
+    use std::slice::SliceIndex;
+
+    use colored::{ColoredString, Colorize};
+
+    use crate::{
+        base_game::{bank::Bank, hotel::Hotel},
+        game::game::GameManager,
+    };
+
+    use super::player::Player;
+
+    /// Prints the main user interface.
+    pub fn print_main_ui(game_manager: &GameManager) {
+        game_manager.board.print();
+        println!();
+        println!(
+            "Player {}:",
+            game_manager.round.as_ref().unwrap().current_player_index + 1
+        );
+        game_manager
+            .round
+            .as_ref()
+            .unwrap()
+            .current_player(&game_manager)
+            .print_player_ui();
+        println!();
+        println!("{}", String::from("Game stats:").bright_green());
+        println!("{:15}|| bank || owned || value || hotels", "");
+        println!("===================================================");
+        for hotel in Hotel::iterator() {
+            println!(
+                "{:15}||  {:2}  ||   {:2}{} || {:4}$ ||   {:2}",
+                String::from(hotel.name()).color(hotel.color()),
+                game_manager.bank.hotel_stocks_available(&hotel),
+                game_manager
+                    .round
+                    .as_ref()
+                    .unwrap()
+                    .current_player(&game_manager)
+                    .owned_stocks()
+                    .stocks_for_hotel(hotel),
+                " ",
+                Bank::stock_price(&game_manager.hotel_manager, &hotel),
+                game_manager.hotel_manager.number_of_hotels(hotel)
+            );
+        }
+    }
+
+    /// Used to display a little star that indicates if the player is largest or second largest
+    /// shareholder
+    fn stock_status_symbol(player: &Player) -> ColoredString {
+        todo!()
     }
 }

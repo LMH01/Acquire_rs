@@ -8,12 +8,13 @@ pub mod game {
     use crate::base_game::{
         bank::Bank,
         board::{Board, Letter, Piece, Position},
-        hotel::Hotel, player::Player,
+        hotel::Hotel,
+        player::Player,
+        ui,
     };
 
-    use self::hotel_manager::HotelManager;
+    use self::{hotel_manager::HotelManager, round::Round};
 
-    //TODO Rename to GameManager
     //TODO Check what field are required to be public, make private if not used
     /// Contains all variables required to play a game.\
     /// This is the main interface to access game functions. Everything that happens in the game
@@ -37,8 +38,14 @@ pub mod game {
         pub hotel_manager: HotelManager,
         /// The positions that can be drawn
         pub position_cards: Vec<Position>,
+        //TODO Add player_manager that stores the players, the number of players and information if
+        //a player is currently the largest or second largest share holder
         /// A vector that contains all players that participate in the game
         pub players: Vec<Player>,
+        /// The currently running round
+        pub round: Option<Round>,
+        /// The number of the currently running round
+        pub round_number: u32,
         number_of_players: u32,
         game_started: bool,
     }
@@ -59,6 +66,8 @@ pub mod game {
                 bank: Bank::new(),
                 hotel_manager: HotelManager::new(),
                 players,
+                round: None,
+                round_number: 0,
                 number_of_players,
                 game_started: false,
             })
@@ -76,6 +85,7 @@ pub mod game {
                 self.game_started = true;
             }
             println!("Each player draws a card now, the player with the lowest card starts.");
+            self.round = Some(Round::new());
             //TODO Continue to work here
             // Write function that prints current game information to console:
             //  Current player: Money, stocks they have, cards they have
@@ -84,6 +94,7 @@ pub mod game {
             //
             //  Maybe print the same info card that exists in the real game where the current
             //  amount of hotels is highlighted
+            ui::print_main_ui(self);
             Ok(())
         }
 
@@ -154,6 +165,8 @@ pub mod game {
     pub mod hotel_manager {
         use std::collections::HashMap;
 
+        use miette::{miette, Result};
+
         use crate::base_game::hotel::Hotel;
 
         /// Store the currently active hotel chains
@@ -200,14 +213,61 @@ pub mod game {
             pub fn set_hotel_status(&mut self, hotel: &Hotel, active: bool) {
                 *self.hotel_status.get_mut(&hotel).unwrap() = active;
             }
+
+            /// Adds the specified amount of hotel buildings to the chain.
+            /// # Returns
+            /// * `Ok` when value was changed
+            /// * `Err` when hotel is disabled
+            pub fn add_hotel_buildings(&mut self, hotel: &Hotel, amount: u32) -> Result<()> {
+                if *self.hotel_status.get(hotel).unwrap() {
+                    *self.hotel_buildings.get_mut(&hotel).unwrap() += amount;
+                    Ok(())
+                } else {
+                    Err(miette!(
+                        "Unable to add hotel buildings: The hotel is not active"
+                    ))
+                }
+            }
         }
     }
 
     /// Manages a single round. A round consists of each player doing a move.
-    mod round {}
+    mod round {
+        use std::slice::SliceIndex;
+
+        use crate::base_game::player::Player;
+
+        use super::GameManager;
+
+        pub struct Round {
+            /// The index of the current player
+            pub current_player_index: usize,
+        }
+
+        impl Round {
+            /// Creates a new round
+            pub fn new() -> Self {
+                Self {
+                    current_player_index: 0,
+                }
+            }
+
+            /// Returns the current player
+            pub fn current_player<'a>(&self, game_manager: &'a GameManager) -> &'a Player {
+                game_manager.players.get(self.current_player_index).unwrap()
+            }
+        }
+
+        /// Starts a new round consisting of each player doing a single turn
+        pub fn start_round(game_manager: &mut GameManager) {
+            game_manager.round_number += 1;
+            //TODO Implemnt function
+            todo!("Implement function");
+        }
+    }
 
     #[cfg(test)]
-    mod game_tests {
+    mod tests {
         use crate::game::game::GameManager;
 
         #[test]

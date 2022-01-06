@@ -1,4 +1,6 @@
 /// Contains all base functionalities that the game needs to work.
+/// This includes all basic data types and the playfield.
+/// This module does not contain any logic related to the gameplay.
 mod base_game;
 /// Contains functions that help to read and parse the user input
 mod data_stream;
@@ -8,17 +10,22 @@ mod game;
 
 use base_game::board::{Board, Letter, Position};
 use base_game::hotel::Hotel;
-use base_game::stock;
+use base_game::{stock, ui};
 use clap::Parser;
 use game::game::GameManager;
 use miette::Result;
 
 use crate::base_game::board::Piece;
-
-//TODO Make all fields that i made public in the struct private and provide getters and, where
-//needed setters
+use crate::base_game::ui::print_main_ui;
+//TODO Review struct fields in base_game.rs and decide if it would be a better idea to
+//make them public. Also remove the getters/setters
+//TODO Start with gameplay
+//While doing that add functionality that stores the currently largest and second largest shareholder
+//Also remove the functions that are gameplay relevant from the base_game.rs file and move them to
+//game.rs
+//base_game.rs should only contain the very basic data types all logic related will be written in
+//game.rs
 //TODO See if i can remove the clone, copy trait from the hotel enum
-//TODO Move player module from game.rs to base_game.rs
 
 #[derive(Parser)]
 #[clap(about = "The board game Acquire fia command line in Rust")]
@@ -60,7 +67,7 @@ fn place_test_hotels(board: &mut Board) -> Result<()> {
     Ok(())
 }
 
-fn test_things(mut game: GameManager) -> Result<()> {
+fn test_things(mut game_manager: GameManager) -> Result<()> {
     //    game.board.place_hotel_debug(Position::new(Letter::A, 2), Hotel::Luxor);
     //    game.board.print();
     //        Board::print(&game.board);
@@ -70,11 +77,13 @@ fn test_things(mut game: GameManager) -> Result<()> {
     //    }
     //    place_test_hotels(&mut game.board)?;
     //    place_test_hotels(&mut game.board)?;
-    game.board
+    game_manager
+        .board
         .place_hotel_debug(Position::new(Letter::B, 10), Hotel::Oriental)?;
-    game.board
+    game_manager
+        .board
         .place_hotel_debug(Position::new(Letter::E, 9), Hotel::Continental)?;
-    game.board.print();
+    game_manager.board.print();
     println!(
         "High Price Hotel with 40 Hotels: {}",
         stock::stock_price(base_game::hotel::PriceLevel::High, 40)
@@ -83,10 +92,15 @@ fn test_things(mut game: GameManager) -> Result<()> {
         "High Price Hotel with 41 Hotels: {}",
         stock::stock_price(base_game::hotel::PriceLevel::High, 41)
     );
-    game.bank.buy_stock(
-        &game.hotel_manager,
-        &Hotel::Airport,
-        game.players.get_mut(0).unwrap(),
-    )?;
+    //    game_manager.bank.buy_stock(
+    //        &game_manager.hotel_manager,
+    //        &Hotel::Airport,
+    //        game_manager.players.get_mut(0).unwrap(),
+    //    )?;
+    game_manager.start_game()?;
+    for hotel in Hotel::iterator() {
+        game_manager.hotel_manager.set_hotel_status(&hotel, true);
+    }
+    print_main_ui(&game_manager);
     Ok(())
 }
