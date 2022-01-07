@@ -10,7 +10,7 @@ pub mod game {
         base_game::{
             bank::Bank,
             board::{Board, Letter, Piece, Position},
-            hotel::Hotel,
+            hotel_chains::HotelChain,
             player::Player,
             ui,
         },
@@ -18,7 +18,7 @@ pub mod game {
         game::game::round::start_round,
     };
 
-    use self::{hotel_manager::HotelManager, round::Round};
+    use self::{hotel_chain_manager::HotelChainManager, round::Round};
 
     //TODO Check what field are required to be public, make private if not used
     /// Contains all variables required to play a game.\
@@ -40,7 +40,7 @@ pub mod game {
         /// The bank that manages the stocks and the money
         pub bank: Bank,
         /// The hotel manager for this game
-        pub hotel_manager: HotelManager,
+        pub hotel_chain_manager: HotelChainManager,
         /// The positions that can be drawn
         pub position_cards: Vec<Position>,
         //TODO Add player_manager that stores the players, the number of players and information if
@@ -68,7 +68,7 @@ pub mod game {
                 board: Board::new(large_board),
                 position_cards,
                 bank: Bank::new(),
-                hotel_manager: HotelManager::new(),
+                hotel_chain_manager: HotelChainManager::new(),
                 players,
                 round_number: 0,
                 round: None,
@@ -187,7 +187,7 @@ pub mod game {
     }
 
     /// Manages the currently active hotel chains
-    pub mod hotel_manager {
+    pub mod hotel_chain_manager {
         use std::collections::HashMap;
 
         use miette::{miette, Result};
@@ -195,17 +195,17 @@ pub mod game {
         use crate::base_game::{
             bank::Bank,
             board::{Board, Position},
-            hotel::Hotel,
+            hotel_chains::HotelChain,
             player::Player,
         };
 
         /// Store the currently active hotel chains
-        pub struct HotelManager {
+        pub struct HotelChainManager {
             /// Stores the active hotel chains and the buildings that belong to the chain
-            active_chains: HashMap<Hotel, Vec<Position>>,
+            active_chains: HashMap<HotelChain, Vec<Position>>,
         }
 
-        impl HotelManager {
+        impl HotelChainManager {
             /// Create a new hotel manager that is used to manage the currently active hotel chains
             pub fn new() -> Self {
                 Self {
@@ -215,7 +215,7 @@ pub mod game {
 
             /// Returns the number of hotels currently built for the specified chain.
             /// If the chain is not active 0 is returned
-            pub fn chain_length(&self, hotel: &Hotel) -> u32 {
+            pub fn chain_length(&self, hotel: &HotelChain) -> u32 {
                 if !self.active_chains.contains_key(hotel) {
                     return 0;
                 }
@@ -228,13 +228,13 @@ pub mod game {
             }
 
             /// Returns true if the chain is currently active
-            pub fn chain_status(&self, hotel: &Hotel) -> bool {
+            pub fn chain_status(&self, hotel: &HotelChain) -> bool {
                 self.active_chains.contains_key(hotel)
             }
 
-            /// Returns the range in which the current number of hotels is
-            pub fn hotel_range(&self, hotel: &Hotel) -> String {
-                let hotels = match self.active_chains.contains_key(hotel) {
+            /// Returns the range in which the current price level of the chain is
+            pub fn price_range(&self, hotel: &HotelChain) -> String {
+                let chains = match self.active_chains.contains_key(hotel) {
                     true => self
                         .active_chains
                         .get(hotel)
@@ -244,7 +244,7 @@ pub mod game {
                         .unwrap(),
                     false => 0,
                 };
-                let range = match hotels {
+                let range = match chains {
                     0 => "",
                     2 => "    [2]",
                     3 => "    [3]",
@@ -274,7 +274,7 @@ pub mod game {
             /// A result containing 'Ok()' when the chain has been founded successfully
             pub fn start_chain(
                 &mut self,
-                hotel_chain: Hotel,
+                hotel_chain: HotelChain,
                 positions: Vec<Position>,
                 board: &mut Board,
                 player: &mut Player,
@@ -305,7 +305,7 @@ pub mod game {
             /// * `Err(Error)` - Whe the hotel chain does not exist
             pub fn add_hotel_to_chain(
                 &mut self,
-                hotel_chain: &Hotel,
+                hotel_chain: &HotelChain,
                 position: Position,
                 mut board: Board,
             ) -> Result<()> {
@@ -333,8 +333,8 @@ pub mod game {
             /// * `Err(Error)` - Whe the merge was not successfull
             pub fn fuse_chains(
                 &mut self,
-                alive: &Hotel,
-                dead: &Hotel,
+                alive: &HotelChain,
+                dead: &HotelChain,
                 board: &mut Board,
             ) -> Result<()> {
                 // Check if the two chains exist
@@ -359,7 +359,7 @@ pub mod game {
             use miette::Result;
 
             use crate::{
-                base_game::{board::Position, hotel::Hotel, ui},
+                base_game::{board::Position, hotel_chains::HotelChain, ui},
                 game::game::{round::Round, GameManager},
             };
 
@@ -367,10 +367,10 @@ pub mod game {
             fn test_chain_status_and_length() -> Result<()> {
                 let mut game_manager = GameManager::new(2, false).unwrap();
                 game_manager.round = Some(Round::new());
-                for hotel_chain in Hotel::iterator() {
+                for hotel_chain in HotelChain::iterator() {
                     setup_hotel(&mut game_manager, hotel_chain)?;
-                    assert_eq!(game_manager.hotel_manager.chain_status(hotel_chain), true);
-                    assert_eq!(game_manager.hotel_manager.chain_length(hotel_chain), 13);
+                    assert_eq!(game_manager.hotel_chain_manager.chain_status(hotel_chain), true);
+                    assert_eq!(game_manager.hotel_chain_manager.chain_length(hotel_chain), 13);
                 }
                 Ok(())
             }
@@ -379,27 +379,27 @@ pub mod game {
             fn test_fusion() -> Result<()> {
                 let mut game_manager = GameManager::new(2, false).unwrap();
                 game_manager.round = Some(Round::new());
-                let hotel_chain_1 = &Hotel::Airport;
-                let hotel_chain_2 = &Hotel::Continental;
+                let hotel_chain_1 = &HotelChain::Airport;
+                let hotel_chain_2 = &HotelChain::Continental;
                 setup_hotel(&mut game_manager, hotel_chain_1)?;
                 setup_hotel(&mut game_manager, hotel_chain_2)?;
                 ui::print_main_ui(&game_manager);
-                game_manager.hotel_manager.fuse_chains(
-                    &Hotel::Continental,
-                    &Hotel::Airport,
+                game_manager.hotel_chain_manager.fuse_chains(
+                    &HotelChain::Continental,
+                    &HotelChain::Airport,
                     &mut game_manager.board,
                 )?;
                 assert_eq!(
-                    game_manager.hotel_manager.chain_status(hotel_chain_1),
+                    game_manager.hotel_chain_manager.chain_status(hotel_chain_1),
                     false
                 );
-                assert_eq!(game_manager.hotel_manager.chain_status(hotel_chain_2), true);
-                assert_eq!(game_manager.hotel_manager.chain_length(hotel_chain_1), 0);
-                assert_eq!(game_manager.hotel_manager.chain_length(hotel_chain_2), 26);
+                assert_eq!(game_manager.hotel_chain_manager.chain_status(hotel_chain_2), true);
+                assert_eq!(game_manager.hotel_chain_manager.chain_length(hotel_chain_1), 0);
+                assert_eq!(game_manager.hotel_chain_manager.chain_length(hotel_chain_2), 26);
                 Ok(())
             }
 
-            fn setup_hotel(game_manager: &mut GameManager, hotel_chain: &Hotel) -> Result<()> {
+            fn setup_hotel(game_manager: &mut GameManager, hotel_chain: &HotelChain) -> Result<()> {
                 let mut cards: Vec<Position> = Vec::new();
                 for _i in 1..=13 {
                     cards.push(game_manager.draw_card().unwrap());
@@ -407,7 +407,7 @@ pub mod game {
                 for card in &cards {
                     game_manager.board.place_hotel(&card)?;
                 }
-                game_manager.hotel_manager.start_chain(
+                game_manager.hotel_chain_manager.start_chain(
                     *hotel_chain,
                     cards,
                     &mut game_manager.board,
@@ -506,21 +506,18 @@ pub mod game {
     /// main impl block.
     /// This is also used to implement the required functions on existing structs.
     mod logic {
-        use std::{
-            io::{self, Read},
-            slice::Iter,
-        };
+        use std::slice::Iter;
 
         use miette::{miette, Result};
         use owo_colors::{AnsiColors, OwoColorize};
         use read_input::{prelude::input, InputBuild};
 
         use crate::{
-            base_game::{bank::Bank, board::Position, hotel::Hotel, player::Player},
+            base_game::{bank::Bank, board::Position, hotel_chains::HotelChain, player::Player},
             data_stream::read_enter,
         };
 
-        use super::{hotel_manager::HotelManager, GameManager};
+        use super::{hotel_chain_manager::HotelChainManager, GameManager};
 
         /// The different ways the game can end.
         enum EndCondition {
@@ -620,7 +617,7 @@ pub mod game {
         impl Bank {
             /// Buy a single stock from the bank.
             /// # Arguments
-            /// * `hotel_manager` - The hotel manager for the current match
+            /// * `hotel_chain_manager` - The hotel manager for the current match
             /// * `hotel` - The hotel for which the player buys a stock
             /// * `player` - The player that buys the stock
             /// # Returns
@@ -628,12 +625,12 @@ pub mod game {
             /// * `Err` - When something went wrong while buying the stock
             pub fn buy_stock(
                 &mut self,
-                hotel_manager: &HotelManager,
-                hotel: &Hotel,
+                hotel_chain_manager: &HotelChainManager,
+                hotel: &HotelChain,
                 player: &mut Player,
             ) -> Result<()> {
                 // The currently available stocks for the given hotel that can still be bought
-                let stock_available = self.hotel_stocks_available(hotel, &hotel_manager);
+                let stock_available = self.stocks_available(hotel, &hotel_chain_manager);
                 // Check if the desired stock can still be bought
                 if *stock_available == 0 {
                     return Err(miette!(
@@ -641,7 +638,7 @@ pub mod game {
                         &hotel
                     ));
                 }
-                let stock_price = Bank::stock_price(&hotel_manager, &hotel);
+                let stock_price = Bank::stock_price(&hotel_chain_manager, &hotel);
                 // Check if player has enough money to buy the stock
                 if player.money <= stock_price {
                     return Err(miette!(
@@ -656,17 +653,17 @@ pub mod game {
                 Ok(())
             }
 
-            /// Gives one stock of the hotel to the player for free
-            pub fn give_bonus_stock(&mut self, hotel: &Hotel, player: &mut Player) -> Result<()> {
+            /// Gives one stock of the hotel chain to the player for free
+            pub fn give_bonus_stock(&mut self, chain: &HotelChain, player: &mut Player) -> Result<()> {
                 // Check if stocks are left
-                if *self.stocks_for_sale.stocks.get(&hotel).unwrap() == 0 {
+                if *self.stocks_for_sale.stocks.get(&chain).unwrap() == 0 {
                     return Err(miette!(
                         "Free stock could not be given to the player: No stocks available!"
                     ));
                 }
-                *self.stocks_for_sale.stocks.get_mut(&hotel).unwrap() -= 1;
+                *self.stocks_for_sale.stocks.get_mut(&chain).unwrap() -= 1;
                 // Give stock to player
-                *player.owned_stocks.stocks.get_mut(&hotel).unwrap() += 1;
+                *player.owned_stocks.stocks.get_mut(&chain).unwrap() += 1;
                 Ok(())
             }
         }
@@ -677,32 +674,32 @@ pub mod game {
 
                 use miette::Result;
 
-                use crate::{base_game::hotel::Hotel, game::game::GameManager};
+                use crate::{base_game::hotel_chains::HotelChain, game::game::GameManager};
 
                 #[test]
                 fn test_buy_stock() {
                     let mut game = GameManager::new(2, false).unwrap();
                     // Test if Hotel is not active error works
                     let mut input = game.bank.buy_stock(
-                        &game.hotel_manager,
-                        &Hotel::Airport,
+                        &game.hotel_chain_manager,
+                        &HotelChain::Airport,
                         game.players.get_mut(0).unwrap(),
                     );
                     assert!(is_error(input));
                     // Test if no stocks left error works
-                    game.bank.stocks_for_sale.set_stocks(&Hotel::Airport, 0);
+                    game.bank.stocks_for_sale.set_stocks(&HotelChain::Airport, 0);
                     input = game.bank.buy_stock(
-                        &game.hotel_manager,
-                        &Hotel::Airport,
+                        &game.hotel_chain_manager,
+                        &HotelChain::Airport,
                         game.players.get_mut(0).unwrap(),
                     );
                     assert!(is_error(input));
                     // Test if not enough money error works
-                    game.bank.stocks_for_sale.set_stocks(&Hotel::Airport, 5);
+                    game.bank.stocks_for_sale.set_stocks(&HotelChain::Airport, 5);
                     game.players.get_mut(0).unwrap().money = 0;
                     input = game.bank.buy_stock(
-                        &game.hotel_manager,
-                        &Hotel::Airport,
+                        &game.hotel_chain_manager,
+                        &HotelChain::Airport,
                         game.players.get_mut(0).unwrap(),
                     );
                     assert!(is_error(input));

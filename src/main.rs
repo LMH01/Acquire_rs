@@ -11,7 +11,7 @@ mod game;
 use std::slice::SliceIndex;
 
 use base_game::board::{Board, Letter, Position};
-use base_game::hotel::Hotel;
+use base_game::hotel_chains::HotelChain;
 use base_game::{stock, ui};
 use clap::Parser;
 use game::game::round::Round;
@@ -70,7 +70,7 @@ fn print_welcome() {
 }
 
 fn place_test_hotels(board: &mut Board) -> Result<()> {
-    for (index, h) in Hotel::iterator().enumerate() {
+    for (index, h) in HotelChain::iterator().enumerate() {
         board.place_hotel_debug(Position::new(Letter::A, index.try_into().unwrap()), *h)?;
     }
     Ok(())
@@ -78,8 +78,8 @@ fn place_test_hotels(board: &mut Board) -> Result<()> {
 
 fn test_things(mut game_manager: GameManager) -> Result<()> {
     game_manager.round = Some(Round::new());
-    let mut active_chains: Vec<Hotel> = Vec::new();
-    for hotel_chain in Hotel::iterator() {
+    let mut active_chains: Vec<HotelChain> = Vec::new();
+    for hotel_chain in HotelChain::iterator() {
         if rand::thread_rng().gen_bool(0.4) {
             continue;
         }
@@ -96,7 +96,7 @@ fn test_things(mut game_manager: GameManager) -> Result<()> {
         if cards.len() < 2 {
             break;
         }
-        game_manager.hotel_manager.start_chain(
+        game_manager.hotel_chain_manager.start_chain(
             *hotel_chain,
             cards,
             &mut game_manager.board,
@@ -120,7 +120,7 @@ fn test_things(mut game_manager: GameManager) -> Result<()> {
         let chain2 = active_chains.get(rand2).unwrap();
         println!("Press enter to fuse {} into {}", chain2, chain1);
         read_enter();
-        game_manager.hotel_manager.fuse_chains(chain1, chain2, &mut game_manager.board)?;
+        game_manager.hotel_chain_manager.fuse_chains(chain1, chain2, &mut game_manager.board)?;
         ui::print_main_ui(&game_manager);
     }
     Ok(())

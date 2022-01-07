@@ -9,7 +9,7 @@ pub mod board {
         slice::Iter,
     };
 
-    use super::hotel::Hotel;
+    use super::hotel_chains::HotelChain;
 
     /// The board object that contains all information about the current state of the board.
     pub struct Board {
@@ -122,7 +122,7 @@ pub mod board {
         }
 
         /// Place a hotel on the board without abiding by the game rules
-        pub fn place_hotel_debug(&mut self, position: Position, chain: Hotel) -> Result<()> {
+        pub fn place_hotel_debug(&mut self, position: Position, chain: HotelChain) -> Result<()> {
             'outer: for x in self.pieces.iter_mut() {
                 for y in x.iter_mut() {
                     if y.position.number.eq(&position.number)
@@ -150,7 +150,7 @@ pub mod board {
         /// # Returns
         /// * `Ok(())` - When the piece as updated successfully
         /// * `Err(Error)` - When the piece is not placed on the board
-        pub fn update_hotel(&mut self, hotel_chain: Hotel, position: &Position) -> Result<()> {
+        pub fn update_hotel(&mut self, hotel_chain: HotelChain, position: &Position) -> Result<()> {
             for line in self.pieces.iter_mut() {
                 for piece in line {
                     if piece.position.eq(&position) {
@@ -231,7 +231,7 @@ pub mod board {
     /// Symbolizes a single piece that can be placed on the board
     pub struct Piece {
         /// Stores what hotel chain this piece belongs to
-        pub chain: Option<Hotel>,
+        pub chain: Option<HotelChain>,
         /// Stores the position on the board of this piece
         pub position: Position,
         /// Stores if the piece has been set yet
@@ -248,11 +248,11 @@ pub mod board {
                             .as_ref()
                             .unwrap()
                             .identifier()
-                            .color(Hotel::color(&self.chain.as_ref().unwrap()))
+                            .color(HotelChain::color(&self.chain.as_ref().unwrap()))
                             .to_string()
                     } else {
                         format!(" {} ", self.chain.as_ref().unwrap().identifier())
-                            .color(Hotel::color(&self.chain.as_ref().unwrap()))
+                            .color(HotelChain::color(&self.chain.as_ref().unwrap()))
                             .to_string()
                     }
                 } else {
@@ -275,9 +275,9 @@ pub mod board {
     }
 }
 
-/// Contains all functionalities related to the hotel buildings. Like name, information about stock
+/// Contains all functionalities related to the hotel chains. Like name, information about stock
 /// values and more.
-pub mod hotel {
+pub mod hotel_chains {
     use std::{
         fmt::{self, Display, Formatter},
         slice::Iter,
@@ -288,11 +288,9 @@ pub mod hotel {
     use super::stock;
 
     //TODO See if it would be a better idea to remove the clone, copy
-    //TODO Maybe it would be better to rename the enum to HotelChains
-    //      but when i do that i have to rename all the function parameter names
     /// All different hotel types that exist in the game
     #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-    pub enum Hotel {
+    pub enum HotelChain {
         Airport,
         Continental,
         Festival,
@@ -302,42 +300,42 @@ pub mod hotel {
         Prestige,
     }
 
-    impl Hotel {
-        /// Returns the identifier for the hotel
+    impl HotelChain {
+        /// Returns the identifier for the hotel chain
         pub fn identifier(&self) -> char {
             match *self {
-                Hotel::Airport => 'A',
-                Hotel::Continental => 'C',
-                Hotel::Festival => 'F',
-                Hotel::Imperial => 'I',
-                Hotel::Luxor => 'L',
-                Hotel::Oriental => 'O',
-                Hotel::Prestige => 'P',
+                HotelChain::Airport => 'A',
+                HotelChain::Continental => 'C',
+                HotelChain::Festival => 'F',
+                HotelChain::Imperial => 'I',
+                HotelChain::Luxor => 'L',
+                HotelChain::Oriental => 'O',
+                HotelChain::Prestige => 'P',
             }
         }
 
         /// Returns the specific color for the hotel
         pub fn color(&self) -> Rgb {
             match *self {
-                Hotel::Airport => Rgb(107, 141, 165),
-                Hotel::Continental => Rgb(32, 64, 136),
-                Hotel::Festival => Rgb(12, 106, 88),
-                Hotel::Imperial => Rgb(198, 83, 80),
-                Hotel::Luxor => Rgb(231, 219, 0),
-                Hotel::Oriental => Rgb(184, 96, 20),
-                Hotel::Prestige => Rgb(99, 47, 107),
+                HotelChain::Airport => Rgb(107, 141, 165),
+                HotelChain::Continental => Rgb(32, 64, 136),
+                HotelChain::Festival => Rgb(12, 106, 88),
+                HotelChain::Imperial => Rgb(198, 83, 80),
+                HotelChain::Luxor => Rgb(231, 219, 0),
+                HotelChain::Oriental => Rgb(184, 96, 20),
+                HotelChain::Prestige => Rgb(99, 47, 107),
             }
         }
 
-        pub fn iterator() -> Iter<'static, Hotel> {
-            const HOTELS: [Hotel; 7] = [
-                Hotel::Airport,
-                Hotel::Continental,
-                Hotel::Festival,
-                Hotel::Imperial,
-                Hotel::Luxor,
-                Hotel::Oriental,
-                Hotel::Prestige,
+        pub fn iterator() -> Iter<'static, HotelChain> {
+            const HOTELS: [HotelChain; 7] = [
+                HotelChain::Airport,
+                HotelChain::Continental,
+                HotelChain::Festival,
+                HotelChain::Imperial,
+                HotelChain::Luxor,
+                HotelChain::Oriental,
+                HotelChain::Prestige,
             ];
             HOTELS.iter()
         }
@@ -353,26 +351,26 @@ pub mod hotel {
         /// Returns the price level of the hotel. This has an influence on the stock value.
         pub fn price_level(&self) -> PriceLevel {
             match *self {
-                Hotel::Airport => PriceLevel::Low,
-                Hotel::Continental => PriceLevel::High,
-                Hotel::Festival => PriceLevel::Low,
-                Hotel::Imperial => PriceLevel::Medium,
-                Hotel::Luxor => PriceLevel::Medium,
-                Hotel::Oriental => PriceLevel::Medium,
-                Hotel::Prestige => PriceLevel::High,
+                HotelChain::Airport => PriceLevel::Low,
+                HotelChain::Continental => PriceLevel::High,
+                HotelChain::Festival => PriceLevel::Low,
+                HotelChain::Imperial => PriceLevel::Medium,
+                HotelChain::Luxor => PriceLevel::Medium,
+                HotelChain::Oriental => PriceLevel::Medium,
+                HotelChain::Prestige => PriceLevel::High,
             }
         }
 
         /// Returns the name of the hotel
         pub fn name(&self) -> &str {
             match *self {
-                Hotel::Airport => "Airport",
-                Hotel::Continental => "Continental",
-                Hotel::Festival => "Festival",
-                Hotel::Imperial => "Imperial",
-                Hotel::Luxor => "Luxor",
-                Hotel::Oriental => "Oriental",
-                Hotel::Prestige => "Prestige",
+                HotelChain::Airport => "Airport",
+                HotelChain::Continental => "Continental",
+                HotelChain::Festival => "Festival",
+                HotelChain::Imperial => "Imperial",
+                HotelChain::Luxor => "Luxor",
+                HotelChain::Oriental => "Oriental",
+                HotelChain::Prestige => "Prestige",
             }
         }
     }
@@ -392,7 +390,7 @@ pub mod hotel {
         }
     }
 
-    impl Display for Hotel {
+    impl Display for HotelChain {
         fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
             write!(f, "{:?}", self)
         }
@@ -400,17 +398,17 @@ pub mod hotel {
 
     #[cfg(test)]
     mod tests {
-        use crate::base_game::hotel::Hotel;
+        use crate::base_game::hotel_chains::HotelChain;
 
         #[test]
         fn name() {
-            assert_eq!("Airport", Hotel::Airport.to_string());
-            assert_eq!("Continental", Hotel::Continental.to_string());
-            assert_eq!("Festival", Hotel::Festival.to_string());
-            assert_eq!("Imperial", Hotel::Imperial.to_string());
-            assert_eq!("Luxor", Hotel::Luxor.to_string());
-            assert_eq!("Oriental", Hotel::Oriental.to_string());
-            assert_eq!("Prestige", Hotel::Prestige.to_string());
+            assert_eq!("Airport", HotelChain::Airport.to_string());
+            assert_eq!("Continental", HotelChain::Continental.to_string());
+            assert_eq!("Festival", HotelChain::Festival.to_string());
+            assert_eq!("Imperial", HotelChain::Imperial.to_string());
+            assert_eq!("Luxor", HotelChain::Luxor.to_string());
+            assert_eq!("Oriental", HotelChain::Oriental.to_string());
+            assert_eq!("Prestige", HotelChain::Prestige.to_string());
         }
     }
 }
@@ -419,19 +417,19 @@ pub mod hotel {
 pub mod stock {
     use std::collections::HashMap;
 
-    use super::hotel::{Hotel, PriceLevel};
+    use super::hotel_chains::{HotelChain, PriceLevel};
 
     /// Used to symbolize how many stocks a player has/the bank has left for a specific hotel
     pub struct Stocks {
         // Contains the stocks.
-        pub stocks: HashMap<Hotel, u32>,
+        pub stocks: HashMap<HotelChain, u32>,
     }
 
     impl Stocks {
         /// Initializes a new stock struct. Member variables are set to 0
         pub fn new() -> Self {
-            let mut stocks: HashMap<Hotel, u32> = HashMap::new();
-            for hotel in Hotel::iterator() {
+            let mut stocks: HashMap<HotelChain, u32> = HashMap::new();
+            for hotel in HotelChain::iterator() {
                 stocks.insert(*hotel, 0);
             }
             Self { stocks }
@@ -440,34 +438,34 @@ pub mod stock {
         /// Initializes a new stock struct. Member variables are set to 25. This is used so that
         /// the bank gets all available stocks at the start.
         pub fn new_bank() -> Self {
-            let mut stocks: HashMap<Hotel, u32> = HashMap::new();
-            for hotel in Hotel::iterator() {
-                stocks.insert(*hotel, 25);
+            let mut stocks: HashMap<HotelChain, u32> = HashMap::new();
+            for chain in HotelChain::iterator() {
+                stocks.insert(*chain, 25);
             }
             Self { stocks }
         }
 
         /// Returns the amout of stocks available for the hotel
-        pub fn stocks_for_hotel(&self, hotel: &Hotel) -> &u32 {
-            self.stocks.get(hotel).unwrap()
+        pub fn stocks_for_hotel(&self, chain: &HotelChain) -> &u32 {
+            self.stocks.get(chain).unwrap()
         }
 
         /// Set the stocks of the hotel to the amount.
         /// # Arguments
         /// * `hotel` - The hotel for which the stock value should be changed
         /// * `value` - The value to which the stock amount should be set
-        pub fn set_stocks(&mut self, hotel: &Hotel, value: u32) {
-            *self.stocks.get_mut(hotel).unwrap() = value;
+        pub fn set_stocks(&mut self, chain: &HotelChain, value: u32) {
+            *self.stocks.get_mut(chain).unwrap() = value;
         }
 
         /// Increases stocks for the `hotel` by `value`
-        pub fn increase_stocks(&mut self, hotel: &Hotel, value: u32) {
-            *self.stocks.get_mut(hotel).unwrap() += value;
+        pub fn increase_stocks(&mut self, chain: &HotelChain, value: u32) {
+            *self.stocks.get_mut(chain).unwrap() += value;
         }
 
         /// Decreases stocks for the `hotel` by `value`
-        pub fn decrease_stocks(&mut self, hotel: &Hotel, value: u32) {
-            *self.stocks.get_mut(hotel).unwrap() -= value;
+        pub fn decrease_stocks(&mut self, chain: &HotelChain, value: u32) {
+            *self.stocks.get_mut(chain).unwrap() -= value;
         }
     }
 
@@ -506,7 +504,7 @@ pub mod stock {
 
     #[cfg(test)]
     mod tests {
-        use crate::base_game::{hotel::PriceLevel, stock::stock_price};
+        use crate::base_game::{hotel_chains::PriceLevel, stock::stock_price};
 
         #[test]
         fn test_stock_price() {
@@ -524,9 +522,9 @@ pub mod stock {
 pub mod bank {
     use std::slice::SliceIndex;
 
-    use crate::{base_game::stock::Stocks, game::game::hotel_manager::HotelManager};
+    use crate::{base_game::stock::Stocks, game::game::hotel_chain_manager::HotelChainManager};
 
-    use super::hotel::Hotel;
+    use super::hotel_chains::HotelChain;
 
     pub struct Bank {
         pub stocks_for_sale: Stocks,
@@ -540,50 +538,52 @@ pub mod bank {
             }
         }
 
-        /// Returns how many stocks of the given hotel are available to be bought.
+        /// Returns how many stocks of the given chain are available to be bought.
         /// If the chain does not exist 0 is returned.
-        pub fn hotel_stocks_available(&self, hotel: &Hotel, hotel_manager: &HotelManager) -> &u32 {
-            if !hotel_manager.chain_status(hotel) {
+        pub fn stocks_available(&self, chain: &HotelChain, hotel_chain_manager: &HotelChainManager) -> &u32 {
+            if !hotel_chain_manager.chain_status(chain) {
                 return &0;
             }
-            self.stocks_for_sale.stocks_for_hotel(hotel)
+            self.stocks_for_sale.stocks_for_hotel(chain)
         }
 
-        /// Returns the current price for a stock of the given hotel
-        pub fn stock_price(hotel_manager: &HotelManager, hotel: &Hotel) -> u32 {
-            hotel.stock_value(hotel_manager.chain_length(&hotel))
+        /// Returns the current price for a stock of the given chain
+        pub fn stock_price(hotel_chain_manager: &HotelChainManager, chain: &HotelChain) -> u32 {
+            chain.stock_value(hotel_chain_manager.chain_length(&chain))
         }
 
         /// Set the stocks of the given chain that the bank has left to sell
-        pub fn set_stocks(&mut self, hotel: &Hotel, value: u32) {
-            *self.stocks_for_sale.stocks.get_mut(hotel).unwrap() = value;
+        pub fn set_stocks(&mut self, chain: &HotelChain, value: u32) {
+            *self.stocks_for_sale.stocks.get_mut(chain).unwrap() = value;
         }
     }
 
     #[cfg(test)]
     mod tests {
+        use miette::Result;
+
         use crate::{
             base_game::{
                 bank::Bank,
                 board::{Letter, Position},
-                hotel::Hotel,
+                hotel_chains::HotelChain,
                 player::Player,
             },
             game::game::GameManager,
         };
 
         #[test]
-        fn test_stock_price() {
+        fn test_stock_price() -> Result<()> {
             let mut game_manager = GameManager::new(2, false).unwrap();
-            game_manager.hotel_manager.start_chain(
-                Hotel::Airport,
+            game_manager.hotel_chain_manager.start_chain(
+                HotelChain::Airport,
                 vec![Position::new(Letter::A, 1), Position::new(Letter::A, 2)],
                 &mut game_manager.board,
                 &mut Player::new(Vec::new()),
                 &mut game_manager.bank,
-            );
-            game_manager.hotel_manager.start_chain(
-                Hotel::Imperial,
+            )?;
+            game_manager.hotel_chain_manager.start_chain(
+                HotelChain::Imperial,
                 vec![
                     Position::new(Letter::B, 3),
                     Position::new(Letter::C, 3),
@@ -592,9 +592,9 @@ pub mod bank {
                 &mut game_manager.board,
                 &mut Player::new(Vec::new()),
                 &mut game_manager.bank,
-            );
-            game_manager.hotel_manager.start_chain(
-                Hotel::Continental,
+            )?;
+            game_manager.hotel_chain_manager.start_chain(
+                HotelChain::Continental,
                 vec![
                     Position::new(Letter::H, 1),
                     Position::new(Letter::H, 2),
@@ -604,23 +604,24 @@ pub mod bank {
                 &mut game_manager.board,
                 &mut Player::new(Vec::new()),
                 &mut game_manager.bank,
-            );
+            )?;
             println!(
                 "Number of hotels: {}",
-                game_manager.hotel_manager.chain_length(&Hotel::Airport)
+                game_manager.hotel_chain_manager.chain_length(&HotelChain::Airport)
             );
             assert_eq!(
-                Bank::stock_price(&game_manager.hotel_manager, &Hotel::Airport),
+                Bank::stock_price(&game_manager.hotel_chain_manager, &HotelChain::Airport),
                 200
             );
             assert_eq!(
-                Bank::stock_price(&game_manager.hotel_manager, &Hotel::Imperial),
+                Bank::stock_price(&game_manager.hotel_chain_manager, &HotelChain::Imperial),
                 400
             );
             assert_eq!(
-                Bank::stock_price(&game_manager.hotel_manager, &Hotel::Continental),
+                Bank::stock_price(&game_manager.hotel_chain_manager, &HotelChain::Continental),
                 600
             );
+            Ok(())
         }
     }
 }
@@ -629,7 +630,7 @@ pub mod bank {
 pub mod player {
     use crate::{
         base_game::board::Position,
-        base_game::{hotel::Hotel, stock::Stocks},
+        base_game::{hotel_chains::HotelChain, stock::Stocks},
     };
     use owo_colors::OwoColorize;
 
@@ -665,13 +666,13 @@ pub mod player {
         }
 
         /// Add stocks that the player owns
-        pub fn add_stocks(&mut self, hotel: &Hotel, amount: u32) {
-            self.owned_stocks.increase_stocks(hotel, amount);
+        pub fn add_stocks(&mut self, chain: &HotelChain, amount: u32) {
+            self.owned_stocks.increase_stocks(chain, amount);
         }
 
         /// Remove stocks that the player owns
-        pub fn remove_stocks(&mut self, hotel: &Hotel, amount: u32) {
-            self.owned_stocks.decrease_stocks(hotel, amount);
+        pub fn remove_stocks(&mut self, chain: &HotelChain, amount: u32) {
+            self.owned_stocks.decrease_stocks(chain, amount);
         }
 
         /// Print the cards the player currently has
@@ -727,7 +728,7 @@ pub mod player {
             //The star is positioned here: Airport*:
             print!("{}", String::from("Stocks: ").bright_green());
             first_card = true;
-            for hotel in Hotel::iterator() {
+            for chain in HotelChain::iterator() {
                 if first_card {
                     first_card = false;
                 } else {
@@ -735,8 +736,8 @@ pub mod player {
                 }
                 print!(
                     "{}: {}",
-                    hotel.name().color(hotel.color()),
-                    self.owned_stocks.stocks_for_hotel(hotel)
+                    chain.name().color(chain.color()),
+                    self.owned_stocks.stocks_for_hotel(chain)
                 );
             }
             println!();
@@ -754,10 +755,10 @@ pub mod player {
 
     /// Used to store if the player is a largest or second largest shareholder
     pub struct Bonuses {
-        /// Hotels where the player is the larges shareholder
-        largest_shareholder: Vec<Hotel>,
-        /// Hotels where the player is the second largest shareholder
-        second_largest_shareholder: Vec<Hotel>,
+        /// Chains where the player is the larges shareholder
+        largest_shareholder: Vec<HotelChain>,
+        /// Chains where the player is the second largest shareholder
+        second_largest_shareholder: Vec<HotelChain>,
     }
 
     impl Bonuses {
@@ -773,7 +774,7 @@ pub mod player {
 /// User interface drawing
 pub mod ui {
     use crate::{
-        base_game::{bank::Bank, hotel::Hotel},
+        base_game::{bank::Bank, hotel_chains::HotelChain},
         game::game::GameManager,
     };
     use owo_colors::{AnsiColors, DynColors, OwoColorize, Rgb};
@@ -803,35 +804,35 @@ pub mod ui {
         println!("{:15}||      Hotels       ||        Stocks          ||      Bonuses for the majority shareholders", "");
         println!("{:15}|| Number ||  Range  || Bank || Owned || Value || Largest shareholder || Second largest shareholder", "");
         println!("==================================================================================================================");
-        for hotel in Hotel::iterator() {
+        for chain in HotelChain::iterator() {
             // Set the color of the values
-            let enable_color = game_manager.hotel_manager.chain_status(hotel);
+            let enable_color = game_manager.hotel_chain_manager.chain_status(chain);
             let color = match enable_color {
                 true => DynColors::Ansi(AnsiColors::White),
                 false => DynColors::Rgb(105, 105, 105),
             };
-            let hotel_color = match enable_color {
-                true => hotel.color(),
+            let chain_color = match enable_color {
+                true => chain.color(),
                 false => Rgb(105, 105, 105),
             };
             let formatted_string = format!(
                 "||   {:2}   || {:7} ||  {:2}  ||   {:2}{} || {:4}$ ||    TO IMPLEMENT     || TO IMPLEMENT",
-                game_manager.hotel_manager.chain_length(hotel),
-                game_manager.hotel_manager.hotel_range(hotel),
-                game_manager.bank.hotel_stocks_available(&hotel, &game_manager.hotel_manager),
+                game_manager.hotel_chain_manager.chain_length(chain),
+                game_manager.hotel_chain_manager.price_range(chain),
+                game_manager.bank.stocks_available(&chain, &game_manager.hotel_chain_manager),
                 game_manager
                     .round
                     .as_ref()
                     .unwrap()
                     .current_player(&game_manager.players)
                     .owned_stocks
-                    .stocks_for_hotel(hotel),
+                    .stocks_for_hotel(chain),
                 " ",
-                Bank::stock_price(&game_manager.hotel_manager, &hotel),
+                Bank::stock_price(&game_manager.hotel_chain_manager, &chain),
                 );
             println!(
                 "{:15}{}",
-                hotel.name().color(hotel_color),
+                chain.name().color(chain_color),
                 formatted_string.color(color),
             );
         }
