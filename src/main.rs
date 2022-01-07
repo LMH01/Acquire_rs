@@ -27,6 +27,7 @@ use crate::data_stream::read_enter;
 //make them public. Also remove the getters/setters
 //TODO Start with gameplay
 //While doing that add functionality that stores the currently largest and second largest shareholder
+//  -> Continue working on that!
 //TODO See if i can remove the clone, copy trait from the hotel enum
 //TODO Add flag with which the help card can be enabled. This will cause to print a copy of the
 //info card from the real game to the console
@@ -111,16 +112,18 @@ fn test_things(mut game_manager: GameManager) -> Result<()> {
     }
     ui::print_main_ui(&game_manager);
     if active_chains.len() >= 2 {
-        let rand1 = rand::thread_rng().gen_range(0..=active_chains.len()-1);
-        let mut rand2 = rand::thread_rng().gen_range(0..=active_chains.len()-1);
+        let rand1 = rand::thread_rng().gen_range(0..=active_chains.len() - 1);
+        let mut rand2 = rand::thread_rng().gen_range(0..=active_chains.len() - 1);
         while rand1 == rand2 {
-            rand2 = rand::thread_rng().gen_range(0..=active_chains.len()-1);
+            rand2 = rand::thread_rng().gen_range(0..=active_chains.len() - 1);
         }
         let chain1 = active_chains.get(rand1).unwrap();
         let chain2 = active_chains.get(rand2).unwrap();
         println!("Press enter to fuse {} into {}", chain2, chain1);
         read_enter();
-        game_manager.hotel_chain_manager.fuse_chains(chain1, chain2, &mut game_manager.board)?;
+        game_manager
+            .hotel_chain_manager
+            .fuse_chains(chain1, chain2, &mut game_manager.board)?;
         ui::print_main_ui(&game_manager);
     }
     Ok(())

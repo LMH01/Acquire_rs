@@ -520,27 +520,34 @@ pub mod stock {
 
 /// Manages the currently available stocks and the money.
 pub mod bank {
-    use std::slice::SliceIndex;
+    use std::{slice::SliceIndex, collections::HashMap};
 
     use crate::{base_game::stock::Stocks, game::game::hotel_chain_manager::HotelChainManager};
 
-    use super::hotel_chains::HotelChain;
+    use super::{hotel_chains::HotelChain, player::Player};
 
-    pub struct Bank {
+    pub struct Bank<'a> {
         pub stocks_for_sale: Stocks,
+        /// Stores the currently largest and second largest shareholders
+        pub largest_shareholders: LargestShareholders<'a>,
     }
 
-    impl Bank {
+    impl Bank<'_> {
         /// Creates a new bank
         pub fn new() -> Self {
             Self {
                 stocks_for_sale: Stocks::new_bank(),
+                largest_shareholders: LargestShareholders::new(),
             }
         }
 
         /// Returns how many stocks of the given chain are available to be bought.
         /// If the chain does not exist 0 is returned.
-        pub fn stocks_available(&self, chain: &HotelChain, hotel_chain_manager: &HotelChainManager) -> &u32 {
+        pub fn stocks_available(
+            &self,
+            chain: &HotelChain,
+            hotel_chain_manager: &HotelChainManager,
+        ) -> &u32 {
             if !hotel_chain_manager.chain_status(chain) {
                 return &0;
             }
@@ -555,6 +562,29 @@ pub mod bank {
         /// Set the stocks of the given chain that the bank has left to sell
         pub fn set_stocks(&mut self, chain: &HotelChain, value: u32) {
             *self.stocks_for_sale.stocks.get_mut(chain).unwrap() = value;
+        }
+    }
+    
+    /// Used to store if the player is a largest or second largest shareholder
+    pub struct LargestShareholders<'a> {
+        /// Contains who the largest shareholder is for the specified hotel
+        largest_shareholder: HashMap<HotelChain, Option<&'a Player>>,
+        /// Chains where the player is the second largest shareholder
+        second_largest_shareholder: HashMap<HotelChain, Option<&'a Player>>,
+    }
+
+    impl LargestShareholders<'_> {
+        pub fn new() -> Self {
+            let mut largest_shareholder: HashMap<HotelChain, Option<& Player>> = HashMap::new();
+            let mut second_largest_shareholder: HashMap<HotelChain, Option<& Player>> = HashMap::new();
+            for chain in HotelChain::iterator() {
+                largest_shareholder.insert(*chain, None);
+                second_largest_shareholder.insert(*chain, None);
+            }
+            Self {
+                largest_shareholder,
+                second_largest_shareholder,
+            }
         }
     }
 
@@ -607,7 +637,9 @@ pub mod bank {
             )?;
             println!(
                 "Number of hotels: {}",
-                game_manager.hotel_chain_manager.chain_length(&HotelChain::Airport)
+                game_manager
+                    .hotel_chain_manager
+                    .chain_length(&HotelChain::Airport)
             );
             assert_eq!(
                 Bank::stock_price(&game_manager.hotel_chain_manager, &HotelChain::Airport),
@@ -631,6 +663,7 @@ pub mod player {
     use crate::{
         base_game::board::Position,
         base_game::{hotel_chains::HotelChain, stock::Stocks},
+        base_game::bank::Bank,
     };
     use owo_colors::OwoColorize;
 
@@ -642,7 +675,6 @@ pub mod player {
         pub owned_stocks: Stocks,
         /// Contains the cards that the player currently has on his hand and that could be played
         pub cards: Vec<Position>,
-        pub bonuses: Bonuses,
     }
 
     impl Player {
@@ -651,7 +683,6 @@ pub mod player {
                 money: 6000,
                 owned_stocks: Stocks::new(),
                 cards: start_cards,
-                bonuses: Bonuses::new(),
             }
         }
 
@@ -706,6 +737,18 @@ pub mod player {
             false
         }
 
+        /// Checks if this player is the largest shareholder for the chain
+        pub fn is_largest_shareholder(&self, bank: &Bank) -> bool {
+            //self.bonuses.largest_shareholder.contains(&chain)
+            todo!();
+        }
+
+        /// Checks if this player is the second largest shareholder for the chain
+        pub fn is_second_largest_shareholder(&self, bank: &Bank) -> bool {
+            //self.bonuses.second_largest_shareholder.contains(&chain)
+            todo!();
+        }
+
         /// Prints the current player to the console
         pub fn print_player_ui(&self) {
             // Print money
@@ -753,22 +796,6 @@ pub mod player {
         }
     }
 
-    /// Used to store if the player is a largest or second largest shareholder
-    pub struct Bonuses {
-        /// Chains where the player is the larges shareholder
-        largest_shareholder: Vec<HotelChain>,
-        /// Chains where the player is the second largest shareholder
-        second_largest_shareholder: Vec<HotelChain>,
-    }
-
-    impl Bonuses {
-        pub fn new() -> Self {
-            Self {
-                largest_shareholder: Vec::new(),
-                second_largest_shareholder: Vec::new(),
-            }
-        }
-    }
 }
 
 /// User interface drawing
