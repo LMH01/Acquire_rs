@@ -14,12 +14,15 @@ use base_game::board::{Board, Letter, Position};
 use base_game::hotel::Hotel;
 use base_game::{stock, ui};
 use clap::Parser;
+use game::game::round::Round;
 use game::game::GameManager;
 use miette::Result;
 use rand::{random, Rng};
 
 use crate::base_game::board::Piece;
+use crate::base_game::player::Player;
 use crate::base_game::ui::print_main_ui;
+use crate::data_stream::read_enter;
 //TODO Review struct fields in base_game.rs and decide if it would be a better idea to
 //make them public. Also remove the getters/setters
 //TODO Start with gameplay
@@ -74,60 +77,51 @@ fn place_test_hotels(board: &mut Board) -> Result<()> {
 }
 
 fn test_things(mut game_manager: GameManager) -> Result<()> {
-    //    game.board.place_hotel_debug(Position::new(Letter::A, 2), Hotel::Luxor);
-    //    game.board.print();
-    //        Board::print(&game.board);
-    //        game.board.print();
-    //    for position in &game.position_cards {
-    //        game.board.place_hotel(*position)?;
-    //    }
-    //    place_test_hotels(&mut game.board)?;
-    //    place_test_hotels(&mut game.board)?;
-    game_manager
-        .board
-        .place_hotel_debug(Position::new(Letter::B, 10), Hotel::Oriental)?;
-    game_manager
-        .board
-        .place_hotel_debug(Position::new(Letter::E, 9), Hotel::Continental)?;
-    game_manager.board.place_hotel(&Position::new(Letter::A, 1))?;
-    game_manager.board.place_hotel(&Position::new(Letter::A, 1))?;
-    game_manager.board.print();
-    println!(
-        "High Price Hotel with 40 Hotels: {}",
-        stock::stock_price(base_game::hotel::PriceLevel::High, 40)
-    );
-    println!(
-        "High Price Hotel with 41 Hotels: {}",
-        stock::stock_price(base_game::hotel::PriceLevel::High, 41)
-    );
-    //    game_manager.bank.buy_stock(
-    //        &game_manager.hotel_manager,
-    //        &Hotel::Airport,
-    //        game_manager.players.get_mut(0).unwrap(),
-    //    )?;
-    game_manager.start_game()?;
-    for hotel in Hotel::iterator() {
+    game_manager.round = Some(Round::new());
+    let mut active_chains: Vec<Hotel> = Vec::new();
+    for hotel_chain in Hotel::iterator() {
         if rand::thread_rng().gen_bool(0.4) {
             continue;
         }
-        game_manager.hotel_manager.set_hotel_status(&hotel, true);
-        let random_number = rand::thread_rng().gen_range(2..=41);
-        game_manager
-            .hotel_manager
-            .add_hotel_buildings(hotel, random_number)
-            .unwrap();
-        for player in &mut game_manager.players {
-            for i in 1..=rand::thread_rng().gen_range(1..=5) {
-                if game_manager
-                    .bank
-                    .buy_stock(&game_manager.hotel_manager, hotel, player)
-                    .is_err()
-                {
-                    //Stock could not be bought
-                };
+        let mut cards: Vec<Position> = Vec::new();
+        for _i in 1..=20 {
+            if rand::thread_rng().gen_bool(0.1) {
+                break;
             }
+            cards.push(game_manager.draw_card().unwrap());
         }
+        for card in &cards {
+            game_manager.board.place_hotel(&card)?;
+        }
+        if cards.len() < 2 {
+            break;
+        }
+        game_manager.hotel_manager.start_chain(
+            *hotel_chain,
+            cards,
+            &mut game_manager.board,
+            game_manager
+                .round
+                .as_ref()
+                .unwrap()
+                .current_player_mut(&mut game_manager.players),
+            &mut game_manager.bank,
+        )?;
+        active_chains.push(*hotel_chain);
     }
-    print_main_ui(&game_manager);
+    ui::print_main_ui(&game_manager);
+    if active_chains.len() >= 2 {
+        let rand1 = rand::thread_rng().gen_range(0..=active_chains.len()-1);
+        let mut rand2 = rand::thread_rng().gen_range(0..=active_chains.len()-1);
+        while rand1 == rand2 {
+            rand2 = rand::thread_rng().gen_range(0..=active_chains.len()-1);
+        }
+        let chain1 = active_chains.get(rand1).unwrap();
+        let chain2 = active_chains.get(rand2).unwrap();
+        println!("Press enter to fuse {} into {}", chain2, chain1);
+        read_enter();
+        game_manager.hotel_manager.fuse_chains(chain1, chain2, &mut game_manager.board)?;
+        ui::print_main_ui(&game_manager);
+    }
     Ok(())
 }
