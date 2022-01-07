@@ -55,9 +55,9 @@ fn main() -> miette::Result<()> {
     print_welcome();
     let mut game_manager = GameManager::new(opts.players, opts.large_board)?;
     if opts.test {
-        test_things(game_manager);
+        test_things(game_manager)?;
     } else {
-        game_manager.start_game();
+        game_manager.start_game()?;
     }
     Ok(())
 }
@@ -89,6 +89,8 @@ fn test_things(mut game_manager: GameManager) -> Result<()> {
     game_manager
         .board
         .place_hotel_debug(Position::new(Letter::E, 9), Hotel::Continental)?;
+    game_manager.board.place_hotel(&Position::new(Letter::A, 1))?;
+    game_manager.board.place_hotel(&Position::new(Letter::A, 1))?;
     game_manager.board.print();
     println!(
         "High Price Hotel with 40 Hotels: {}",

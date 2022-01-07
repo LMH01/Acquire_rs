@@ -93,13 +93,13 @@ pub mod game {
             for i in 1..=self.players.len() {
                 let card = self.draw_card().unwrap();
                 println!("Press enter to draw the card.");
-                read_enter()?;
+                read_enter();
                 println!("Drew card {}", &card.color(AnsiColors::Green));
                 println!();
                 cards.push(card);
             }
             println!("Press enter to place these hotels and start the first round!");
-            read_enter()?;
+            read_enter();
             for card in cards {
                 self.board.place_hotel(&card)?;
             }
@@ -283,7 +283,7 @@ pub mod game {
 
         use crate::{base_game::{board::Board, player::Player, ui}, game::game::logic::place_hotel};
 
-        use super::GameManager;
+        use super::{GameManager, logic::draw_card};
 
         pub struct Round {
             /// The index of the current player
@@ -301,8 +301,13 @@ pub mod game {
             }
 
             /// Returns the current player
-            pub fn current_player<'a>(&self, game_manager: &'a GameManager) -> &'a Player {
-                game_manager.players.get(self.current_player_index).unwrap()
+            pub fn current_player<'a>(&self, players: &'a Vec<Player>) -> &'a Player {
+                players.get(self.current_player_index).unwrap()
+            }
+
+            /// Returns the current player as mutuable
+            pub fn current_player_mut<'a>(&self, players: &'a mut Vec<Player>) -> &'a mut Player {
+                players.get_mut(self.current_player_index).unwrap()
             }
         }
 
@@ -331,7 +336,7 @@ pub mod game {
         /// When this player finishes the game this round `true` is returned
         fn player_turn(game_manager: &mut GameManager) -> Result<bool> {
             ui::print_main_ui(game_manager);
-            place_hotel(game_manager);
+            place_hotel(game_manager)?;
             //TODO Implemnt function
             //1. Place piece
             //2. Check if win condition is meet
@@ -339,6 +344,7 @@ pub mod game {
             //3. Buy stocks
             //4. Draw new card
             //todo!("Implement function");
+            draw_card(game_manager);
             Ok(false)
         }
     }
@@ -351,9 +357,10 @@ pub mod game {
         use std::{slice::Iter, io::{Read, self}};
 
         use miette::{miette, Result};
+        use owo_colors::{OwoColorize, AnsiColors};
         use read_input::{prelude::input, InputBuild};
 
-        use crate::base_game::{bank::Bank, hotel::Hotel, player::Player, board::Position};
+        use crate::{base_game::{bank::Bank, hotel::Hotel, player::Player, board::Position}, data_stream::read_enter};
 
         use super::{hotel_manager::HotelManager, GameManager};
 
@@ -406,7 +413,7 @@ pub mod game {
         pub fn place_hotel(game_manager: &mut GameManager) -> Result<()> {
             println!("Please choose what hotel card you would like to play.");
             //TODO Add function that checkes what cards can be played
-            let player = game_manager.round.as_ref().unwrap().current_player(&game_manager);
+            let player = game_manager.round.as_mut().unwrap().current_player_mut(&mut game_manager.players);
             let card = read_card(player);
             game_manager.board.place_hotel(&card)?;
             //TODO Add logic for the following cases:
@@ -419,12 +426,27 @@ pub mod game {
             Ok(())
         }
 
-        /// Prompts the user to select a card
-        fn read_card(player: &Player) -> Position {
-            print!("Enter a number 1-6:");
-            let number = input::<usize>().inside(1..=6).get();
-            let position = player.sorted_cards().get(number-1).unwrap().clone();
-            println!("Entered {}, card {}", &number, player.sorted_cards().get(number-1).unwrap());
+        /// Promts the user to press enter to draw a new card. The card is removed from the
+        /// remaining cards and placed in the players inventory
+        pub fn draw_card(game_manager: &mut GameManager) {
+            print!("Press enter to draw a new card");
+            read_enter();
+            let card = game_manager.draw_card().unwrap();
+            println!("Card drawn: {}", &card.to_string().color(AnsiColors::Green));
+            let player = game_manager.round.as_mut().unwrap().current_player_mut(&mut game_manager.players);
+            player.cards.push(card);
+            print!("Press enter to finish your turn");
+            read_enter();
+        }
+
+        /// Prompts the user to select a card.
+        /// This card is then removed from the players inventory and returned
+        fn read_card(player: &mut Player) -> Position {
+            print!("Enter a number 1-6: ");
+            let card_index = input::<usize>().inside(1..=6).get()-1;
+            let position = player.sorted_cards().get(card_index).unwrap().clone();
+            //Remove the played card from the players hand cards
+            player.remove_card(&position);
             position
         }
 

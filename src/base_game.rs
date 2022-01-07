@@ -108,6 +108,9 @@ pub mod board {
                         && y.position.letter == position.letter
                     {
                         if y.piece_set {
+                            //TODO Decide if i should remove this error from here or change that
+                            //error handling in place hotel function does not ? this result instead
+                            //analyzes it
                             return Err(miette!("Unable to set hotel at [{}{:2}] active: The hotel has already been placed!", position.letter, position.number));
                         } else {
                             y.piece_set = true;
@@ -590,7 +593,7 @@ pub mod player {
     }
 
     impl Player {
-        pub fn new(start_cards: Vec<Position>) -> Self {
+        pub fn new(mut start_cards: Vec<Position>) -> Self {
             Self {
                 money: 6000,
                 owned_stocks: Stocks::new(),
@@ -634,6 +637,20 @@ pub mod player {
             let mut cards = self.cards.clone();
             cards.sort();
             cards
+        }
+
+        /// Removes a card from the players inventory.
+        /// Returns `true` when the card was removed successfully
+        pub fn remove_card(&mut self, position: &Position) -> bool {
+            for (index, card) in self.cards.iter().enumerate() {
+                if card.letter.eq(&position.letter) {
+                    if card.number.eq(&position.number) {
+                        self.cards.remove(index);
+                        return true;
+                    }
+                }
+            }
+            false
         }
 
         /// Prints the current player to the console
@@ -724,7 +741,7 @@ pub mod ui {
             .round
             .as_ref()
             .unwrap()
-            .current_player(&game_manager)
+            .current_player(&game_manager.players)
             .print_player_ui();
         //TODO Implement largest shareholder display
         //Maybe add commandline flag with which it can be enabled to show who is the largest
@@ -754,7 +771,7 @@ pub mod ui {
                     .round
                     .as_ref()
                     .unwrap()
-                    .current_player(&game_manager)
+                    .current_player(&game_manager.players)
                     .owned_stocks
                     .stocks_for_hotel(hotel),
                 " ",

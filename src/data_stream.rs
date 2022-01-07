@@ -1,6 +1,7 @@
 use std::io;
 
 use miette::IntoDiagnostic;
+use read_input::prelude::input;
 
 /// Reads a number from stdin
 pub fn read_number() -> miette::Result<u8> {
@@ -12,9 +13,6 @@ pub fn read_number() -> miette::Result<u8> {
 }
 
 /// Waits until the user presses enter
-pub fn read_enter() -> miette::Result<()> {
-    let mut buffer = String::new();
-    let stdin = io::stdin();
-    stdin.read_line(&mut buffer).into_diagnostic()?;
-    Ok(())
+pub fn read_enter() {
+    input::<char>().default(' ').get();
 }
