@@ -1,12 +1,10 @@
 /// Contains all functionalities related to the game board. Like the pieces that are placed on the
 /// board and the board itself.
 pub mod board {
-    use self::{letter::{next_letter, prev_letter, LETTERS}};
+    use self::letter::{next_letter, prev_letter, LETTERS};
     use miette::{miette, Result};
     use owo_colors::OwoColorize;
-    use std::{
-        fmt::{self, Display, Formatter},
-    };
+    use std::fmt::{self, Display, Formatter};
 
     use super::hotel_chains::HotelChain;
 
@@ -63,8 +61,7 @@ pub mod board {
             println!("");
         }
 
-        /// Places a hotel at the designated coordinates. Does not check if this placement is valid
-        /// acording to the game rules.
+        /// Places a hotel at the designated coordinates. Does not check if this placement is valid acording to the game rules.
         /// # Return
         /// Ok when the hotel was placed correctly
         /// Error when the hotel was already placed
@@ -120,7 +117,7 @@ pub mod board {
         pub fn update_hotel(&mut self, hotel_chain: HotelChain, position: &Position) -> Result<()> {
             for line in self.pieces.iter_mut() {
                 for piece in line {
-                    if piece.position.eq(&position) {
+                    if piece.position.eq(&position) && piece.piece_set {
                         piece.chain = Some(hotel_chain);
                         return Ok(());
                     }
@@ -132,12 +129,31 @@ pub mod board {
                 hotel_chain
             ))
         }
+
+        /// Checks if a hotel has been placed at the position.
+        /// # Returns
+        /// * `None` - Hotel has not been placed
+        /// * `Some(None)` - When the hotel has been placed but it does not belong to any chain
+        /// * `Some(HotelChain)` - When the hotel has been placed and belongs to a chain
+        pub fn is_hotel_placed(&self, position: &Position) -> Option<Option<HotelChain>> {
+            for line in &self.pieces {
+                for piece in line {
+                    if piece.position.eq(&position) {
+                        if !piece.piece_set {
+                            return None;
+                        }
+                        return Some(piece.chain);
+                    }
+                }
+            }
+            None
+        }
     }
 
     /// Functions related to the letter
     pub mod letter {
         pub const LETTERS: [char; 9] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
-        
+
         /// Returns the index for this letter in the `LETTERS` array
         fn letter_to_index(letter: char) -> Option<usize> {
             for (index, l) in LETTERS.iter().enumerate() {
@@ -158,7 +174,7 @@ pub mod board {
             if index.unwrap() == 8 {
                 return None;
             }
-            Some(*LETTERS.get(index.unwrap()+1).unwrap())
+            Some(*LETTERS.get(index.unwrap() + 1).unwrap())
         }
 
         /// Returns the previous letter if there is one.
@@ -171,7 +187,7 @@ pub mod board {
             if index.unwrap() == 0 {
                 return None;
             }
-            Some(*LETTERS.get(index.unwrap()-1).unwrap())
+            Some(*LETTERS.get(index.unwrap() - 1).unwrap())
         }
     }
 
@@ -197,9 +213,9 @@ pub mod board {
             if self.number > 12 {
                 return None;
             }
-            return Some(Position::new(self.letter, self.number+1));
+            return Some(Position::new(self.letter, self.number + 1));
         }
-        
+
         /// Returns the previous position.
         /// Input B3 would return B2.
         pub fn prev(&self) -> Option<Position> {
@@ -207,7 +223,7 @@ pub mod board {
             if self.number < 1 {
                 return None;
             }
-            return Some(Position::new(self.letter, self.number-1));
+            return Some(Position::new(self.letter, self.number - 1));
         }
 
         /// Returns the position that is above this position.
@@ -231,7 +247,7 @@ pub mod board {
 
     impl Display for Position {
         fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
-            write!(f, "{:?}{:?}", self.letter, self.number)
+            write!(f, "{}{:?}", self.letter, self.number)
         }
     }
 
@@ -283,7 +299,11 @@ pub mod board {
 
     #[cfg(test)]
     mod tests {
-        use super::Position;
+        use miette::Result;
+
+        use crate::base_game::hotel_chains::HotelChain;
+
+        use super::{Board, Position};
 
         #[test]
         fn position() {
@@ -297,11 +317,25 @@ pub mod board {
             assert_eq!(position_up, position.up().unwrap());
             assert_eq!(position_down, position.down().unwrap());
         }
+
+        #[test]
+        fn is_hotel_placed() -> Result<()> {
+            let mut board = Board::new();
+            let position = Position::new('H', 5);
+            board.place_hotel(&position)?;
+            assert!(board.is_hotel_placed(&position).is_some());
+            let position2 = Position::new('G', 3);
+            board.place_hotel_debug(position2, HotelChain::Luxor)?;
+            assert!(board.is_hotel_placed(&position2).unwrap().is_some());
+            assert!(board.is_hotel_placed(&Position::new('F', 4)).is_none());
+            Ok(())
+        }
     }
 }
 
 /// Stores and handels the settings that are provided fia the command line
 pub mod settings {
+    //TODO Maybe add settings with which the board dimensions can be changed
     /// Stores the settings
     pub struct Settings {
         /// Determines how the board should be printed.
@@ -704,10 +738,8 @@ pub mod bank {
 
         use crate::{
             base_game::{
-                bank::Bank,
-                board::Position,
-                hotel_chains::HotelChain,
-                player::Player, settings::Settings,
+                bank::Bank, board::Position, hotel_chains::HotelChain, player::Player,
+                settings::Settings,
             },
             game::game::GameManager,
         };
