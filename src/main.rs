@@ -12,6 +12,7 @@ use std::slice::SliceIndex;
 
 use base_game::board::{Board, Letter, Position};
 use base_game::hotel_chains::HotelChain;
+use base_game::settings::Settings;
 use base_game::{stock, ui};
 use clap::Parser;
 use game::game::round::Round;
@@ -45,6 +46,8 @@ struct Opts {
         help = "Use to make the board larger and to write the coordinates into the field"
     )]
     large_board: bool,
+    #[clap(short, long, help = "Use to show aditional information to the player.")]
+    extra_info: bool,
     #[clap(long, help = "Use to run the test function instead of the main game")]
     test: bool,
 }
@@ -59,10 +62,11 @@ fn main() -> miette::Result<()> {
     //        place_test_hotels(&mut board)?;
     //        board.print();
     print_welcome();
-    let mut game_manager = GameManager::new(opts.players, opts.large_board)?;
+    let settings = Settings::new(opts.large_board, opts.extra_info);
     if opts.test {
-        test_things(&opts)?;
+        test_things(&opts, settings)?;
     } else {
+        let mut game_manager = GameManager::new(opts.players, settings)?;
         game_manager.start_game()?;
     }
     Ok(())
@@ -79,8 +83,8 @@ fn place_test_hotels(board: &mut Board) -> Result<()> {
     Ok(())
 }
 
-fn test_things(opts: &Opts) -> Result<()> {
-    let mut game_manager = GameManager::new(opts.players, opts.large_board)?;
+fn test_things(opts: &Opts, settings: Settings) -> Result<()> {
+    let mut game_manager = GameManager::new(opts.players, settings)?;
     game_manager.round = Some(Round::new());
     let mut active_chains: Vec<HotelChain> = Vec::new();
     for hotel_chain in HotelChain::iterator() {

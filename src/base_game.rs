@@ -14,40 +14,11 @@ pub mod board {
     /// The board object that contains all information about the current state of the board.
     pub struct Board {
         pub pieces: Vec<Vec<Piece>>,
-        /// Determines how the board should be printed.
-        /// This behaviour can be set with the -l flag.
-        /// If true the (empty) board is printed this way:
-        /// ``` none
-        /// A [A 1] [A 2] [A 3] [A 4] [A 5] [A 6] [A 7] [A 8] [A 9] [A10] [A11] [A12]
-        /// B [B 1] [B 2] [B 3] [B 4] [B 5] [B 6] [B 7] [B 8] [B 9] [B10] [B11] [B12]
-        /// C [C 1] [C 2] [C 3] [C 4] [C 5] [C 6] [C 7] [C 8] [C 9] [C10] [C11] [C12]
-        /// D [D 1] [D 2] [D 3] [D 4] [D 5] [D 6] [D 7] [D 8] [D 9] [D10] [D11] [D12]
-        /// E [E 1] [E 2] [E 3] [E 4] [E 5] [E 6] [E 7] [E 8] [E 9] [E10] [E11] [E12]
-        /// F [F 1] [F 2] [F 3] [F 4] [F 5] [F 6] [F 7] [F 8] [F 9] [F10] [F11] [F12]
-        /// G [G 1] [G 2] [G 3] [G 4] [G 5] [G 6] [G 7] [G 8] [G 9] [G10] [G11] [G12]
-        /// H [H 1] [H 2] [H 3] [H 4] [H 5] [H 6] [H 7] [H 8] [H 9] [H10] [H11] [H12]
-        /// I [I 1] [I 2] [I 3] [I 4] [I 5] [I 6] [I 7] [I 8] [I 9] [I10] [I11] [I12]
-        ///      1     2     3     4     5     6     7     8     9    10    11    12
-        /// ```
-        /// If false the (empty) board is printed this way:
-        /// ```none
-        /// A
-        /// B
-        /// C
-        /// D
-        /// E
-        /// F
-        /// G
-        /// H
-        /// I
-        ///   1  2  3  4  5  6  7  8  9 10 11 12
-        /// ```
-        large_board: bool,
     }
 
     impl Board {
         /// Creates a new board and initializes it
-        pub fn new(large_board: bool) -> Self {
+        pub fn new() -> Self {
             let mut pieces: Vec<Vec<Piece>> = Vec::new();
             // initialize pieces
             for c in Letter::iterator() {
@@ -63,18 +34,17 @@ pub mod board {
             }
             Self {
                 pieces,
-                large_board,
             }
         }
 
         /// Prints the current stage of the board
-        pub fn print(&self) {
+        pub fn print(&self, large_board: bool) {
             println!();
             let mut letters = Letter::iterator();
             for x in &self.pieces {
                 print!("{} ", letters.next().unwrap());
                 for y in x {
-                    if self.large_board {
+                    if large_board {
                         print!("[{}] ", y.print_text(false));
                     } else {
                         print!("{}  ", y.print_text(true))
@@ -82,7 +52,7 @@ pub mod board {
                 }
                 println!()
             }
-            if self.large_board {
+            if large_board {
                 print!("    ");
                 for x in 1..=12 {
                     print!("{:2}    ", &x);
@@ -270,6 +240,55 @@ pub mod board {
                         .white()
                         .to_string()
                 }
+            }
+        }
+    }
+}
+
+/// Stores and handels the settings that are provided fia the command line
+pub mod settings {
+    /// Stores the settings
+    pub struct Settings {
+        /// Determines how the board should be printed.
+        /// This behaviour can be set with the -l flag.
+        /// If true the (empty) board is printed this way:
+        /// ``` none
+        /// A [A 1] [A 2] [A 3] [A 4] [A 5] [A 6] [A 7] [A 8] [A 9] [A10] [A11] [A12]
+        /// B [B 1] [B 2] [B 3] [B 4] [B 5] [B 6] [B 7] [B 8] [B 9] [B10] [B11] [B12]
+        /// C [C 1] [C 2] [C 3] [C 4] [C 5] [C 6] [C 7] [C 8] [C 9] [C10] [C11] [C12]
+        /// D [D 1] [D 2] [D 3] [D 4] [D 5] [D 6] [D 7] [D 8] [D 9] [D10] [D11] [D12]
+        /// E [E 1] [E 2] [E 3] [E 4] [E 5] [E 6] [E 7] [E 8] [E 9] [E10] [E11] [E12]
+        /// F [F 1] [F 2] [F 3] [F 4] [F 5] [F 6] [F 7] [F 8] [F 9] [F10] [F11] [F12]
+        /// G [G 1] [G 2] [G 3] [G 4] [G 5] [G 6] [G 7] [G 8] [G 9] [G10] [G11] [G12]
+        /// H [H 1] [H 2] [H 3] [H 4] [H 5] [H 6] [H 7] [H 8] [H 9] [H10] [H11] [H12]
+        /// I [I 1] [I 2] [I 3] [I 4] [I 5] [I 6] [I 7] [I 8] [I 9] [I10] [I11] [I12]
+        ///      1     2     3     4     5     6     7     8     9    10    11    12
+        /// ```
+        /// If false the (empty) board is printed this way:
+        /// ```none
+        /// A
+        /// B
+        /// C
+        /// D
+        /// E
+        /// F
+        /// G
+        /// H
+        /// I
+        ///   1  2  3  4  5  6  7  8  9 10 11 12
+        /// ```
+        pub large_board: bool,
+        /// Stores if some extra information should be shown to the player.
+        /// 
+        /// E.g. If the player is the largest shareholder
+        pub extra_info: bool,
+    }
+
+    impl Settings {
+        pub fn new(large_board: bool, extra_info: bool) -> Self {
+            Self {
+                large_board,
+                extra_info,
             }
         }
     }
@@ -826,7 +845,7 @@ pub mod player {
 pub mod ui {
     use crate::{
         base_game::{bank::Bank, hotel_chains::HotelChain},
-        game::game::GameManager,
+        game::game::{GameManager, hotel_chain_manager::HotelChainManager},
     };
     use owo_colors::{AnsiColors, DynColors, OwoColorize, Rgb};
 
@@ -834,7 +853,7 @@ pub mod ui {
 
     /// Prints the main user interface.
     pub fn print_main_ui(game_manager: &GameManager) {
-        game_manager.board.print();
+        game_manager.board.print(game_manager.settings.large_board);
         let player = game_manager.round.as_ref().unwrap().current_player(&game_manager.players);
         println!();
         println!("Round {}", &game_manager.round_number);
@@ -862,8 +881,8 @@ pub mod ui {
                 true => chain.color(),
                 false => Rgb(105, 105, 105),
             };
-            let formatted_string = format!(
-                "||   {:2}   || {:7} ||  {:2}  ||   {:2}{} || {:4}$ ||        {:5}$       ||        {:5}$",
+            let formatted_string1 = format!(
+                "||   {:2}   || {:7} ||  {:2}  ||   {:2}",
                 game_manager.hotel_chain_manager.chain_length(chain),
                 game_manager.hotel_chain_manager.price_range(chain),
                 game_manager.bank.stocks_available(&chain, &game_manager.hotel_chain_manager),
@@ -874,22 +893,29 @@ pub mod ui {
                     .current_player(&game_manager.players)
                     .owned_stocks
                     .stocks_for_hotel(chain),
-                stock_status_symbol(&game_manager.bank, &chain, player),
+                );
+            let formatted_string2 = format!(
+                " || {:4}$ ||        {:5}$       ||        {:5}$",
                 Bank::stock_price(&game_manager.hotel_chain_manager, &chain),
                 Bank::stock_price(&game_manager.hotel_chain_manager, &chain)*10,
                 Bank::stock_price(&game_manager.hotel_chain_manager, &chain)*5,
                 );
             println!(
-                "{:15}{}",
+                "{:15}{}{}{}",
                 chain.name().color(chain_color),
-                formatted_string.color(color),
+                formatted_string1.color(color),
+                stock_status_symbol(&game_manager.bank, &game_manager.hotel_chain_manager, &chain, player, game_manager.settings.extra_info),
+                formatted_string2.color(color),
             );
         }
     }
 
     /// Used to display a little star that indicates if the player is largest or second largest
     /// shareholder
-    fn stock_status_symbol(bank: &Bank, chain: &HotelChain, player: &Player) -> String {
+    fn stock_status_symbol(bank: &Bank, hotel_manager: &HotelChainManager, chain: &HotelChain, player: &Player, show_symbol: bool) -> String {
+        if !hotel_manager.chain_status(&chain) || !show_symbol {
+            return String::from(" ");
+        }
         if bank.is_largest_shareholder(player, chain) {
             return "*".color(Rgb(225, 215, 0)).to_string();
         }

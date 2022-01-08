@@ -12,7 +12,7 @@ pub mod game {
             board::{Board, Letter, Piece, Position},
             hotel_chains::HotelChain,
             player::Player,
-            ui,
+            ui, settings::Settings,
         },
         data_stream::{self, read_enter},
         game::game::round::start_round,
@@ -52,11 +52,13 @@ pub mod game {
         pub round: Option<Round>,
         number_of_players: u32,
         game_started: bool,
+        /// Stores the settings
+        pub settings: Settings,
     }
 
     impl GameManager<'_> {
         /// Initializes a new game
-        pub fn new(number_of_players: u32, large_board: bool) -> Result<Self> {
+        pub fn new(number_of_players: u32, settings: Settings) -> Result<Self> {
             // verify that the amout of players entered is between 2 and 6
             if number_of_players < 2 || number_of_players > 6 {
                 return Err(miette!("Unable to create new game: The amount of players is invalid. Valid: 2-6, entered: {}", number_of_players));
@@ -65,7 +67,7 @@ pub mod game {
             let mut position_cards = GameManager::init_position_cards();
             let players = GameManager::init_players(number_of_players, &mut position_cards)?;
             Ok(Self {
-                board: Board::new(large_board),
+                board: Board::new(),
                 position_cards,
                 bank: Bank::new(),
                 hotel_chain_manager: HotelChainManager::new(),
@@ -74,6 +76,7 @@ pub mod game {
                 round: None,
                 number_of_players,
                 game_started: false,
+                settings,
             })
         }
 
