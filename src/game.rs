@@ -400,7 +400,7 @@ pub mod game {
             };
 
             #[test]
-            fn test_chain_status_and_length() -> Result<()> {
+            fn chain_status_and_length_correct() -> Result<()> {
                 let mut game_manager = GameManager::new(2, Settings::new(false, false)).unwrap();
                 game_manager.round = Some(Round::new());
                 for hotel_chain in HotelChain::iterator() {
@@ -418,7 +418,7 @@ pub mod game {
             }
 
             #[test]
-            fn test_fusion() -> Result<()> {
+            fn fusion_correct() -> Result<()> {
                 let mut game_manager = GameManager::new(2, Settings::new(false, false)).unwrap();
                 game_manager.round = Some(Round::new());
                 let hotel_chain_1 = &HotelChain::Airport;
@@ -1192,7 +1192,7 @@ pub mod game {
                 };
 
                 #[test]
-                fn test_buy_stock() {
+                fn buy_stock_errors_work() {
                     let mut game = GameManager::new(2, Settings::new(false, false)).unwrap();
                     // Test if Hotel is not active error works
                     let mut input = game.bank.buy_stock(
@@ -1225,7 +1225,7 @@ pub mod game {
                 }
 
                 #[test]
-                fn test_largest_shareholders() {
+                fn largest_shareholders_correct() {
                     let mut game_manager =
                         GameManager::new(4, Settings::new(false, false)).unwrap();
 
@@ -1344,7 +1344,7 @@ pub mod game {
         use crate::{base_game::settings::Settings, game::game::GameManager};
 
         #[test]
-        fn test_draw_card() {
+        fn draw_card_works() {
             let mut game = GameManager::new(2, Settings::new(false, false)).unwrap();
             game.draw_card().unwrap();
             game.draw_card().unwrap();
@@ -1361,7 +1361,7 @@ mod tests {
     use crate::{base_game::settings::Settings, game::game::GameManager};
 
     #[test]
-    fn test_position_card_amount() {
+    fn position_card_amount_correctly_initialized() {
         let mut index = 0;
         while index <= 1000 {
             let game = GameManager::new(2, Settings::new(false, false)).unwrap();

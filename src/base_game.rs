@@ -306,7 +306,7 @@ pub mod board {
         use super::{Board, Position};
 
         #[test]
-        fn position() {
+        fn surrounding_positions_correct() {
             let position = Position::new('B', 3);
             let position_prev = Position::new('B', 2);
             let position_next = Position::new('B', 4);
@@ -509,7 +509,7 @@ pub mod hotel_chains {
         use crate::base_game::hotel_chains::HotelChain;
 
         #[test]
-        fn name() {
+        fn hotel_names_correct() {
             assert_eq!("Airport", HotelChain::Airport.to_string());
             assert_eq!("Continental", HotelChain::Continental.to_string());
             assert_eq!("Festival", HotelChain::Festival.to_string());
@@ -616,7 +616,7 @@ pub mod stock {
         use crate::base_game::{hotel_chains::PriceLevel, stock::stock_price};
 
         #[test]
-        fn test_stock_price() {
+        fn stock_price_correct() {
             assert_eq!(stock_price(PriceLevel::Low, 2), 200);
             assert_eq!(stock_price(PriceLevel::Low, 40), 900);
             assert_eq!(stock_price(PriceLevel::Medium, 4), 500);
@@ -745,7 +745,7 @@ pub mod bank {
         };
 
         #[test]
-        fn test_stock_price() -> Result<()> {
+        fn stock_price_correct() -> Result<()> {
             let mut game_manager = GameManager::new(2, Settings::new(false, false)).unwrap();
             game_manager.hotel_chain_manager.start_chain(
                 HotelChain::Airport,
