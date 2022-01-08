@@ -167,7 +167,7 @@ pub mod board {
         }
     }
     /// Symbolizes a position on the board
-    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq)]
+    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash)]
     pub struct Position {
         pub letter: Letter,
         pub number: u32,
@@ -189,7 +189,7 @@ pub mod board {
     }
 
     /// This enum contains all letters of the board
-    #[derive(Clone, Copy, PartialEq, Debug, Eq, PartialOrd, Ord)]
+    #[derive(Clone, Copy, PartialEq, Debug, Eq, PartialOrd, Ord, Hash)]
     pub enum Letter {
         A,
         B,
@@ -415,11 +415,12 @@ pub mod hotel_chains {
 
 /// Contains all functions for the stocks.
 pub mod stock {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, hash::Hasher};
 
     use super::hotel_chains::{HotelChain, PriceLevel};
 
     /// Used to symbolize how many stocks a player has/the bank has left for a specific hotel
+    #[derive(PartialEq)]
     pub struct Stocks {
         // Contains the stocks.
         pub stocks: HashMap<HotelChain, u32>,
@@ -520,7 +521,9 @@ pub mod stock {
 
 /// Manages the currently available stocks and the money.
 pub mod bank {
-    use std::{slice::SliceIndex, collections::HashMap};
+    use std::{collections::HashMap, slice::SliceIndex};
+
+    use owo_colors::OwoColorize;
 
     use crate::{base_game::stock::Stocks, game::game::hotel_chain_manager::HotelChainManager};
 
@@ -563,23 +566,41 @@ pub mod bank {
         pub fn set_stocks(&mut self, chain: &HotelChain, value: u32) {
             *self.stocks_for_sale.stocks.get_mut(chain).unwrap() = value;
         }
+
+        /// Prints the current largest shareholders
+        pub fn print_largest_shareholders(&self) {
+            println!("Largest shareholders:");
+            println!("      Chain     || Largest shareholder || Second largest shareholder");
+            println!("====================================================================");
+            for chain in HotelChain::iterator() {
+                let mut ls = Vec::<String>::new();
+                let mut sls = Vec::<String>::new();
+                for player in self.largest_shareholders.largest_shareholder.get(chain).unwrap() {
+                    ls.push(format!("{}, ", player.id));
+                }
+                for player in self.largest_shareholders.second_largest_shareholder.get(chain).unwrap() {
+                    sls.push(format!("{}, ", player.id));
+                }
+                println!("{:15} || {:19} || {}", chain.name().color(chain.color()), ls.join(""), sls.join(""));
+            }
+        }
     }
-    
+
     /// Used to store if the player is a largest or second largest shareholder
     pub struct LargestShareholders<'a> {
         /// Contains who the largest shareholder is for the specified hotel
-        largest_shareholder: HashMap<HotelChain, Option<&'a Player>>,
+        pub largest_shareholder: HashMap<HotelChain, Vec<&'a Player>>,
         /// Chains where the player is the second largest shareholder
-        second_largest_shareholder: HashMap<HotelChain, Option<&'a Player>>,
+        pub second_largest_shareholder: HashMap<HotelChain, Vec<&'a Player>>,
     }
 
     impl LargestShareholders<'_> {
         pub fn new() -> Self {
-            let mut largest_shareholder: HashMap<HotelChain, Option<& Player>> = HashMap::new();
-            let mut second_largest_shareholder: HashMap<HotelChain, Option<& Player>> = HashMap::new();
+            let mut largest_shareholder: HashMap<HotelChain, Vec<&Player>> = HashMap::new();
+            let mut second_largest_shareholder: HashMap<HotelChain, Vec<&Player>> = HashMap::new();
             for chain in HotelChain::iterator() {
-                largest_shareholder.insert(*chain, None);
-                second_largest_shareholder.insert(*chain, None);
+                largest_shareholder.insert(*chain, Vec::new());
+                second_largest_shareholder.insert(*chain, Vec::new());
             }
             Self {
                 largest_shareholder,
@@ -609,7 +630,7 @@ pub mod bank {
                 HotelChain::Airport,
                 vec![Position::new(Letter::A, 1), Position::new(Letter::A, 2)],
                 &mut game_manager.board,
-                &mut Player::new(Vec::new()),
+                &mut Player::new(Vec::new(), 1),
                 &mut game_manager.bank,
             )?;
             game_manager.hotel_chain_manager.start_chain(
@@ -620,7 +641,7 @@ pub mod bank {
                     Position::new(Letter::C, 4),
                 ],
                 &mut game_manager.board,
-                &mut Player::new(Vec::new()),
+                &mut Player::new(Vec::new(), 1),
                 &mut game_manager.bank,
             )?;
             game_manager.hotel_chain_manager.start_chain(
@@ -632,7 +653,7 @@ pub mod bank {
                     Position::new(Letter::H, 4),
                 ],
                 &mut game_manager.board,
-                &mut Player::new(Vec::new()),
+                &mut Player::new(Vec::new(), 1),
                 &mut game_manager.bank,
             )?;
             println!(
@@ -661,13 +682,14 @@ pub mod bank {
 /// Player management
 pub mod player {
     use crate::{
+        base_game::bank::Bank,
         base_game::board::Position,
         base_game::{hotel_chains::HotelChain, stock::Stocks},
-        base_game::bank::Bank,
     };
     use owo_colors::OwoColorize;
 
     /// Stores all variables that belong to the player
+    #[derive(PartialEq)]
     pub struct Player {
         /// The money the player currently has
         pub money: u32,
@@ -675,14 +697,17 @@ pub mod player {
         pub owned_stocks: Stocks,
         /// Contains the cards that the player currently has on his hand and that could be played
         pub cards: Vec<Position>,
+        /// The id of the player
+        pub id: u32,
     }
 
     impl Player {
-        pub fn new(mut start_cards: Vec<Position>) -> Self {
+        pub fn new(mut start_cards: Vec<Position>, id: u32) -> Self {
             Self {
                 money: 6000,
                 owned_stocks: Stocks::new(),
                 cards: start_cards,
+                id,
             }
         }
 
@@ -795,7 +820,6 @@ pub mod player {
             // would make if all stocks where sold now
         }
     }
-
 }
 
 /// User interface drawing
@@ -811,18 +835,14 @@ pub mod ui {
     /// Prints the main user interface.
     pub fn print_main_ui(game_manager: &GameManager) {
         game_manager.board.print();
+        let player = game_manager.round.as_ref().unwrap().current_player(&game_manager.players);
         println!();
         println!("Round {}", &game_manager.round_number);
         println!(
             "Player {}:",
-            game_manager.round.as_ref().unwrap().current_player_index + 1
+            player.id + 1,
         );
-        game_manager
-            .round
-            .as_ref()
-            .unwrap()
-            .current_player(&game_manager.players)
-            .print_player_ui();
+        player.print_player_ui();
         //TODO Implement largest shareholder display
         //Maybe add commandline flag with which it can be enabled to show who is the largest
         //stareholder currently
@@ -843,7 +863,7 @@ pub mod ui {
                 false => Rgb(105, 105, 105),
             };
             let formatted_string = format!(
-                "||   {:2}   || {:7} ||  {:2}  ||   {:2}{} || {:4}$ ||    TO IMPLEMENT     || TO IMPLEMENT",
+                "||   {:2}   || {:7} ||  {:2}  ||   {:2}{} || {:4}$ ||        {:5}$       ||        {:5}$",
                 game_manager.hotel_chain_manager.chain_length(chain),
                 game_manager.hotel_chain_manager.price_range(chain),
                 game_manager.bank.stocks_available(&chain, &game_manager.hotel_chain_manager),
@@ -854,8 +874,10 @@ pub mod ui {
                     .current_player(&game_manager.players)
                     .owned_stocks
                     .stocks_for_hotel(chain),
-                " ",
+                stock_status_symbol(&game_manager.bank, &chain, player),
                 Bank::stock_price(&game_manager.hotel_chain_manager, &chain),
+                Bank::stock_price(&game_manager.hotel_chain_manager, &chain)*10,
+                Bank::stock_price(&game_manager.hotel_chain_manager, &chain)*5,
                 );
             println!(
                 "{:15}{}",
@@ -867,9 +889,15 @@ pub mod ui {
 
     /// Used to display a little star that indicates if the player is largest or second largest
     /// shareholder
-    fn stock_status_symbol(player: &Player) -> String {
+    fn stock_status_symbol(bank: &Bank, chain: &HotelChain, player: &Player) -> String {
+        if bank.is_largest_shareholder(player, chain) {
+            return "*".color(Rgb(225, 215, 0)).to_string();
+        }
+        if bank.is_second_largest_shareholder(player, chain) {
+            return "*".color(Rgb(192, 192, 192)).to_string();
+        }
         // The star should probably be only displayed when a special terminal flag is set (mayber
         // --info or something like that)
-        todo!()
+        String::from(" ")
     }
 }

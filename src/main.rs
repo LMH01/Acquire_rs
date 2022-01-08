@@ -23,11 +23,13 @@ use crate::base_game::board::Piece;
 use crate::base_game::player::Player;
 use crate::base_game::ui::print_main_ui;
 use crate::data_stream::read_enter;
+use crate::game::game::hotel_chain_manager;
 //TODO Review struct fields in base_game.rs and decide if it would be a better idea to
 //make them public. Also remove the getters/setters
 //TODO Start with gameplay
 //While doing that add functionality that stores the currently largest and second largest shareholder
 //  -> Continue working on that!
+//  Maybe rename LargestShareholders to MajorityShareholders
 //TODO See if i can remove the clone, copy trait from the hotel enum
 //TODO Add flag with which the help card can be enabled. This will cause to print a copy of the
 //info card from the real game to the console
@@ -59,7 +61,7 @@ fn main() -> miette::Result<()> {
     print_welcome();
     let mut game_manager = GameManager::new(opts.players, opts.large_board)?;
     if opts.test {
-        test_things(game_manager)?;
+        test_things(&opts)?;
     } else {
         game_manager.start_game()?;
     }
@@ -77,7 +79,8 @@ fn place_test_hotels(board: &mut Board) -> Result<()> {
     Ok(())
 }
 
-fn test_things(mut game_manager: GameManager) -> Result<()> {
+fn test_things(opts: &Opts) -> Result<()> {
+    let mut game_manager = GameManager::new(opts.players, opts.large_board)?;
     game_manager.round = Some(Round::new());
     let mut active_chains: Vec<HotelChain> = Vec::new();
     for hotel_chain in HotelChain::iterator() {
@@ -110,6 +113,7 @@ fn test_things(mut game_manager: GameManager) -> Result<()> {
         )?;
         active_chains.push(*hotel_chain);
     }
+    game_manager.bank.update_largest_shareholders(&game_manager.players);
     ui::print_main_ui(&game_manager);
     if active_chains.len() >= 2 {
         let rand1 = rand::thread_rng().gen_range(0..=active_chains.len() - 1);
@@ -117,8 +121,15 @@ fn test_things(mut game_manager: GameManager) -> Result<()> {
         while rand1 == rand2 {
             rand2 = rand::thread_rng().gen_range(0..=active_chains.len() - 1);
         }
-        let chain1 = active_chains.get(rand1).unwrap();
-        let chain2 = active_chains.get(rand2).unwrap();
+        let mut chain1 = active_chains.get(rand1).unwrap();
+        let mut chain2 = active_chains.get(rand2).unwrap();
+        if game_manager.hotel_chain_manager.chain_length(chain1)
+            < game_manager.hotel_chain_manager.chain_length(chain2)
+        {
+            let buffer = chain1;
+            chain1 = chain2;
+            chain2 = buffer;
+        }
         println!("Press enter to fuse {} into {}", chain2, chain1);
         read_enter();
         game_manager
