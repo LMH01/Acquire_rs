@@ -10,7 +10,7 @@ mod game;
 
 use std::slice::SliceIndex;
 
-use base_game::board::{Board, Letter, Position};
+use base_game::board::{Board, Position};
 use base_game::hotel_chains::HotelChain;
 use base_game::settings::Settings;
 use base_game::{stock, ui};
@@ -78,7 +78,7 @@ fn print_welcome() {
 
 fn place_test_hotels(board: &mut Board) -> Result<()> {
     for (index, h) in HotelChain::iterator().enumerate() {
-        board.place_hotel_debug(Position::new(Letter::A, index.try_into().unwrap()), *h)?;
+        board.place_hotel_debug(Position::new('A', index.try_into().unwrap()), *h)?;
     }
     Ok(())
 }
@@ -117,7 +117,9 @@ fn test_things(opts: &Opts, settings: Settings) -> Result<()> {
         )?;
         active_chains.push(*hotel_chain);
     }
-    game_manager.bank.update_largest_shareholders(&game_manager.players);
+    game_manager
+        .bank
+        .update_largest_shareholders(&game_manager.players);
     ui::print_main_ui(&game_manager);
     if active_chains.len() >= 2 {
         let rand1 = rand::thread_rng().gen_range(0..=active_chains.len() - 1);

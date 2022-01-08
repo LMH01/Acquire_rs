@@ -9,10 +9,11 @@ pub mod game {
     use crate::{
         base_game::{
             bank::Bank,
-            board::{Board, Letter, Piece, Position},
+            board::{Board, Piece, Position, letter::LETTERS},
             hotel_chains::HotelChain,
             player::Player,
-            ui, settings::Settings,
+            settings::Settings,
+            ui,
         },
         data_stream::{self, read_enter},
         game::game::round::start_round,
@@ -129,9 +130,9 @@ pub mod game {
         /// Initializes all position cards and puts them in the vector
         fn init_position_cards() -> Vec<Position> {
             let mut cards: Vec<Position> = Vec::new();
-            for c in Letter::iterator() {
+            for c in LETTERS {
                 for i in 1..=12 {
-                    cards.push(Position::new(*c, i));
+                    cards.push(Position::new(c, i));
                 }
             }
             cards
@@ -364,13 +365,13 @@ pub mod game {
             use miette::Result;
 
             use crate::{
-                base_game::{board::Position, hotel_chains::HotelChain, ui},
+                base_game::{board::Position, hotel_chains::HotelChain, ui, settings::Settings},
                 game::game::{round::Round, GameManager},
             };
 
             #[test]
             fn test_chain_status_and_length() -> Result<()> {
-                let mut game_manager = GameManager::new(2, false).unwrap();
+                let mut game_manager = GameManager::new(2, Settings::new(false, false)).unwrap();
                 game_manager.round = Some(Round::new());
                 for hotel_chain in HotelChain::iterator() {
                     setup_hotel(&mut game_manager, hotel_chain)?;
@@ -388,7 +389,7 @@ pub mod game {
 
             #[test]
             fn test_fusion() -> Result<()> {
-                let mut game_manager = GameManager::new(2, false).unwrap();
+                let mut game_manager = GameManager::new(2, Settings::new(false, false)).unwrap();
                 game_manager.round = Some(Round::new());
                 let hotel_chain_1 = &HotelChain::Airport;
                 let hotel_chain_2 = &HotelChain::Continental;
@@ -448,6 +449,7 @@ pub mod game {
         use std::slice::SliceIndex;
 
         use miette::{miette, Result};
+        use place_hotel::place_hotel;
 
         use crate::{
             base_game::{board::Board, player::Player, ui},
@@ -533,7 +535,12 @@ pub mod game {
         use read_input::{prelude::input, InputBuild};
 
         use crate::{
-            base_game::{bank::{Bank, LargestShareholders}, board::Position, hotel_chains::HotelChain, player::Player},
+            base_game::{
+                bank::{Bank, LargestShareholders},
+                board::Position,
+                hotel_chains::HotelChain,
+                player::Player,
+            },
             data_stream::read_enter,
         };
 
@@ -580,29 +587,6 @@ pub mod game {
                 }
             }
             false
-        }
-
-        /// Place a hotel on the board.
-        /// This function will abide by the game rules.
-        /// The player is asked what card to play.
-        pub fn place_hotel(game_manager: &mut GameManager) -> Result<()> {
-            println!("Please choose what hotel card you would like to play.");
-            //TODO Add function that checkes what cards can be played
-            let player = game_manager
-                .round
-                .as_mut()
-                .unwrap()
-                .current_player_mut(&mut game_manager.players);
-            let card = read_card(player);
-            game_manager.board.place_hotel(&card)?;
-            //TODO Add logic for the following cases:
-            //1. The board piece founds a new hotel chain
-            //2. The board piece extends a existing chain
-            //  2.1 The board piece extends a existing chain by more than 1 piece
-            //3. The board piece creates a fusion between chains
-            //  3.1 Add Logic that can handle fusions between two chains
-            //  3.2 Add Logic that can handle fusions between two ore more chains
-            Ok(())
         }
 
         /// Promts the user to press enter to draw a new card. The card is removed from the
@@ -738,8 +722,12 @@ pub mod game {
                                 // The player will be set second largest shareholder if the
                                 // currently second largest shareholder has less stocks then them
                                 Ordering::Less => {
-                                    println!("Hotel {}, Player {}: Less stocks than largest shareholder", chain.name(), player.id);
-                                },
+                                    println!(
+                                        "Hotel {}, Player {}: Less stocks than largest shareholder",
+                                        chain.name(),
+                                        player.id
+                                    );
+                                }
                                 // Player has equal stocks => booth players will be set to largest
                                 // and second largest shareholder
                                 Ordering::Equal => {
@@ -794,19 +782,35 @@ pub mod game {
                         }
                     }
                     // Insert largest shareholders for chain
-                    self.largest_shareholders.largest_shareholder.insert(*chain, largest_shareholder);
-                    self.largest_shareholders.second_largest_shareholder.insert(*chain, second_largest_shareholder);
+                    self.largest_shareholders
+                        .largest_shareholder
+                        .insert(*chain, largest_shareholder);
+                    self.largest_shareholders
+                        .second_largest_shareholder
+                        .insert(*chain, second_largest_shareholder);
                 }
             }
 
             /// Checks if the player is one of the largest shareholders for the chain.
-            pub fn is_largest_shareholder(&self, player: &Player, chain: &HotelChain) -> bool{
-                self.largest_shareholders.largest_shareholder.get(chain).unwrap().contains(&player)
+            pub fn is_largest_shareholder(&self, player: &Player, chain: &HotelChain) -> bool {
+                self.largest_shareholders
+                    .largest_shareholder
+                    .get(chain)
+                    .unwrap()
+                    .contains(&player)
             }
 
             /// Checks if the player is one of the second largest shareholders for the chain.
-            pub fn is_second_largest_shareholder(&self, player: &Player, chain: &HotelChain) -> bool {
-                self.largest_shareholders.second_largest_shareholder.get(chain).unwrap().contains(&player)
+            pub fn is_second_largest_shareholder(
+                &self,
+                player: &Player,
+                chain: &HotelChain,
+            ) -> bool {
+                self.largest_shareholders
+                    .second_largest_shareholder
+                    .get(chain)
+                    .unwrap()
+                    .contains(&player)
             }
         }
 
@@ -816,11 +820,11 @@ pub mod game {
 
                 use miette::Result;
 
-                use crate::{base_game::hotel_chains::HotelChain, game::game::GameManager};
+                use crate::{base_game::{hotel_chains::HotelChain, settings::Settings}, game::game::GameManager};
 
                 #[test]
                 fn test_buy_stock() {
-                    let mut game = GameManager::new(2, false).unwrap();
+                    let mut game = GameManager::new(2, Settings::new(false, false)).unwrap();
                     // Test if Hotel is not active error works
                     let mut input = game.bank.buy_stock(
                         &game.hotel_chain_manager,
@@ -853,8 +857,8 @@ pub mod game {
 
                 #[test]
                 fn test_largest_shareholders() {
-                    let mut game_manager = GameManager::new(4, false).unwrap();
-                   
+                    let mut game_manager = GameManager::new(4, Settings::new(false, false)).unwrap();
+
                     let mut index = 0;
                     while index < 4 {
                         let mut player = game_manager.players.get_mut(index).unwrap();
@@ -864,7 +868,7 @@ pub mod game {
                                 player.owned_stocks.set_stocks(&HotelChain::Continental, 10);
                                 player.owned_stocks.set_stocks(&HotelChain::Festival, 5);
                                 player.owned_stocks.set_stocks(&HotelChain::Imperial, 7);
-                            },
+                            }
                             1 => {
                                 player.owned_stocks.set_stocks(&HotelChain::Airport, 2);
                                 player.owned_stocks.set_stocks(&HotelChain::Continental, 10);
@@ -881,28 +885,78 @@ pub mod game {
                         }
                         index += 1;
                     }
-                    game_manager.bank.update_largest_shareholders(&game_manager.players);
+                    game_manager
+                        .bank
+                        .update_largest_shareholders(&game_manager.players);
                     game_manager.bank.print_largest_shareholders();
                     // Test case 1: one largest and one second largest shareholder (Continental)
-                    assert!(game_manager.bank.is_largest_shareholder(game_manager.players.get(0).unwrap(), &HotelChain::Airport));
-                    assert!(game_manager.bank.is_second_largest_shareholder(game_manager.players.get(1).unwrap(), &HotelChain::Airport));
+                    assert!(game_manager.bank.is_largest_shareholder(
+                        game_manager.players.get(0).unwrap(),
+                        &HotelChain::Airport
+                    ));
+                    assert!(game_manager.bank.is_second_largest_shareholder(
+                        game_manager.players.get(1).unwrap(),
+                        &HotelChain::Airport
+                    ));
                     // Test case 2: multiple largest shareholerds (Airport)
-                    assert!(game_manager.bank.is_largest_shareholder(game_manager.players.get(0).unwrap(), &HotelChain::Continental));
-                    assert!(game_manager.bank.is_second_largest_shareholder(game_manager.players.get(0).unwrap(), &HotelChain::Continental));
-                    assert!(game_manager.bank.is_largest_shareholder(game_manager.players.get(1).unwrap(), &HotelChain::Continental));
-                    assert!(game_manager.bank.is_second_largest_shareholder(game_manager.players.get(1).unwrap(), &HotelChain::Continental));
-                    assert!(game_manager.bank.is_largest_shareholder(game_manager.players.get(2).unwrap(), &HotelChain::Continental));
-                    assert!(game_manager.bank.is_second_largest_shareholder(game_manager.players.get(2).unwrap(), &HotelChain::Continental));
+                    assert!(game_manager.bank.is_largest_shareholder(
+                        game_manager.players.get(0).unwrap(),
+                        &HotelChain::Continental
+                    ));
+                    assert!(game_manager.bank.is_second_largest_shareholder(
+                        game_manager.players.get(0).unwrap(),
+                        &HotelChain::Continental
+                    ));
+                    assert!(game_manager.bank.is_largest_shareholder(
+                        game_manager.players.get(1).unwrap(),
+                        &HotelChain::Continental
+                    ));
+                    assert!(game_manager.bank.is_second_largest_shareholder(
+                        game_manager.players.get(1).unwrap(),
+                        &HotelChain::Continental
+                    ));
+                    assert!(game_manager.bank.is_largest_shareholder(
+                        game_manager.players.get(2).unwrap(),
+                        &HotelChain::Continental
+                    ));
+                    assert!(game_manager.bank.is_second_largest_shareholder(
+                        game_manager.players.get(2).unwrap(),
+                        &HotelChain::Continental
+                    ));
                     // Test case 3: one largest and multiple second largest shareholders (Prestige)
-                    assert!(game_manager.bank.is_largest_shareholder(game_manager.players.get(0).unwrap(), &HotelChain::Festival));
-                    assert!(game_manager.bank.is_second_largest_shareholder(game_manager.players.get(1).unwrap(), &HotelChain::Festival));
-                    assert!(game_manager.bank.is_second_largest_shareholder(game_manager.players.get(2).unwrap(), &HotelChain::Festival));
-                    assert!(game_manager.bank.is_second_largest_shareholder(game_manager.players.get(3).unwrap(), &HotelChain::Festival));
+                    assert!(game_manager.bank.is_largest_shareholder(
+                        game_manager.players.get(0).unwrap(),
+                        &HotelChain::Festival
+                    ));
+                    assert!(game_manager.bank.is_second_largest_shareholder(
+                        game_manager.players.get(1).unwrap(),
+                        &HotelChain::Festival
+                    ));
+                    assert!(game_manager.bank.is_second_largest_shareholder(
+                        game_manager.players.get(2).unwrap(),
+                        &HotelChain::Festival
+                    ));
+                    assert!(game_manager.bank.is_second_largest_shareholder(
+                        game_manager.players.get(3).unwrap(),
+                        &HotelChain::Festival
+                    ));
                     // Test case 4: one player is largest and second largest shareholder (Luxor)
-                    assert!(game_manager.bank.is_largest_shareholder(game_manager.players.get(0).unwrap(), &HotelChain::Imperial));
-                    assert!(game_manager.bank.is_second_largest_shareholder(game_manager.players.get(0).unwrap(), &HotelChain::Imperial));
-                    assert!(!game_manager.bank.is_largest_shareholder(game_manager.players.get(1).unwrap(), &HotelChain::Imperial));
-                    assert!(!game_manager.bank.is_second_largest_shareholder(game_manager.players.get(1).unwrap(), &HotelChain::Imperial));
+                    assert!(game_manager.bank.is_largest_shareholder(
+                        game_manager.players.get(0).unwrap(),
+                        &HotelChain::Imperial
+                    ));
+                    assert!(game_manager.bank.is_second_largest_shareholder(
+                        game_manager.players.get(0).unwrap(),
+                        &HotelChain::Imperial
+                    ));
+                    assert!(!game_manager.bank.is_largest_shareholder(
+                        game_manager.players.get(1).unwrap(),
+                        &HotelChain::Imperial
+                    ));
+                    assert!(!game_manager.bank.is_second_largest_shareholder(
+                        game_manager.players.get(1).unwrap(),
+                        &HotelChain::Imperial
+                    ));
                 }
 
                 fn is_error(input: Result<()>) -> bool {
@@ -917,15 +971,15 @@ pub mod game {
 
     #[cfg(test)]
     mod tests {
-        use crate::game::game::GameManager;
+        use crate::{game::game::GameManager, base_game::settings::Settings};
 
         #[test]
         fn test_draw_card() {
-            let mut game = GameManager::new(2, false).unwrap();
+            let mut game = GameManager::new(2, Settings::new(false, false)).unwrap();
             game.draw_card().unwrap();
             game.draw_card().unwrap();
             assert_eq!(game.position_cards.len(), 94);
-            game = GameManager::new(6, false).unwrap();
+            game = GameManager::new(6, Settings::new(false, false)).unwrap();
             game.draw_card().unwrap();
             assert_eq!(game.position_cards.len(), 71);
         }
@@ -934,13 +988,13 @@ pub mod game {
 
 #[cfg(test)]
 mod tests {
-    use crate::game::game::GameManager;
+    use crate::{game::game::GameManager, base_game::settings::Settings};
 
     #[test]
     fn test_position_card_amount() {
         let mut index = 0;
         while index <= 1000 {
-            let game = GameManager::new(2, false).unwrap();
+            let game = GameManager::new(2, Settings::new(false, false)).unwrap();
             assert_eq!(game.position_cards.len(), 96);
             index += 1;
         }

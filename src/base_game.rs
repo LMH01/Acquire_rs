@@ -1,12 +1,11 @@
 /// Contains all functionalities related to the game board. Like the pieces that are placed on the
 /// board and the board itself.
 pub mod board {
-    use self::Letter::*;
+    use self::{letter::{next_letter, prev_letter, LETTERS}};
     use miette::{miette, Result};
     use owo_colors::OwoColorize;
     use std::{
         fmt::{self, Display, Formatter},
-        slice::Iter,
     };
 
     use super::hotel_chains::HotelChain;
@@ -21,26 +20,24 @@ pub mod board {
         pub fn new() -> Self {
             let mut pieces: Vec<Vec<Piece>> = Vec::new();
             // initialize pieces
-            for c in Letter::iterator() {
+            for c in LETTERS {
                 let mut x_pieces: Vec<Piece> = Vec::new();
                 for i in 1..=12 {
                     x_pieces.push(Piece {
                         chain: None,
-                        position: Position::new(*c, i),
+                        position: Position::new(c, i),
                         piece_set: false,
                     })
                 }
                 pieces.push(x_pieces);
             }
-            Self {
-                pieces,
-            }
+            Self { pieces }
         }
 
         /// Prints the current stage of the board
         pub fn print(&self, large_board: bool) {
             println!();
-            let mut letters = Letter::iterator();
+            let mut letters = LETTERS.iter();
             for x in &self.pieces {
                 print!("{} ", letters.next().unwrap());
                 for y in x {
@@ -136,19 +133,99 @@ pub mod board {
             ))
         }
     }
+
+    /// Functions related to the letter
+    pub mod letter {
+        pub const LETTERS: [char; 9] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'];
+        
+        /// Returns the index for this letter in the `LETTERS` array
+        fn letter_to_index(letter: char) -> Option<usize> {
+            for (index, l) in LETTERS.iter().enumerate() {
+                if letter == *l {
+                    return Some(index);
+                }
+            }
+            return None;
+        }
+
+        /// Returns the next letter if there is one.
+        /// B would return C
+        pub fn next_letter(letter: char) -> Option<char> {
+            let index = letter_to_index(letter);
+            if index.is_none() {
+                return None;
+            }
+            if index.unwrap() == 8 {
+                return None;
+            }
+            Some(*LETTERS.get(index.unwrap()+1).unwrap())
+        }
+
+        /// Returns the previous letter if there is one.
+        /// B would return A
+        pub fn prev_letter(letter: char) -> Option<char> {
+            let index = letter_to_index(letter);
+            if index.is_none() {
+                return None;
+            }
+            if index.unwrap() == 0 {
+                return None;
+            }
+            Some(*LETTERS.get(index.unwrap()-1).unwrap())
+        }
+    }
+
     /// Symbolizes a position on the board
     #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash)]
     pub struct Position {
-        pub letter: Letter,
+        pub letter: char,
         pub number: u32,
     }
 
     impl Position {
-        //TODO Change return type to Result<Self> and return error when number > 12 has been
+        //TODO Change return type to Result<Self> and return error when number > 12 or char not A-I has been
         //entered.
         /// Creates a new position
-        pub fn new(letter: Letter, number: u32) -> Self {
+        pub fn new(letter: char, number: u32) -> Self {
             Self { letter, number }
+        }
+
+        /// Returns the next position.
+        /// Input B3 would return B4.
+        pub fn next(&self) -> Option<Position> {
+            // Check if position has a next
+            if self.number > 12 {
+                return None;
+            }
+            return Some(Position::new(self.letter, self.number+1));
+        }
+        
+        /// Returns the previous position.
+        /// Input B3 would return B2.
+        pub fn prev(&self) -> Option<Position> {
+            // Check if position has a prev
+            if self.number < 1 {
+                return None;
+            }
+            return Some(Position::new(self.letter, self.number-1));
+        }
+
+        /// Returns the position that is above this position.
+        /// Input B3 would return A3.
+        pub fn up(&self) -> Option<Position> {
+            match prev_letter(self.letter) {
+                Some(letter) => Some(Position::new(letter, self.number)),
+                None => None,
+            }
+        }
+
+        /// Returns the position that is below this position.
+        /// Input B3 would return C3.
+        pub fn down(&self) -> Option<Position> {
+            match next_letter(self.letter) {
+                Some(letter) => Some(Position::new(letter, self.number)),
+                None => None,
+            }
         }
     }
 
@@ -158,46 +235,6 @@ pub mod board {
         }
     }
 
-    /// This enum contains all letters of the board
-    #[derive(Clone, Copy, PartialEq, Debug, Eq, PartialOrd, Ord, Hash)]
-    pub enum Letter {
-        A,
-        B,
-        C,
-        D,
-        E,
-        F,
-        G,
-        H,
-        I,
-    }
-
-    impl Letter {
-        pub fn iterator() -> Iter<'static, Letter> {
-            static LETTERS: [Letter; 9] = [A, B, C, D, E, F, G, H, I];
-            LETTERS.iter()
-        }
-
-        pub fn letter(&self) -> char {
-            match *self {
-                Letter::A => 'A',
-                Letter::B => 'B',
-                Letter::C => 'C',
-                Letter::D => 'D',
-                Letter::E => 'E',
-                Letter::F => 'F',
-                Letter::G => 'G',
-                Letter::H => 'H',
-                Letter::I => 'I',
-            }
-        }
-    }
-
-    impl Display for Letter {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "{}", self.letter())
-        }
-    }
     /// Symbolizes a single piece that can be placed on the board
     pub struct Piece {
         /// Stores what hotel chain this piece belongs to
@@ -243,6 +280,24 @@ pub mod board {
             }
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::Position;
+
+        #[test]
+        fn position() {
+            let position = Position::new('B', 3);
+            let position_prev = Position::new('B', 2);
+            let position_next = Position::new('B', 4);
+            let position_up = Position::new('A', 3);
+            let position_down = Position::new('C', 3);
+            assert_eq!(position_prev, position.prev().unwrap());
+            assert_eq!(position_next, position.next().unwrap());
+            assert_eq!(position_up, position.up().unwrap());
+            assert_eq!(position_down, position.down().unwrap());
+        }
+    }
 }
 
 /// Stores and handels the settings that are provided fia the command line
@@ -279,7 +334,7 @@ pub mod settings {
         /// ```
         pub large_board: bool,
         /// Stores if some extra information should be shown to the player.
-        /// 
+        ///
         /// E.g. If the player is the largest shareholder
         pub extra_info: bool,
     }
@@ -594,13 +649,28 @@ pub mod bank {
             for chain in HotelChain::iterator() {
                 let mut ls = Vec::<String>::new();
                 let mut sls = Vec::<String>::new();
-                for player in self.largest_shareholders.largest_shareholder.get(chain).unwrap() {
+                for player in self
+                    .largest_shareholders
+                    .largest_shareholder
+                    .get(chain)
+                    .unwrap()
+                {
                     ls.push(format!("{}, ", player.id));
                 }
-                for player in self.largest_shareholders.second_largest_shareholder.get(chain).unwrap() {
+                for player in self
+                    .largest_shareholders
+                    .second_largest_shareholder
+                    .get(chain)
+                    .unwrap()
+                {
                     sls.push(format!("{}, ", player.id));
                 }
-                println!("{:15} || {:19} || {}", chain.name().color(chain.color()), ls.join(""), sls.join(""));
+                println!(
+                    "{:15} || {:19} || {}",
+                    chain.name().color(chain.color()),
+                    ls.join(""),
+                    sls.join("")
+                );
             }
         }
     }
@@ -635,19 +705,19 @@ pub mod bank {
         use crate::{
             base_game::{
                 bank::Bank,
-                board::{Letter, Position},
+                board::Position,
                 hotel_chains::HotelChain,
-                player::Player,
+                player::Player, settings::Settings,
             },
             game::game::GameManager,
         };
 
         #[test]
         fn test_stock_price() -> Result<()> {
-            let mut game_manager = GameManager::new(2, false).unwrap();
+            let mut game_manager = GameManager::new(2, Settings::new(false, false)).unwrap();
             game_manager.hotel_chain_manager.start_chain(
                 HotelChain::Airport,
-                vec![Position::new(Letter::A, 1), Position::new(Letter::A, 2)],
+                vec![Position::new('A', 1), Position::new('A', 2)],
                 &mut game_manager.board,
                 &mut Player::new(Vec::new(), 1),
                 &mut game_manager.bank,
@@ -655,9 +725,9 @@ pub mod bank {
             game_manager.hotel_chain_manager.start_chain(
                 HotelChain::Imperial,
                 vec![
-                    Position::new(Letter::B, 3),
-                    Position::new(Letter::C, 3),
-                    Position::new(Letter::C, 4),
+                    Position::new('B', 3),
+                    Position::new('C', 3),
+                    Position::new('C', 4),
                 ],
                 &mut game_manager.board,
                 &mut Player::new(Vec::new(), 1),
@@ -666,10 +736,10 @@ pub mod bank {
             game_manager.hotel_chain_manager.start_chain(
                 HotelChain::Continental,
                 vec![
-                    Position::new(Letter::H, 1),
-                    Position::new(Letter::H, 2),
-                    Position::new(Letter::H, 3),
-                    Position::new(Letter::H, 4),
+                    Position::new('H', 1),
+                    Position::new('H', 2),
+                    Position::new('H', 3),
+                    Position::new('H', 4),
                 ],
                 &mut game_manager.board,
                 &mut Player::new(Vec::new(), 1),
@@ -845,7 +915,7 @@ pub mod player {
 pub mod ui {
     use crate::{
         base_game::{bank::Bank, hotel_chains::HotelChain},
-        game::game::{GameManager, hotel_chain_manager::HotelChainManager},
+        game::game::{hotel_chain_manager::HotelChainManager, GameManager},
     };
     use owo_colors::{AnsiColors, DynColors, OwoColorize, Rgb};
 
@@ -854,13 +924,14 @@ pub mod ui {
     /// Prints the main user interface.
     pub fn print_main_ui(game_manager: &GameManager) {
         game_manager.board.print(game_manager.settings.large_board);
-        let player = game_manager.round.as_ref().unwrap().current_player(&game_manager.players);
+        let player = game_manager
+            .round
+            .as_ref()
+            .unwrap()
+            .current_player(&game_manager.players);
         println!();
         println!("Round {}", &game_manager.round_number);
-        println!(
-            "Player {}:",
-            player.id + 1,
-        );
+        println!("Player {}:", player.id + 1,);
         player.print_player_ui();
         //TODO Implement largest shareholder display
         //Maybe add commandline flag with which it can be enabled to show who is the largest
@@ -885,7 +956,9 @@ pub mod ui {
                 "||   {:2}   || {:7} ||  {:2}  ||   {:2}",
                 game_manager.hotel_chain_manager.chain_length(chain),
                 game_manager.hotel_chain_manager.price_range(chain),
-                game_manager.bank.stocks_available(&chain, &game_manager.hotel_chain_manager),
+                game_manager
+                    .bank
+                    .stocks_available(&chain, &game_manager.hotel_chain_manager),
                 game_manager
                     .round
                     .as_ref()
@@ -893,18 +966,24 @@ pub mod ui {
                     .current_player(&game_manager.players)
                     .owned_stocks
                     .stocks_for_hotel(chain),
-                );
+            );
             let formatted_string2 = format!(
                 " || {:4}$ ||        {:5}$       ||        {:5}$",
                 Bank::stock_price(&game_manager.hotel_chain_manager, &chain),
-                Bank::stock_price(&game_manager.hotel_chain_manager, &chain)*10,
-                Bank::stock_price(&game_manager.hotel_chain_manager, &chain)*5,
-                );
+                Bank::stock_price(&game_manager.hotel_chain_manager, &chain) * 10,
+                Bank::stock_price(&game_manager.hotel_chain_manager, &chain) * 5,
+            );
             println!(
                 "{:15}{}{}{}",
                 chain.name().color(chain_color),
                 formatted_string1.color(color),
-                stock_status_symbol(&game_manager.bank, &game_manager.hotel_chain_manager, &chain, player, game_manager.settings.extra_info),
+                stock_status_symbol(
+                    &game_manager.bank,
+                    &game_manager.hotel_chain_manager,
+                    &chain,
+                    player,
+                    game_manager.settings.extra_info
+                ),
                 formatted_string2.color(color),
             );
         }
@@ -912,7 +991,13 @@ pub mod ui {
 
     /// Used to display a little star that indicates if the player is largest or second largest
     /// shareholder
-    fn stock_status_symbol(bank: &Bank, hotel_manager: &HotelChainManager, chain: &HotelChain, player: &Player, show_symbol: bool) -> String {
+    fn stock_status_symbol(
+        bank: &Bank,
+        hotel_manager: &HotelChainManager,
+        chain: &HotelChain,
+        player: &Player,
+        show_symbol: bool,
+    ) -> String {
         if !hotel_manager.chain_status(&chain) || !show_symbol {
             return String::from(" ");
         }
