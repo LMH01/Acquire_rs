@@ -371,13 +371,16 @@ pub mod settings {
         ///
         /// E.g. If the player is the largest shareholder
         pub extra_info: bool,
+        /// Stores if some dialogues should be skipped
+        pub skip_dialogues: bool,
     }
 
     impl Settings {
-        pub fn new(large_board: bool, extra_info: bool) -> Self {
+        pub fn new(large_board: bool, extra_info: bool, skip_dialogues: bool) -> Self {
             Self {
                 large_board,
                 extra_info,
+                skip_dialogues,
             }
         }
     }

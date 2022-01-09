@@ -622,18 +622,24 @@ pub mod game {
         /// Promts the user to press enter to draw a new card. The card is removed from the
         /// remaining cards and placed in the players inventory
         pub fn draw_card(game_manager: &mut GameManager) {
-            print!("Press enter to draw a new card");
-            read_enter();
+            if !game_manager.settings.skip_dialogues {
+                print!("Press enter to draw a new card");
+                read_enter();
+            }
             let card = game_manager.draw_card().unwrap();
-            println!("Card drawn: {}", &card.to_string().color(AnsiColors::Green));
+            if !game_manager.settings.skip_dialogues {
+                println!("Card drawn: {}", &card.to_string().color(AnsiColors::Green));
+            }
             let player = game_manager
                 .round
                 .as_mut()
                 .unwrap()
                 .current_player_mut(&mut game_manager.players);
             player.cards.push(card);
-            print!("Press enter to finish your turn");
-            read_enter();
+            if !game_manager.settings.skip_dialogues {
+                print!("Press enter to finish your turn");
+                read_enter();
+            }
         }
 
         /// Prompts the user to select a card.

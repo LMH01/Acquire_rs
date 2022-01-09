@@ -46,10 +46,12 @@ struct Opts {
         help = "Use to make the board larger and to write the coordinates into the field"
     )]
     large_board: bool,
-    #[clap(short, long, help = "Use to show aditional information to the player.")]
+    #[clap(short, long, help = "Use to show additional information to the player.", long_help = "Use to show additional information to the player. This will show information that the player would normally not have. The following is shown:\n - If the player is largest or second largest shareholder")]
     extra_info: bool,
     #[clap(long, help = "Use to run the test function instead of the main game")]
     test: bool,
+    #[clap(short, long, help = "Use to always skip some dialogues", long_help = "Use to always skip some dialogues. Dialogues that are skipped include: The confirmation what card the player drew.")]
+    skip_dialogues: bool,
 }
 
 fn main() -> miette::Result<()> {
@@ -62,7 +64,7 @@ fn main() -> miette::Result<()> {
     //        place_test_hotels(&mut board)?;
     //        board.print();
     print_welcome();
-    let settings = Settings::new(opts.large_board, opts.extra_info);
+    let settings = Settings::new(opts.large_board, opts.extra_info, opts.skip_dialogues);
     if opts.test {
         test_things(&opts, settings)?;
     } else {
