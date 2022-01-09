@@ -480,7 +480,10 @@ pub mod game {
 
         use miette::{miette, Result};
 
-        use crate::base_game::{board::Board, player::Player, logic::{self, place_hotel::place_hotel, draw_card}, ui};
+        use crate::{
+            base_game::{board::Board, player::Player, ui},
+            logic::{draw_card, place_hotel::place_hotel},
+        };
 
         use super::GameManager;
 

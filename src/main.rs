@@ -1,11 +1,14 @@
 /// Contains all base functionalities that the game needs to work.
-/// This includes all basic data types and the playfield, game logic and more.
+/// This includes all basic data types and the playfield, some game logic and more.
 mod base_game;
 /// Contains functions that help to read and parse the user input
 mod data_stream;
 /// Contains all functionalities that are required to play the game. This includes the setting up
 /// of new games, round, turn and player managemnt and more.
 mod game;
+/// Contains the most part of the game logic.
+/// Does not contain the logic of the different managers. Their logic is implemented in their main impl block.
+mod logic;
 
 use std::slice::SliceIndex;
 
