@@ -302,6 +302,11 @@ pub mod game {
                 //      Add check if no other chains are next to this chain.
                 //      Maybe these checks are overkill and not worth to implement as these
                 //      conditions are normally checked before this function is called.
+                
+                if positions.len() < 2 {
+                    return Err(miette!("Unable to start new chain of hotel {}: Not enough buildings!", &hotel_chain));
+                }
+
                 if self.active_chains.contains_key(&hotel_chain) {
                     return Err(miette!("Unable to start new chain of hotel {}: The chain has already been founded!", &hotel_chain));
                 }

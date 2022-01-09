@@ -9,17 +9,21 @@ mod game;
 /// Contains the most part of the game logic.
 /// Does not contain the logic of the different managers. Their logic is implemented in their main impl block.
 mod logic;
+/// Contains some code to print the board without that the game has to be started
+mod demo;
 
 use std::slice::SliceIndex;
 
+use base_game::board::letter::LETTERS;
 use base_game::board::{Board, Position};
 use base_game::hotel_chains::HotelChain;
 use base_game::settings::Settings;
 use base_game::{stock, ui};
 use clap::Parser;
+use demo::test_things;
 use game::game::round::Round;
 use game::game::GameManager;
-use miette::Result;
+use miette::{miette, Result};
 use rand::{random, Rng};
 
 use crate::base_game::board::Piece;
@@ -39,7 +43,7 @@ use crate::game::game::hotel_chain_manager;
 
 #[derive(Parser)]
 #[clap(about = "The board game Acquire fia command line in Rust")]
-struct Opts {
+pub struct Opts {
     #[clap(short, long, help = "The number of players", possible_values = ["2", "3", "4", "5", "6"], required = true)]
     players: u32,
     #[clap(
@@ -55,8 +59,10 @@ struct Opts {
         long_help = "Use to show additional information to the player. This will show information that the player would normally not have. The following is shown:\n - If the player is largest or second largest shareholder"
     )]
     extra_info: bool,
-    #[clap(long, help = "Use to run the test function instead of the main game")]
-    test: bool,
+    #[clap(long, help = "Use to run some demo on how the game looks like instead of the main game")]
+    demo: bool,
+    #[clap(long, help = "Set what demo type to run", requires = "demo", default_value = "0")]
+    demo_type: u32,
     #[clap(
         short,
         long,
@@ -77,7 +83,7 @@ fn main() -> miette::Result<()> {
     //        board.print();
     print_welcome();
     let settings = Settings::new(opts.large_board, opts.extra_info, opts.skip_dialogues);
-    if opts.test {
+    if opts.demo {
         test_things(&opts, settings)?;
     } else {
         let mut game_manager = GameManager::new(opts.players, settings)?;
@@ -88,86 +94,4 @@ fn main() -> miette::Result<()> {
 
 fn print_welcome() {
     println!("Welcome to the Game Acquire!");
-}
-
-fn place_test_hotels(board: &mut Board) -> Result<()> {
-    for (index, h) in HotelChain::iterator().enumerate() {
-        board.place_hotel_debug(Position::new('A', index.try_into().unwrap()), *h)?;
-    }
-    Ok(())
-}
-
-fn test_things(opts: &Opts, settings: Settings) -> Result<()> {
-    let mut game_manager = GameManager::new(opts.players, settings)?;
-    game_manager.round = Some(Round::new());
-    let mut active_chains: Vec<HotelChain> = Vec::new();
-    for hotel_chain in HotelChain::iterator() {
-        if rand::thread_rng().gen_bool(0.4) {
-            continue;
-        }
-        let mut cards: Vec<Position> = Vec::new();
-        for _i in 1..=20 {
-            if rand::thread_rng().gen_bool(0.1) {
-                break;
-            }
-            cards.push(game_manager.draw_card().unwrap());
-        }
-        for card in &cards {
-            game_manager.board.place_hotel(&card)?;
-        }
-        if cards.len() < 2 {
-            break;
-        }
-        game_manager.hotel_chain_manager.start_chain(
-            *hotel_chain,
-            cards,
-            &mut game_manager.board,
-            game_manager
-                .round
-                .as_ref()
-                .unwrap()
-                .current_player_mut(&mut game_manager.players),
-            &mut game_manager.bank,
-        )?;
-        active_chains.push(*hotel_chain);
-    }
-    game_manager
-        .bank
-        .update_largest_shareholders(&game_manager.players);
-    game_manager
-        .round
-        .as_ref()
-        .unwrap()
-        .current_player_mut(&mut game_manager.players)
-        .analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
-    ui::print_main_ui(&game_manager);
-    if active_chains.len() >= 2 {
-        let rand1 = rand::thread_rng().gen_range(0..=active_chains.len() - 1);
-        let mut rand2 = rand::thread_rng().gen_range(0..=active_chains.len() - 1);
-        while rand1 == rand2 {
-            rand2 = rand::thread_rng().gen_range(0..=active_chains.len() - 1);
-        }
-        let mut chain1 = active_chains.get(rand1).unwrap();
-        let mut chain2 = active_chains.get(rand2).unwrap();
-        if game_manager.hotel_chain_manager.chain_length(chain1)
-            < game_manager.hotel_chain_manager.chain_length(chain2)
-        {
-            let buffer = chain1;
-            chain1 = chain2;
-            chain2 = buffer;
-        }
-        println!("Press enter to fuse {} into {}", chain2, chain1);
-        read_enter();
-        game_manager
-            .hotel_chain_manager
-            .fuse_chains(chain1, chain2, &mut game_manager.board)?;
-        game_manager
-            .round
-            .as_ref()
-            .unwrap()
-            .current_player_mut(&mut game_manager.players)
-            .analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
-        ui::print_main_ui(&game_manager);
-    }
-    Ok(())
 }

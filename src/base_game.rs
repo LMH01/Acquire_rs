@@ -297,8 +297,10 @@ pub mod board {
                 return write!(f, "{}", self.position);
             }
             if action.contains("Illegal") {
-                let content = format!("{} [{}]", self.position, action).color(Rgb(105, 105, 105)).to_string();
-                return write!(f, "{}", content)
+                let content = format!("{} [{}]", self.position, action)
+                    .color(Rgb(105, 105, 105))
+                    .to_string();
+                return write!(f, "{}", content);
             }
             write!(f, "{} [{}]", self.position, action)
         }
