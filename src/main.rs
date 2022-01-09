@@ -61,7 +61,7 @@ pub struct Opts {
     extra_info: bool,
     #[clap(long, help = "Use to run some demo on how the game looks like instead of the main game")]
     demo: bool,
-    #[clap(long, help = "Set what demo type to run", requires = "demo", default_value = "0")]
+    #[clap(long, help = "Set what demo type to run", default_value = "0")]
     demo_type: u32,
     #[clap(
         short,
