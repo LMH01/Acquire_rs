@@ -8,7 +8,7 @@ pub mod board {
 
     use self::letter::{next_letter, prev_letter, LETTERS};
     use miette::{miette, Result};
-    use owo_colors::{colors, AnsiColors, OwoColorize};
+    use owo_colors::{colors, AnsiColors, OwoColorize, Rgb};
     use std::fmt::{self, Display, Formatter};
 
     use super::hotel_chains::HotelChain;
@@ -284,15 +284,21 @@ pub mod board {
                 PlaceHotelCase::ExtendsChain(chain, positions) => format!(
                     "Extend {} by {} hotel(s)",
                     chain.name().color(chain.color()),
-                    positions.len()
+                    positions.len() + 1
                 ),
-                PlaceHotelCase::Fusion(_chains) => String::from("Fuse chains"),
-                PlaceHotelCase::Illegal(reason) => format!("{}", reason.reason_short()),
+                PlaceHotelCase::Fusion(_chains) => String::from("Fuse chains")
+                    .color(AnsiColors::Green)
+                    .to_string(),
+                PlaceHotelCase::Illegal(reason) => format!("Illegal: {}", reason.reason_short()),
                 PlaceHotelCase::SingleHotel => String::new(),
             };
             // No special formatting is needed
             if action.is_empty() {
                 return write!(f, "{}", self.position);
+            }
+            if action.contains("Illegal") {
+                let content = format!("{} [{}]", self.position, action).color(Rgb(105, 105, 105)).to_string();
+                return write!(f, "{}", content)
             }
             write!(f, "{} [{}]", self.position, action)
         }
@@ -324,7 +330,8 @@ pub mod board {
 
         /// Analyzes the position again and updates the place hotel case value
         pub fn check(&mut self, board: &Board, hotel_chain_manager: &HotelChainManager) {
-            self.place_hotel_case = analyze_position(&self.position, board, hotel_chain_manager)
+            self.place_hotel_case = analyze_position(&self.position, board, hotel_chain_manager);
+            println!("Analyzed position {}, is now {}", self.position, self);
         }
 
         /// Checks if this position is illegal
@@ -731,17 +738,20 @@ pub mod bank {
     use miette::{miette, Result};
     use owo_colors::OwoColorize;
 
-    use crate::{base_game::stock::Stocks, game::game::hotel_chain_manager::HotelChainManager};
+    use crate::{
+        base_game::stock::Stocks,
+        game::game::{hotel_chain_manager::HotelChainManager, player_by_id},
+    };
 
     use super::{hotel_chains::HotelChain, player::Player};
 
-    pub struct Bank<'a> {
+    pub struct Bank {
         pub stocks_for_sale: Stocks,
         /// Stores the currently largest and second largest shareholders
-        pub largest_shareholders: LargestShareholders<'a>,
+        pub largest_shareholders: LargestShareholders,
     }
 
-    impl<'b> Bank<'b> {
+    impl Bank {
         /// Creates a new bank
         pub fn new() -> Self {
             Self {
@@ -781,13 +791,13 @@ pub mod bank {
             for chain in HotelChain::iterator() {
                 let mut ls = Vec::<String>::new();
                 let mut sls = Vec::<String>::new();
-                for player in self
+                for player_id in self
                     .largest_shareholders
                     .largest_shareholder
                     .get(chain)
                     .unwrap()
                 {
-                    ls.push(format!("{}, ", player.id));
+                    ls.push(format!("{}, ", player_id));
                 }
                 for player in self
                     .largest_shareholders
@@ -795,7 +805,7 @@ pub mod bank {
                     .get(chain)
                     .unwrap()
                 {
-                    sls.push(format!("{}, ", player.id));
+                    sls.push(format!("{}, ", player));
                 }
                 println!(
                     "{:15} || {:19} || {}",
@@ -863,12 +873,12 @@ pub mod bank {
 
         /// Updates who the largest and second largest shareholders are.
         /// For that the stocks of earch player are compared to one another.
-        pub fn update_largest_shareholders(&mut self, players: &'b Vec<Player>) {
+        pub fn update_largest_shareholders(&mut self, players: &Vec<Player>) {
             // Clear currently largest shareholder vectors and initialize new
             self.largest_shareholders = LargestShareholders::new();
             for chain in HotelChain::iterator() {
-                let mut largest_shareholder: Vec<&'b Player> = Vec::new();
-                let mut second_largest_shareholder: Vec<&'b Player> = Vec::new();
+                let mut largest_shareholder: Vec<u32> = Vec::new();
+                let mut second_largest_shareholder: Vec<u32> = Vec::new();
                 for player in players {
                     // Check if player owns stocks for that chain
                     if *player.owned_stocks.stocks.get(&chain).unwrap() == 0 {
@@ -876,27 +886,28 @@ pub mod bank {
                     }
                     // Set first player to largest and second largest shareholder
                     if largest_shareholder.is_empty() && second_largest_shareholder.is_empty() {
-                        largest_shareholder.push(player);
-                        second_largest_shareholder.push(player);
+                        largest_shareholder.push(player.id);
+                        second_largest_shareholder.push(player.id);
                         continue;
                     }
                     // Determine currently largest shareholders
                     // On cases where continue has been called the second largest shareholder
                     // has been set already.
-                    let largest_shareholder_stocks = *largest_shareholder
-                        .get(0)
+                    let largest_shareholder_id = *largest_shareholder.get(0).unwrap();
+                    let largest_shareholder_stocks = player_by_id(largest_shareholder_id, players)
                         .unwrap()
                         .owned_stocks
                         .stocks
                         .get(&chain)
                         .unwrap();
-                    let second_largest_shareholder_stocks = *second_largest_shareholder
-                        .get(0)
-                        .unwrap()
-                        .owned_stocks
-                        .stocks
-                        .get(&chain)
-                        .unwrap();
+                    let second_largest_shareholder_id = *second_largest_shareholder.get(0).unwrap();
+                    let second_largest_shareholder_stocks =
+                        player_by_id(second_largest_shareholder_id, players)
+                            .unwrap()
+                            .owned_stocks
+                            .stocks
+                            .get(&chain)
+                            .unwrap();
                     let current_player_stocks = *player.owned_stocks.stocks.get(&chain).unwrap();
                     if largest_shareholder.len() == 1 {
                         // Currently only one player is largest shareholder
@@ -913,8 +924,8 @@ pub mod bank {
                             // Player has equal stocks => booth players will be set to largest
                             // and second largest shareholder
                             Ordering::Equal => {
-                                largest_shareholder.push(player);
-                                second_largest_shareholder.push(player);
+                                largest_shareholder.push(player.id);
+                                second_largest_shareholder.push(player.id);
                                 continue;
                             }
                             // Player has more stocks => The player will be set largest
@@ -922,7 +933,7 @@ pub mod bank {
                             // second largest shareholder
                             Ordering::Greater => {
                                 largest_shareholder.remove(0);
-                                largest_shareholder.push(player);
+                                largest_shareholder.push(player.id);
                             }
                         }
                     } else if largest_shareholder.len() > 1 {
@@ -932,8 +943,8 @@ pub mod bank {
                             // Player has equal stocks => current player will be added to the largest
                             // and second largest shareholder vector
                             Ordering::Equal => {
-                                largest_shareholder.push(player);
-                                second_largest_shareholder.push(player);
+                                largest_shareholder.push(player.id);
+                                second_largest_shareholder.push(player.id);
                                 continue;
                             }
                             // The players that where stored as largest and second largest
@@ -941,7 +952,7 @@ pub mod bank {
                             // current player will be set largest shareholder
                             Ordering::Greater => {
                                 largest_shareholder.clear();
-                                largest_shareholder.push(player);
+                                largest_shareholder.push(player.id);
                                 continue;
                             }
                         }
@@ -951,14 +962,14 @@ pub mod bank {
                         Ordering::Less => (),
                         // Player has equal stocks => current player will be added to the second largest shareholder vector
                         Ordering::Equal => {
-                            second_largest_shareholder.push(player);
+                            second_largest_shareholder.push(player.id);
                             continue;
                         }
                         // Player has more stocks => all currently second largest
                         // shareholders will be removed and replaced by the current player
                         Ordering::Greater => {
                             second_largest_shareholder.clear();
-                            second_largest_shareholder.push(player);
+                            second_largest_shareholder.push(player.id);
                             continue;
                         }
                     }
@@ -974,36 +985,36 @@ pub mod bank {
         }
 
         /// Checks if the player is one of the largest shareholders for the chain.
-        pub fn is_largest_shareholder(&self, player: &Player, chain: &HotelChain) -> bool {
+        pub fn is_largest_shareholder(&self, player_id: u32, chain: &HotelChain) -> bool {
             self.largest_shareholders
                 .largest_shareholder
                 .get(chain)
                 .unwrap()
-                .contains(&player)
+                .contains(&player_id)
         }
 
         /// Checks if the player is one of the second largest shareholders for the chain.
-        pub fn is_second_largest_shareholder(&self, player: &Player, chain: &HotelChain) -> bool {
+        pub fn is_second_largest_shareholder(&self, player_id: u32, chain: &HotelChain) -> bool {
             self.largest_shareholders
                 .second_largest_shareholder
                 .get(chain)
                 .unwrap()
-                .contains(&player)
+                .contains(&player_id)
         }
     }
 
     /// Used to store if the player is a largest or second largest shareholder
-    pub struct LargestShareholders<'a> {
-        /// Contains who the largest shareholder is for the specified hotel
-        pub largest_shareholder: HashMap<HotelChain, Vec<&'a Player>>,
-        /// Chains where the player is the second largest shareholder
-        pub second_largest_shareholder: HashMap<HotelChain, Vec<&'a Player>>,
+    pub struct LargestShareholders {
+        /// Contains what the player ids of the largest shareholder for the specified hotel are
+        pub largest_shareholder: HashMap<HotelChain, Vec<u32>>,
+        /// Contains what the player ids of the second largest shareholder for the specified chain are
+        pub second_largest_shareholder: HashMap<HotelChain, Vec<u32>>,
     }
 
-    impl LargestShareholders<'_> {
+    impl LargestShareholders {
         pub fn new() -> Self {
-            let mut largest_shareholder: HashMap<HotelChain, Vec<&Player>> = HashMap::new();
-            let mut second_largest_shareholder: HashMap<HotelChain, Vec<&Player>> = HashMap::new();
+            let mut largest_shareholder = HashMap::new();
+            let mut second_largest_shareholder = HashMap::new();
             for chain in HotelChain::iterator() {
                 largest_shareholder.insert(*chain, Vec::new());
                 second_largest_shareholder.insert(*chain, Vec::new());
@@ -1080,6 +1091,150 @@ pub mod bank {
             );
             Ok(())
         }
+
+        #[test]
+        fn buy_stock_errors_work() {
+            let mut game = GameManager::new(2, Settings::new_default()).unwrap();
+            // Test if Hotel is not active error works
+            let mut input = game.bank.buy_stock(
+                &game.hotel_chain_manager,
+                &HotelChain::Airport,
+                game.players.get_mut(0).unwrap(),
+            );
+            assert!(is_error(input));
+            // Test if no stocks left error works
+            game.bank
+                .stocks_for_sale
+                .set_stocks(&HotelChain::Airport, 0);
+            input = game.bank.buy_stock(
+                &game.hotel_chain_manager,
+                &HotelChain::Airport,
+                game.players.get_mut(0).unwrap(),
+            );
+            assert!(is_error(input));
+            // Test if not enough money error works
+            game.bank
+                .stocks_for_sale
+                .set_stocks(&HotelChain::Airport, 5);
+            game.players.get_mut(0).unwrap().money = 0;
+            input = game.bank.buy_stock(
+                &game.hotel_chain_manager,
+                &HotelChain::Airport,
+                game.players.get_mut(0).unwrap(),
+            );
+            assert!(is_error(input));
+        }
+
+        #[test]
+        fn largest_shareholders_correct() {
+            let mut game_manager = GameManager::new(4, Settings::new_default()).unwrap();
+
+            let mut index = 0;
+            while index < 4 {
+                let mut player = game_manager.players.get_mut(index).unwrap();
+                match index {
+                    0 => {
+                        player.owned_stocks.set_stocks(&HotelChain::Airport, 7);
+                        player.owned_stocks.set_stocks(&HotelChain::Continental, 10);
+                        player.owned_stocks.set_stocks(&HotelChain::Festival, 5);
+                        player.owned_stocks.set_stocks(&HotelChain::Imperial, 7);
+                    }
+                    1 => {
+                        player.owned_stocks.set_stocks(&HotelChain::Airport, 2);
+                        player.owned_stocks.set_stocks(&HotelChain::Continental, 10);
+                        player.owned_stocks.set_stocks(&HotelChain::Festival, 3);
+                    }
+                    2 => {
+                        player.owned_stocks.set_stocks(&HotelChain::Festival, 3);
+                        player.owned_stocks.set_stocks(&HotelChain::Continental, 10);
+                    }
+                    3 => {
+                        player.owned_stocks.set_stocks(&HotelChain::Festival, 3);
+                    }
+                    _ => (),
+                }
+                index += 1;
+            }
+            game_manager
+                .bank
+                .update_largest_shareholders(&game_manager.players);
+            game_manager.bank.print_largest_shareholders();
+            // Test case 1: one largest and one second largest shareholder (Continental)
+            assert!(game_manager.bank.is_largest_shareholder(
+                game_manager.players.get(0).unwrap().id,
+                &HotelChain::Airport
+            ));
+            assert!(game_manager.bank.is_second_largest_shareholder(
+                game_manager.players.get(1).unwrap().id,
+                &HotelChain::Airport
+            ));
+            // Test case 2: multiple largest shareholerds (Airport)
+            assert!(game_manager.bank.is_largest_shareholder(
+                game_manager.players.get(0).unwrap().id,
+                &HotelChain::Continental
+            ));
+            assert!(game_manager.bank.is_second_largest_shareholder(
+                game_manager.players.get(0).unwrap().id,
+                &HotelChain::Continental
+            ));
+            assert!(game_manager.bank.is_largest_shareholder(
+                game_manager.players.get(1).unwrap().id,
+                &HotelChain::Continental
+            ));
+            assert!(game_manager.bank.is_second_largest_shareholder(
+                game_manager.players.get(1).unwrap().id,
+                &HotelChain::Continental
+            ));
+            assert!(game_manager.bank.is_largest_shareholder(
+                game_manager.players.get(2).unwrap().id,
+                &HotelChain::Continental
+            ));
+            assert!(game_manager.bank.is_second_largest_shareholder(
+                game_manager.players.get(2).unwrap().id,
+                &HotelChain::Continental
+            ));
+            // Test case 3: one largest and multiple second largest shareholders (Prestige)
+            assert!(game_manager.bank.is_largest_shareholder(
+                game_manager.players.get(0).unwrap().id,
+                &HotelChain::Festival
+            ));
+            assert!(game_manager.bank.is_second_largest_shareholder(
+                game_manager.players.get(1).unwrap().id,
+                &HotelChain::Festival
+            ));
+            assert!(game_manager.bank.is_second_largest_shareholder(
+                game_manager.players.get(2).unwrap().id,
+                &HotelChain::Festival
+            ));
+            assert!(game_manager.bank.is_second_largest_shareholder(
+                game_manager.players.get(3).unwrap().id,
+                &HotelChain::Festival
+            ));
+            // Test case 4: one player is largest and second largest shareholder (Luxor)
+            assert!(game_manager.bank.is_largest_shareholder(
+                game_manager.players.get(0).unwrap().id,
+                &HotelChain::Imperial
+            ));
+            assert!(game_manager.bank.is_second_largest_shareholder(
+                game_manager.players.get(0).unwrap().id,
+                &HotelChain::Imperial
+            ));
+            assert!(!game_manager.bank.is_largest_shareholder(
+                game_manager.players.get(1).unwrap().id,
+                &HotelChain::Imperial
+            ));
+            assert!(!game_manager.bank.is_second_largest_shareholder(
+                game_manager.players.get(1).unwrap().id,
+                &HotelChain::Imperial
+            ));
+        }
+
+        fn is_error(input: Result<()>) -> bool {
+            return match input {
+                Err(_) => true,
+                Ok(_) => false,
+            };
+        }
     }
 }
 
@@ -1096,7 +1251,7 @@ pub mod player {
             GameManager,
         },
     };
-    use miette::{Result, miette};
+    use miette::{miette, Result};
     use owo_colors::OwoColorize;
 
     use super::board::{AnalyzedPosition, Board};
@@ -1178,7 +1333,10 @@ pub mod player {
                     }
                 }
             }
-            Err(miette!("Unable to remove card from player, the requested card {} could not be found.", position))
+            Err(miette!(
+                "Unable to remove card from player, the requested card {} could not be found.",
+                position
+            ))
         }
 
         /// Adds a card to the players inventory.
@@ -1331,7 +1489,7 @@ pub mod ui {
                     &game_manager.bank,
                     &game_manager.hotel_chain_manager,
                     &chain,
-                    player,
+                    player.id,
                     game_manager.settings.extra_info
                 ),
                 formatted_string2.color(color),
@@ -1345,16 +1503,16 @@ pub mod ui {
         bank: &Bank,
         hotel_manager: &HotelChainManager,
         chain: &HotelChain,
-        player: &Player,
+        player_id: u32,
         show_symbol: bool,
     ) -> String {
         if !hotel_manager.chain_status(&chain) || !show_symbol {
             return String::from(" ");
         }
-        if bank.is_largest_shareholder(player, chain) {
+        if bank.is_largest_shareholder(player_id, chain) {
             return "*".color(Rgb(225, 215, 0)).to_string();
         }
-        if bank.is_second_largest_shareholder(player, chain) {
+        if bank.is_second_largest_shareholder(player_id, chain) {
             return "*".color(Rgb(192, 192, 192)).to_string();
         }
         // The star should probably be only displayed when a special terminal flag is set (mayber

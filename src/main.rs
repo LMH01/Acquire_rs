@@ -134,6 +134,12 @@ fn test_things(opts: &Opts, settings: Settings) -> Result<()> {
     game_manager
         .bank
         .update_largest_shareholders(&game_manager.players);
+    game_manager
+        .round
+        .as_ref()
+        .unwrap()
+        .current_player_mut(&mut game_manager.players)
+        .analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
     ui::print_main_ui(&game_manager);
     if active_chains.len() >= 2 {
         let rand1 = rand::thread_rng().gen_range(0..=active_chains.len() - 1);
@@ -155,6 +161,12 @@ fn test_things(opts: &Opts, settings: Settings) -> Result<()> {
         game_manager
             .hotel_chain_manager
             .fuse_chains(chain1, chain2, &mut game_manager.board)?;
+        game_manager
+            .round
+            .as_ref()
+            .unwrap()
+            .current_player_mut(&mut game_manager.players)
+            .analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
         ui::print_main_ui(&game_manager);
     }
     Ok(())

@@ -225,7 +225,12 @@ pub mod place_hotel {
             if let Some(value) = board.is_hotel_placed(&position) {
                 match value {
                     None => surrounding_hotels.push(position),
-                    Some(chain) => surrounding_chains.push(chain),
+                    Some(chain) => {
+                        // Add each chain only once
+                        if !surrounding_chains.contains(&chain) {
+                            surrounding_chains.push(chain);
+                        }
+                    }
                 }
             }
         }
@@ -459,163 +464,6 @@ pub mod place_hotel {
                 PlaceHotelCase::Illegal(IllegalPlacement::ChainStartIllegal)
             );
             Ok(())
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    mod bank {
-
-        use miette::Result;
-
-        use crate::{
-            base_game::{hotel_chains::HotelChain, settings::Settings},
-            game::game::GameManager,
-        };
-
-        #[test]
-        fn buy_stock_errors_work() {
-            let mut game = GameManager::new(2, Settings::new_default()).unwrap();
-            // Test if Hotel is not active error works
-            let mut input = game.bank.buy_stock(
-                &game.hotel_chain_manager,
-                &HotelChain::Airport,
-                game.players.get_mut(0).unwrap(),
-            );
-            assert!(is_error(input));
-            // Test if no stocks left error works
-            game.bank
-                .stocks_for_sale
-                .set_stocks(&HotelChain::Airport, 0);
-            input = game.bank.buy_stock(
-                &game.hotel_chain_manager,
-                &HotelChain::Airport,
-                game.players.get_mut(0).unwrap(),
-            );
-            assert!(is_error(input));
-            // Test if not enough money error works
-            game.bank
-                .stocks_for_sale
-                .set_stocks(&HotelChain::Airport, 5);
-            game.players.get_mut(0).unwrap().money = 0;
-            input = game.bank.buy_stock(
-                &game.hotel_chain_manager,
-                &HotelChain::Airport,
-                game.players.get_mut(0).unwrap(),
-            );
-            assert!(is_error(input));
-        }
-
-        #[test]
-        fn largest_shareholders_correct() {
-            let mut game_manager = GameManager::new(4, Settings::new_default()).unwrap();
-
-            let mut index = 0;
-            while index < 4 {
-                let mut player = game_manager.players.get_mut(index).unwrap();
-                match index {
-                    0 => {
-                        player.owned_stocks.set_stocks(&HotelChain::Airport, 7);
-                        player.owned_stocks.set_stocks(&HotelChain::Continental, 10);
-                        player.owned_stocks.set_stocks(&HotelChain::Festival, 5);
-                        player.owned_stocks.set_stocks(&HotelChain::Imperial, 7);
-                    }
-                    1 => {
-                        player.owned_stocks.set_stocks(&HotelChain::Airport, 2);
-                        player.owned_stocks.set_stocks(&HotelChain::Continental, 10);
-                        player.owned_stocks.set_stocks(&HotelChain::Festival, 3);
-                    }
-                    2 => {
-                        player.owned_stocks.set_stocks(&HotelChain::Festival, 3);
-                        player.owned_stocks.set_stocks(&HotelChain::Continental, 10);
-                    }
-                    3 => {
-                        player.owned_stocks.set_stocks(&HotelChain::Festival, 3);
-                    }
-                    _ => (),
-                }
-                index += 1;
-            }
-            game_manager
-                .bank
-                .update_largest_shareholders(&game_manager.players);
-            game_manager.bank.print_largest_shareholders();
-            // Test case 1: one largest and one second largest shareholder (Continental)
-            assert!(game_manager.bank.is_largest_shareholder(
-                game_manager.players.get(0).unwrap(),
-                &HotelChain::Airport
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(1).unwrap(),
-                &HotelChain::Airport
-            ));
-            // Test case 2: multiple largest shareholerds (Airport)
-            assert!(game_manager.bank.is_largest_shareholder(
-                game_manager.players.get(0).unwrap(),
-                &HotelChain::Continental
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(0).unwrap(),
-                &HotelChain::Continental
-            ));
-            assert!(game_manager.bank.is_largest_shareholder(
-                game_manager.players.get(1).unwrap(),
-                &HotelChain::Continental
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(1).unwrap(),
-                &HotelChain::Continental
-            ));
-            assert!(game_manager.bank.is_largest_shareholder(
-                game_manager.players.get(2).unwrap(),
-                &HotelChain::Continental
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(2).unwrap(),
-                &HotelChain::Continental
-            ));
-            // Test case 3: one largest and multiple second largest shareholders (Prestige)
-            assert!(game_manager.bank.is_largest_shareholder(
-                game_manager.players.get(0).unwrap(),
-                &HotelChain::Festival
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(1).unwrap(),
-                &HotelChain::Festival
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(2).unwrap(),
-                &HotelChain::Festival
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(3).unwrap(),
-                &HotelChain::Festival
-            ));
-            // Test case 4: one player is largest and second largest shareholder (Luxor)
-            assert!(game_manager.bank.is_largest_shareholder(
-                game_manager.players.get(0).unwrap(),
-                &HotelChain::Imperial
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(0).unwrap(),
-                &HotelChain::Imperial
-            ));
-            assert!(!game_manager.bank.is_largest_shareholder(
-                game_manager.players.get(1).unwrap(),
-                &HotelChain::Imperial
-            ));
-            assert!(!game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(1).unwrap(),
-                &HotelChain::Imperial
-            ));
-        }
-
-        fn is_error(input: Result<()>) -> bool {
-            return match input {
-                Err(_) => true,
-                Ok(_) => false,
-            };
         }
     }
 }

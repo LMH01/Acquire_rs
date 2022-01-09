@@ -35,11 +35,11 @@ pub mod game {
     ///     game_manager.start_game();
     /// }
     /// ```
-    pub struct GameManager<'a> {
+    pub struct GameManager {
         /// The board that belongs to this game
         pub board: Board,
         /// The bank that manages the stocks and the money
-        pub bank: Bank<'a>,
+        pub bank: Bank,
         /// The hotel manager for this game
         pub hotel_chain_manager: HotelChainManager,
         /// The positions that can be drawn
@@ -57,7 +57,7 @@ pub mod game {
         pub settings: Settings,
     }
 
-    impl GameManager<'_> {
+    impl GameManager {
         /// Initializes a new game
         pub fn new(number_of_players: u32, settings: Settings) -> Result<Self> {
             // verify that the amout of players entered is between 2 and 6
@@ -190,6 +190,16 @@ pub mod game {
             self.position_cards.remove(random_number);
             Ok(position)
         }
+    }
+
+    /// Returns a reference to the player with the entered id
+    pub fn player_by_id(id: u32, players: &Vec<Player>) -> Option<&Player> {
+        for player in players {
+            if player.id == id {
+                return Some(player);
+            }
+        }
+        None
     }
 
     /// Manages the currently active hotel chains
