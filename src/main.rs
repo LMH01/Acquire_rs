@@ -1,11 +1,10 @@
 /// Contains all base functionalities that the game needs to work.
-/// This includes all basic data types and the playfield.
-/// This module does not contain any logic related to the gameplay.
+/// This includes all basic data types and the playfield, game logic and more.
 mod base_game;
 /// Contains functions that help to read and parse the user input
 mod data_stream;
 /// Contains all functionalities that are required to play the game. This includes the setting up
-/// of new games, game logic, management of players and more.
+/// of new games, round, turn and player managemnt and more.
 mod game;
 
 use std::slice::SliceIndex;
@@ -46,11 +45,21 @@ struct Opts {
         help = "Use to make the board larger and to write the coordinates into the field"
     )]
     large_board: bool,
-    #[clap(short, long, help = "Use to show additional information to the player.", long_help = "Use to show additional information to the player. This will show information that the player would normally not have. The following is shown:\n - If the player is largest or second largest shareholder")]
+    #[clap(
+        short,
+        long,
+        help = "Use to show additional information to the player.",
+        long_help = "Use to show additional information to the player. This will show information that the player would normally not have. The following is shown:\n - If the player is largest or second largest shareholder"
+    )]
     extra_info: bool,
     #[clap(long, help = "Use to run the test function instead of the main game")]
     test: bool,
-    #[clap(short, long, help = "Use to always skip some dialogues", long_help = "Use to always skip some dialogues. Dialogues that are skipped include: The confirmation what card the player drew.")]
+    #[clap(
+        short,
+        long,
+        help = "Use to always skip some dialogues",
+        long_help = "Use to always skip some dialogues. Dialogues that are skipped include: The confirmation what card the player drew."
+    )]
     skip_dialogues: bool,
 }
 
