@@ -7,7 +7,7 @@ use read_input::{prelude::input, InputBuild};
 use crate::{
     base_game::{
         bank::{Bank, LargestShareholders},
-        board::Position,
+        board::{AnalyzedPosition, Position},
         hotel_chains::HotelChain,
         player::Player,
     },
@@ -74,7 +74,11 @@ pub fn draw_card(game_manager: &mut GameManager) {
         .as_mut()
         .unwrap()
         .current_player_mut(&mut game_manager.players);
-    player.cards.push(card);
+    player.add_card(
+        &card,
+        &game_manager.board,
+        &game_manager.hotel_chain_manager,
+    );
     if !game_manager.settings.skip_dialogues {
         print!("Press enter to finish your turn");
         read_enter();
@@ -83,13 +87,20 @@ pub fn draw_card(game_manager: &mut GameManager) {
 
 /// Prompts the user to select a card.
 /// This card is then removed from the players inventory and returned.
-fn read_card(player: &mut Player) -> Position {
-    print!("Enter a number 1-6: ");
-    let card_index = input::<usize>().inside(1..=6).get() - 1;
-    let position = player.sorted_cards().get(card_index).unwrap().clone();
-    //Remove the played card from the players hand cards
-    player.remove_card(&position);
-    position
+fn read_card(player: &mut Player) -> Result<AnalyzedPosition> {
+    loop {
+        print!("Enter a number 1-6: ");
+        let card_index = input::<usize>().inside(1..=6).get() - 1;
+        player.sort_cards();
+        let analyzed_position = *player.analyzed_cards.get(card_index).as_ref().unwrap();
+        // Check if hotel placement is allowed
+        if analyzed_position.is_illegal() {
+            continue;
+        }
+        let position = analyzed_position.position.clone();
+        //Remove the played card from the players hand cards
+        return Ok(player.remove_card(&position)?);
+    }
 }
 
 /// All functions related to placing a hotel
@@ -121,11 +132,6 @@ pub mod place_hotel {
             .as_mut()
             .unwrap()
             .current_player_mut(&mut game_manager.players);
-        let analyzed_positions = analyze_cards(
-            &player.cards,
-            &game_manager.board,
-            &game_manager.hotel_chain_manager,
-        );
         //let played_card = read_card(player, analyzed_positions);
         //game_manager.board.place_hotel(&card)?;
         ui::print_main_ui(&game_manager);
@@ -139,7 +145,7 @@ pub mod place_hotel {
         Ok(())
     }
     /// The different cases that can hapen when a hotel is placed
-    #[derive(PartialEq, Debug)]
+    #[derive(PartialEq, Debug, Eq)]
     pub enum PlaceHotelCase {
         SingleHotel,
         NewChain(Vec<Position>),
@@ -162,13 +168,31 @@ pub mod place_hotel {
     }
 
     /// The different ways a hotel placement can be illegal
-    #[derive(PartialEq, Debug)]
+    #[derive(PartialEq, Debug, Eq)]
     pub enum IllegalPlacement {
         /// Signals that no more chains can be started
         ChainStartIllegal,
         /// Signals that a fusion is illegal because it would fuse chains that can no
         /// longer be fused
         FusionIllegal,
+    }
+
+    impl IllegalPlacement {
+        /// Returns a string that contains the brief reson why this hotel can not be placed
+        pub fn reason_short(&self) -> String {
+            match self {
+                IllegalPlacement::FusionIllegal => String::from("Fusion illegal"),
+                IllegalPlacement::ChainStartIllegal => String::from("Chain start illegal"),
+            }
+        }
+
+        /// Returns a string that contains the detailed reson why this hotel can not be placed
+        pub fn reason_long(&self) -> String {
+            match self {
+                IllegalPlacement::FusionIllegal => String::from("Fusion illegal: The piece would start a fusion between chains that can no longer be fused."),
+                IllegalPlacement::ChainStartIllegal => String::from("Chain start illegal: All 7 chains are already active."),
+            }
+        }
     }
 
     /// Analyzes the players hand cards and returns a map of analyzed positons. The value is the case

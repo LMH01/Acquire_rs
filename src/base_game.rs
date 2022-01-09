@@ -8,7 +8,7 @@ pub mod board {
 
     use self::letter::{next_letter, prev_letter, LETTERS};
     use miette::{miette, Result};
-    use owo_colors::OwoColorize;
+    use owo_colors::{colors, AnsiColors, OwoColorize};
     use std::fmt::{self, Display, Formatter};
 
     use super::hotel_chains::HotelChain;
@@ -257,9 +257,45 @@ pub mod board {
     }
 
     /// Symbolizes a position on the board that has been analyzed
+    #[derive(PartialEq, Eq)]
     pub struct AnalyzedPosition {
         pub position: Position,
         pub place_hotel_case: PlaceHotelCase,
+    }
+
+    impl PartialOrd for AnalyzedPosition {
+        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+            Some(self.position.cmp(&other.position))
+        }
+    }
+
+    impl Ord for AnalyzedPosition {
+        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+            self.position.cmp(&other.position)
+        }
+    }
+
+    impl Display for AnalyzedPosition {
+        fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
+            let action = match &self.place_hotel_case {
+                PlaceHotelCase::NewChain(_positions) => String::from("Start chain")
+                    .color(AnsiColors::Green)
+                    .to_string(),
+                PlaceHotelCase::ExtendsChain(chain, positions) => format!(
+                    "Extend {} by {} hotel(s)",
+                    chain.name().color(chain.color()),
+                    positions.len()
+                ),
+                PlaceHotelCase::Fusion(_chains) => String::from("Fuse chains"),
+                PlaceHotelCase::Illegal(reason) => format!("{}", reason.reason_short()),
+                PlaceHotelCase::SingleHotel => String::new(),
+            };
+            // No special formatting is needed
+            if action.is_empty() {
+                return write!(f, "{}", self.position);
+            }
+            write!(f, "{} [{}]", self.position, action)
+        }
     }
 
     impl AnalyzedPosition {
@@ -273,6 +309,29 @@ pub mod board {
             Self {
                 position,
                 place_hotel_case,
+            }
+        }
+
+        /// Creates a new analyzed position without analyzing the position.
+        /// Should only be used when the players cards are initialized for the first time.
+        /// The place hotel case will be set to single hotel.
+        pub fn new_unchecked(position: Position) -> Self {
+            Self {
+                position,
+                place_hotel_case: PlaceHotelCase::SingleHotel,
+            }
+        }
+
+        /// Analyzes the position again and updates the place hotel case value
+        pub fn check(&mut self, board: &Board, hotel_chain_manager: &HotelChainManager) {
+            self.place_hotel_case = analyze_position(&self.position, board, hotel_chain_manager)
+        }
+
+        /// Checks if this position is illegal
+        pub fn is_illegal(&self) -> bool {
+            match &self.place_hotel_case {
+                PlaceHotelCase::Illegal(_reason) => true,
+                _ => false,
             }
         }
     }
@@ -1026,12 +1085,21 @@ pub mod bank {
 
 /// Player management
 pub mod player {
+    use std::slice::IterMut;
+
     use crate::{
         base_game::bank::Bank,
         base_game::board::Position,
         base_game::{hotel_chains::HotelChain, stock::Stocks},
+        game::game::{
+            hotel_chain_manager::{self, HotelChainManager},
+            GameManager,
+        },
     };
+    use miette::{Result, miette};
     use owo_colors::OwoColorize;
+
+    use super::board::{AnalyzedPosition, Board};
 
     /// Stores all variables that belong to the player
     #[derive(PartialEq)]
@@ -1040,18 +1108,22 @@ pub mod player {
         pub money: u32,
         /// The stocks that the player currently owns
         pub owned_stocks: Stocks,
-        /// Contains the cards that the player currently has on his hand and that could be played
-        pub cards: Vec<Position>,
+        /// Contains the cards that the player currently has on his hand
+        pub analyzed_cards: Vec<AnalyzedPosition>,
         /// The id of the player
         pub id: u32,
     }
 
     impl Player {
-        pub fn new(mut start_cards: Vec<Position>, id: u32) -> Self {
+        pub fn new(start_cards: Vec<Position>, id: u32) -> Self {
+            let mut cards = Vec::new();
+            for position in start_cards {
+                cards.push(AnalyzedPosition::new_unchecked(position));
+            }
             Self {
                 money: 6000,
                 owned_stocks: Stocks::new(),
-                cards: start_cards,
+                analyzed_cards: cards,
                 id,
             }
         }
@@ -1080,31 +1152,53 @@ pub mod player {
         pub fn print_cards(&self) {
             println!();
             print!("Your current cards: ");
-            for position in &self.cards {
-                print!("[{}{:2}]", position.letter, position.number);
+            for analyzed_card in &self.analyzed_cards {
+                print!(
+                    "[{}{:2}]",
+                    analyzed_card.position.letter, analyzed_card.position.number
+                );
             }
             println!();
         }
 
-        /// Sorts the current hand cards and returns a copy
-        pub fn sorted_cards(&self) -> Vec<Position> {
-            let mut cards = self.cards.clone();
-            cards.sort();
-            cards
+        /// Sorts the players current hand cards
+        pub fn sort_cards(&mut self) {
+            self.analyzed_cards.sort()
         }
 
         /// Removes a card from the players inventory.
-        /// Returns `true` when the card was removed successfully
-        pub fn remove_card(&mut self, position: &Position) -> bool {
-            for (index, card) in self.cards.iter().enumerate() {
-                if card.letter.eq(&position.letter) {
-                    if card.number.eq(&position.number) {
-                        self.cards.remove(index);
-                        return true;
+        /// Returns the removed card when the card has been removed successfully.
+        /// Otherwise `None` is returned.
+        pub fn remove_card(&mut self, position: &Position) -> Result<AnalyzedPosition> {
+            self.sort_cards();
+            for (index, analyzed_card) in self.analyzed_cards.iter().enumerate() {
+                if analyzed_card.position.letter.eq(&position.letter) {
+                    if analyzed_card.position.number.eq(&position.number) {
+                        return Ok(self.analyzed_cards.remove(index));
                     }
                 }
             }
-            false
+            Err(miette!("Unable to remove card from player, the requested card {} could not be found.", position))
+        }
+
+        /// Adds a card to the players inventory.
+        /// Analyzes the position.
+        pub fn add_card(
+            &mut self,
+            position: &Position,
+            board: &Board,
+            hotel_chain_manager: &HotelChainManager,
+        ) {
+            self.analyzed_cards
+                .push(AnalyzedPosition::new(*position, board, hotel_chain_manager));
+            self.sort_cards();
+        }
+
+        /// Analyzes the players hand cards again and updates the place hotel case value
+        pub fn analyze_cards(&mut self, board: &Board, hotel_chain_manager: &HotelChainManager) {
+            for card in &mut self.analyzed_cards {
+                card.check(board, hotel_chain_manager);
+            }
         }
 
         /// Checks if this player is the largest shareholder for the chain
@@ -1126,13 +1220,13 @@ pub mod player {
             // Print cards
             print!("{}", String::from("Cards: ").bright_green());
             let mut first_card = true;
-            for card in &self.sorted_cards() {
+            for analyzed_card in &self.analyzed_cards {
                 if first_card {
                     first_card = false;
                 } else {
                     print!(", ");
                 }
-                print!("{}", card);
+                print!("{}", analyzed_card);
             }
             println!();
             // Print stocks
