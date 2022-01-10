@@ -284,7 +284,7 @@ pub mod board {
                 PlaceHotelCase::ExtendsChain(chain, positions) => format!(
                     "Extend {} by {} hotel(s)",
                     chain.name().color(chain.color()),
-                    positions.len() + 1
+                    positions.len(),
                 ),
                 PlaceHotelCase::Fusion(_chains, origin) => String::from("Fuse chains")
                     .color(AnsiColors::Green)
