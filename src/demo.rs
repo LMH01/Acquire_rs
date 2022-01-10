@@ -6,6 +6,7 @@ use rand::Rng;
 
 use crate::{
     base_game::{
+        bank::{self, Bank},
         board::{letter::LETTERS, Board, Position},
         hotel_chains::HotelChain,
         player::Player,
@@ -13,7 +14,12 @@ use crate::{
         ui,
     },
     data_stream::read_enter,
-    game::game::{player_by_id_mut, round::Round, GameManager},
+    game::game::{
+        self,
+        hotel_chain_manager::{self, HotelChainManager},
+        round::Round,
+        GameManager,
+    },
     Opts,
 };
 
@@ -26,19 +32,46 @@ fn place_test_hotels(board: &mut Board) -> Result<()> {
 
 pub fn test_things(opts: &Opts, settings: Settings) -> Result<()> {
     let mut game_manager = GameManager::new(opts.players, settings)?;
-    game_manager.round = Some(Round::new());
     let mut active_chains: Vec<HotelChain> = Vec::new();
-    let mut player = Player::new(vec![Position::new('A', 3)], 0);
+    let round = Round::new(1);
+    let mut player_cards = Vec::new();
+    for _i in 1..=6 {
+        player_cards.push(draw_card(&mut game_manager.position_cards));
+    }
+    let player = game_manager.players.get_mut(0).unwrap();
     if opts.demo_type == 0 {
-        set_hotel_chains_clever(&mut game_manager, &mut active_chains, &mut player)?;
+        set_hotel_chains_clever(
+            &mut active_chains,
+            player,
+            &mut game_manager.position_cards,
+            &mut game_manager.board,
+            &mut game_manager.hotel_chain_manager,
+            &mut game_manager.bank,
+        )?;
     } else {
-        set_hotel_chains_random(&mut game_manager, &mut active_chains, &mut player)?;
+        set_hotel_chains_random(
+            &mut active_chains,
+            player,
+            &mut game_manager.position_cards,
+            &mut game_manager.board,
+            &mut game_manager.hotel_chain_manager,
+            &mut game_manager.bank,
+        )?;
     }
     game_manager
         .bank
         .update_largest_shareholders(&game_manager.players);
+    game_manager.bank.print_largest_shareholders();
+    let player = game_manager.players.get_mut(0).unwrap();
     player.analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
-    ui::print_main_ui(&game_manager);
+    ui::print_main_ui(
+        Some(&player),
+        &game_manager.board,
+        &game_manager.settings,
+        Some(&round),
+        &game_manager.bank,
+        &game_manager.hotel_chain_manager,
+    );
     if active_chains.len() >= 2 {
         let rand1 = rand::thread_rng().gen_range(0..=active_chains.len() - 1);
         let mut rand2 = rand::thread_rng().gen_range(0..=active_chains.len() - 1);
@@ -60,15 +93,25 @@ pub fn test_things(opts: &Opts, settings: Settings) -> Result<()> {
             .hotel_chain_manager
             .fuse_chains(chain1, chain2, &mut game_manager.board)?;
         player.analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
-        ui::print_main_ui(&game_manager);
+        ui::print_main_ui(
+            Some(&player),
+            &game_manager.board,
+            &game_manager.settings,
+            Some(&round),
+            &game_manager.bank,
+            &game_manager.hotel_chain_manager,
+        );
     }
     Ok(())
 }
 
 pub fn set_hotel_chains_random(
-    game_manager: &mut GameManager,
     active_chains: &mut Vec<HotelChain>,
     player: &mut Player,
+    position_cards: &mut Vec<Position>,
+    board: &mut Board,
+    hotel_chain_manager: &mut HotelChainManager,
+    bank: &mut Bank,
 ) -> Result<()> {
     for hotel_chain in HotelChain::iterator() {
         if rand::thread_rng().gen_bool(0.4) {
@@ -79,30 +122,27 @@ pub fn set_hotel_chains_random(
             if rand::thread_rng().gen_bool(0.1) {
                 break;
             }
-            cards.push(game_manager.draw_card().unwrap());
+            cards.push(game::draw_card(position_cards)?.unwrap());
         }
         for card in &cards {
-            game_manager.board.place_hotel(&card)?;
+            board.place_hotel(&card)?;
         }
         if cards.len() < 2 {
             break;
         }
-        game_manager.hotel_chain_manager.start_chain(
-            *hotel_chain,
-            cards,
-            &mut game_manager.board,
-            player,
-            &mut game_manager.bank,
-        )?;
+        hotel_chain_manager.start_chain(*hotel_chain, cards, board, player, bank)?;
         active_chains.push(*hotel_chain);
     }
     Ok(())
 }
 
 pub fn set_hotel_chains_clever(
-    game_manager: &mut GameManager,
     active_chains: &mut Vec<HotelChain>,
     player: &mut Player,
+    position_cards: &mut Vec<Position>,
+    board: &mut Board,
+    hotel_chain_manager: &mut HotelChainManager,
+    bank: &mut Bank,
 ) -> Result<()> {
     let mut allowed_positions: Vec<Position> = Vec::new();
     let mut placed_hotels: HashMap<Position, HotelChain> = HashMap::new();
@@ -138,13 +178,7 @@ pub fn set_hotel_chains_clever(
             hotel_chain.name().color(hotel_chain.color()),
             origin.color(AnsiColors::Green)
         );
-        game_manager.hotel_chain_manager.start_chain(
-            *hotel_chain,
-            positions,
-            &mut game_manager.board,
-            player,
-            &mut game_manager.bank,
-        )?;
+        hotel_chain_manager.start_chain(*hotel_chain, positions, board, player, bank)?;
         active_chains.push(*hotel_chain);
     }
     Ok(())

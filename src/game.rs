@@ -16,7 +16,6 @@ pub mod game {
             ui,
         },
         data_stream::{self, read_enter},
-        game::game::round::start_round,
     };
 
     use self::{hotel_chain_manager::HotelChainManager, round::Round};
@@ -44,14 +43,9 @@ pub mod game {
         pub hotel_chain_manager: HotelChainManager,
         /// The positions that can be drawn
         pub position_cards: Vec<Position>,
-        //TODO Add player_manager that stores the players, the number of players and information if
-        //a player is currently the largest or second largest share holder
         /// A vector that contains all players that participate in the game
         pub players: Vec<Player>,
-        /// The number of the currently running round
-        pub round_number: u32,
-        pub round: Option<Round>,//TODO Remove the round field
-        number_of_players: u32,
+        /// Stores if the game has been started
         game_started: bool,
         /// Stores the settings
         pub settings: Settings,
@@ -73,9 +67,6 @@ pub mod game {
                 bank: Bank::new(),
                 hotel_chain_manager: HotelChainManager::new(),
                 players,
-                round_number: 0,
-                round: None,
-                number_of_players,
                 game_started: false,
                 settings,
             })
@@ -95,7 +86,7 @@ pub mod game {
             println!("Each player draws a card now, the player with the lowest card starts.");
             let mut cards: Vec<Position> = Vec::new();
             for i in 1..=self.players.len() {
-                let card = self.draw_card().unwrap();
+                let card = draw_card(&mut self.position_cards)?.unwrap();
                 println!("Press enter to draw the card.");
                 read_enter();
                 println!("Drew card {}", &card.color(AnsiColors::Green));
@@ -119,13 +110,21 @@ pub mod game {
         /// If one round returns true no new round is started.
         fn start_rounds(&mut self) -> Result<()> {
             let mut game_running = true;
+            let mut round_number = 1;
             while game_running {
-                let round = Round::new();
-                self.round = Some(round);
-                let round_status = start_round(self)?;
+                let mut round = Round::new(round_number);
+                let round_status = round.start_round(
+                    &mut self.players,
+                    &mut self.board,
+                    &self.settings,
+                    &mut self.bank,
+                    &mut self.hotel_chain_manager,
+                    &mut self.position_cards,
+                )?;
                 if round_status {
                     game_running = false;
                 }
+                round_number += 1;
             }
             //TODO Add final account (=Endabrechnung)
             Ok(())
@@ -178,36 +177,31 @@ pub mod game {
             }
             Ok(players)
         }
+    }
 
-        pub fn print_player_cards(&self, player: usize) {
-            self.players.get(player).unwrap().print_cards();
+    /// Tries to draw a card from the position_cards deck.
+    /// # Returns
+    /// * `Ok(None)` - No card is left that could be drawn
+    /// * `Ok(Some(position))` - Card has been drawn successfully
+    /// * `Err(err)` - The random card does not exist in the positon cards vector
+    pub fn draw_card(position_cards: &mut Vec<Position>) -> Result<Option<Position>> {
+        let random_number = rand::thread_rng().gen_range(0..=position_cards.len() - 1);
+        if let None = position_cards.get(random_number) {
+            println!("position_cards length: {}", position_cards.len());
+            return Err(miette!("Unable to add position to list. The index {} does not exist in the position_cards vector!", random_number));
         }
-
-        /// Draw a card from the ['game::Game#position_cards']position_cards deck
-        pub fn draw_card(&mut self) -> Result<Position> {
-            let random_number = rand::thread_rng().gen_range(0..=self.position_cards.len() - 1);
-            if let None = self.position_cards.get(random_number) {
-                println!("position_cards length: {}", self.position_cards.len());
-                return Err(miette!("Unable to add position to list. The index {} does not exist in the position_cards vector!", random_number));
+        let position = position_cards.get(random_number).cloned();
+        match position {
+            Some(pos) => {
+                position_cards.remove(random_number);
+                Ok(Some(pos))
             }
-            let position = self.position_cards.get(random_number).unwrap().clone();
-            self.position_cards.remove(random_number);
-            Ok(position)
+            None => Ok(None),
         }
     }
 
     /// Returns a reference to the player with the entered id
     pub fn player_by_id(id: u32, players: &Vec<Player>) -> Option<&Player> {
-        for player in players {
-            if player.id == id {
-                return Some(player);
-            }
-        }
-        None
-    }
-
-    /// Returns a mut reference to the player with the entered id
-    pub fn player_by_id_mut(id: u32, players: &mut Vec<Player>) -> Option<&mut Player> {
         for player in players {
             if player.id == id {
                 return Some(player);
@@ -427,16 +421,24 @@ pub mod game {
             use miette::Result;
 
             use crate::{
-                base_game::{board::Position, hotel_chains::HotelChain, settings::Settings, ui},
-                game::game::{player_by_id, player_by_id_mut, round::Round, GameManager},
+                base_game::{
+                    board::Position, hotel_chains::HotelChain, player::Player, settings::Settings,
+                    ui,
+                },
+                game::game::{draw_card, round::Round, GameManager},
             };
 
             #[test]
             fn chain_status_and_length_correct() -> Result<()> {
                 let mut game_manager = GameManager::new(2, Settings::new_default()).unwrap();
-                game_manager.round = Some(Round::new());
+                let round = Round::new(1);
                 for hotel_chain in HotelChain::iterator() {
-                    setup_hotel(&mut game_manager, hotel_chain)?;
+                    setup_hotel(
+                        &mut game_manager,
+                        &mut Player::new(vec![], 1),
+                        &round,
+                        hotel_chain,
+                    )?;
                     assert_eq!(
                         game_manager.hotel_chain_manager.chain_status(hotel_chain),
                         true
@@ -452,12 +454,20 @@ pub mod game {
             #[test]
             fn fusion_correct() -> Result<()> {
                 let mut game_manager = GameManager::new(2, Settings::new_default()).unwrap();
-                game_manager.round = Some(Round::new());
+                let round = Round::new(1);
+                let mut player = Player::new(vec![Position::new('A', 1)], 0);
                 let hotel_chain_1 = &HotelChain::Airport;
                 let hotel_chain_2 = &HotelChain::Continental;
-                setup_hotel(&mut game_manager, hotel_chain_1)?;
-                setup_hotel(&mut game_manager, hotel_chain_2)?;
-                ui::print_main_ui(&game_manager);
+                setup_hotel(&mut game_manager, &mut player, &round, hotel_chain_1)?;
+                setup_hotel(&mut game_manager, &mut player, &round, hotel_chain_2)?;
+                ui::print_main_ui(
+                    None,
+                    &game_manager.board,
+                    &game_manager.settings,
+                    Some(&round),
+                    &game_manager.bank,
+                    &game_manager.hotel_chain_manager,
+                );
                 game_manager.hotel_chain_manager.fuse_chains(
                     &HotelChain::Continental,
                     &HotelChain::Airport,
@@ -482,10 +492,15 @@ pub mod game {
                 Ok(())
             }
 
-            fn setup_hotel(game_manager: &mut GameManager, hotel_chain: &HotelChain) -> Result<()> {
+            fn setup_hotel(
+                game_manager: &mut GameManager,
+                player: &mut Player,
+                round: &Round,
+                hotel_chain: &HotelChain,
+            ) -> Result<()> {
                 let mut cards: Vec<Position> = Vec::new();
                 for _i in 1..=13 {
-                    cards.push(game_manager.draw_card().unwrap());
+                    cards.push(draw_card(&mut game_manager.position_cards)?.unwrap());
                 }
                 for card in &cards {
                     game_manager.board.place_hotel(&card)?;
@@ -494,11 +509,7 @@ pub mod game {
                     *hotel_chain,
                     cards,
                     &mut game_manager.board,
-                    player_by_id_mut(
-                        game_manager.round.as_ref().unwrap().current_player_id,
-                        &mut game_manager.players,
-                    )
-                    .unwrap(),
+                    player,
                     &mut game_manager.bank,
                 )?;
                 Ok(())
@@ -513,65 +524,110 @@ pub mod game {
         use miette::{miette, Result};
 
         use crate::{
-            base_game::{board::Board, player::Player, ui},
-            logic::{draw_card, place_hotel::place_hotel},
+            base_game::{
+                bank::Bank,
+                board::{Board, Position},
+                player::Player,
+                settings::Settings,
+                ui,
+            },
+            data_stream::read_enter,
+            logic::place_hotel::place_hotel,
         };
 
-        use super::{player_by_id_mut, GameManager};
+        use super::{draw_card, hotel_chain_manager::HotelChainManager, GameManager};
 
         pub struct Round {
-            /// The index of the current player
-            pub current_player_id: u32,
             pub started: bool,
+            pub number: u32,
         }
 
         impl Round {
             /// Creates a new round
-            pub fn new() -> Self {
+            pub fn new(number: u32) -> Self {
                 Self {
-                    current_player_id: 0,
                     started: false,
+                    number,
                 }
             }
-        }
 
-        /// Starts a new round consisting of each player doing a single turn.
-        /// Does not automatically start a new round when the game is not over yet.
-        /// When the game finishes in this round `true` is returned.
-        /// The final account is not calculated in this function.
-        pub fn start_round(game_manager: &mut GameManager) -> Result<bool> {
-            if game_manager.round.as_ref().unwrap().started {
-                return Err(miette!("Round was already started!"));
-            }
-            game_manager.round.as_mut().unwrap().started = true;
-            game_manager.round_number += 1;
-            // Make a turn for each player
-            for i in 0..=game_manager.players.len() - 1 {
-                game_manager.round.as_mut().unwrap().current_player_id = i as u32;
-                let status = player_turn(game_manager)?;
-                if status {
-                    return Ok(true);
+            /// Starts a new round consisting of each player doing a single turn.
+            /// Does not automatically start a new round when the game is not over yet.
+            /// When the game finishes in this round `true` is returned.
+            /// The final account is not calculated in this function.
+            pub fn start_round(
+                &mut self,
+                players: &mut Vec<Player>,
+                board: &mut Board,
+                settings: &Settings,
+                bank: &mut Bank,
+                hotel_chain_manager: &mut HotelChainManager,
+                position_cards: &mut Vec<Position>,
+            ) -> Result<bool> {
+                if self.started {
+                    return Err(miette!("Round was already started!"));
                 }
+                self.started = true;
+                // Make a turn for each player
+                for i in 0..=players.len() - 1 {
+                    let player = players.get_mut(i).unwrap();
+                    let status = self.player_turn(
+                        player,
+                        board,
+                        &settings,
+                        bank,
+                        hotel_chain_manager,
+                        position_cards,
+                    )?;
+                    if status {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
             }
-            Ok(false)
-        }
 
-        /// Plays a single player turn
-        /// When this player finishes the game this round `true` is returned
-        fn player_turn(game_manager: &mut GameManager) -> Result<bool> {
-            // Update the players cards to new game state
-            player_by_id_mut(game_manager.round.as_ref().unwrap().current_player_id, &mut game_manager.players).unwrap().analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
-            ui::print_main_ui(game_manager);
-            place_hotel(game_manager)?;
-            //TODO board should be updated when the hotel has been placed
-            //TODO Implemnt function
-            //1. Place piece
-            //2. Check if win condition is meet
-            //      If yes ask give user the option to end the game here
-            //3. Buy stocks
-            //4. Draw new card
-            draw_card(game_manager);
-            Ok(false)
+            /// Plays a single player turn
+            /// When this player finishes the game this round `true` is returned
+            fn player_turn(
+                &self,
+                player: &mut Player,
+                board: &mut Board,
+                settings: &Settings,
+                bank: &mut Bank,
+                hotel_chain_manager: &mut HotelChainManager,
+                position_cards: &mut Vec<Position>,
+            ) -> Result<bool> {
+                // Update the players cards to new game state
+                player.analyze_cards(board, hotel_chain_manager);
+                ui::print_main_ui(
+                    Some(player),
+                    board,
+                    settings,
+                    Some(self),
+                    bank,
+                    hotel_chain_manager,
+                );
+                place_hotel(player, board, settings, self, bank, hotel_chain_manager)?;
+                //TODO board should be updated when the hotel has been placed
+                //TODO Implemnt function
+                //1. Place piece
+                //2. Check if win condition is meet
+                //      If yes ask give user the option to end the game here
+                //3. Buy stocks
+                //4. Draw new card
+                let drawn_position = super::draw_card(position_cards)?;
+                match drawn_position {
+                    None => {
+                        println!("No card can be drawn because no cards are left.");
+                        print!("Press enter to finish your turn");
+                        read_enter();
+                    }
+                    Some(card) => {
+                        player.draw_card(card, settings.skip_dialogues, board, hotel_chain_manager)
+                    }
+                }
+                Ok(false)
+            }
         }
     }
 
@@ -582,11 +638,11 @@ pub mod game {
         #[test]
         fn draw_card_works() {
             let mut game = GameManager::new(2, Settings::new(false, false, false)).unwrap();
-            game.draw_card().unwrap();
-            game.draw_card().unwrap();
+            super::draw_card(&mut game.position_cards).unwrap();
+            super::draw_card(&mut game.position_cards).unwrap();
             assert_eq!(game.position_cards.len(), 94);
             game = GameManager::new(6, Settings::new(false, false, false)).unwrap();
-            game.draw_card().unwrap();
+            super::draw_card(&mut game.position_cards).unwrap();
             assert_eq!(game.position_cards.len(), 71);
         }
     }

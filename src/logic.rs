@@ -12,7 +12,7 @@ use crate::{
         player::Player,
     },
     data_stream::read_enter,
-    game::game::{hotel_chain_manager::HotelChainManager, player_by_id_mut, GameManager},
+    game::game::{hotel_chain_manager::HotelChainManager, GameManager},
 };
 
 /// The different ways the game can end.
@@ -25,7 +25,7 @@ enum EndCondition {
 }
 
 impl EndCondition {
-    fn is_condition_meet(&self, game_manager: &GameManager) -> bool {
+    fn is_condition_meet(&self) -> bool {
         match self {
             Self::AllChainsMoreThan10HotelsAndNoSpaceForNewChain => {
                 todo!();
@@ -49,60 +49,13 @@ impl EndCondition {
 /// finished.
 /// # Returns
 /// * `true` - When the game meets at leaste one end condition
-pub fn check_end_condition(game_manager: &GameManager) -> bool {
+pub fn check_end_condition() -> bool {
     for end_condition in EndCondition::iterator() {
-        if end_condition.is_condition_meet(game_manager) {
+        if end_condition.is_condition_meet() {
             return true;
         }
     }
     false
-}
-
-/// Promts the user to press enter to draw a new card. The card is removed from the
-/// remaining cards and placed in the players inventory
-pub fn draw_card(game_manager: &mut GameManager) {
-    if !game_manager.settings.skip_dialogues {
-        print!("Press enter to draw a new card");
-        read_enter();
-    }
-    let card = game_manager.draw_card().unwrap();
-    if !game_manager.settings.skip_dialogues {
-        println!("Card drawn: {}", &card.to_string().color(AnsiColors::Green));
-    }
-    let player = player_by_id_mut(
-        game_manager.round.as_ref().unwrap().current_player_id,
-        &mut game_manager.players,
-    )
-    .unwrap();
-    player.add_card(
-        &card,
-        &game_manager.board,
-        &game_manager.hotel_chain_manager,
-    );
-    if !game_manager.settings.skip_dialogues {
-        print!("Press enter to finish your turn");
-        read_enter();
-    }
-}
-
-/// Prompts the user to select a card.
-/// This card is then removed from the players inventory and returned.
-fn read_card(player: &mut Player) -> Result<AnalyzedPosition> {
-    loop {
-        print!("Enter a number 1-6: ");
-        let card_index = input::<usize>().inside(1..=6).get() - 1;
-        player.sort_cards();
-        let analyzed_position = *player.analyzed_cards.get(card_index).as_ref().unwrap();
-        // Check if hotel placement is allowed
-        if analyzed_position.is_illegal() {
-            println!("This position is illegal: {}", analyzed_position);
-            println!("Please select another card!");
-            continue;
-        }
-        let position = analyzed_position.position.clone();
-        //Remove the played card from the players hand cards
-        return Ok(player.remove_card(&position)?);
-    }
 }
 
 /// All functions related to placing a hotel
@@ -114,59 +67,56 @@ pub mod place_hotel {
     use crate::{
         base_game::{
             bank::{self, Bank},
-            board::{AnalyzedPosition, Board, Position, Piece},
-            hotel_chains::{HotelChain, self},
+            board::{AnalyzedPosition, Board, Piece, Position},
+            hotel_chains::{self, HotelChain},
             player::Player,
+            settings::Settings,
             ui,
         },
         game::game::{
             hotel_chain_manager::{self, HotelChainManager},
-            player_by_id_mut, GameManager,
+            round::Round,
+            GameManager,
         },
-        logic::read_card,
     };
 
     /// Place a hotel on the board.
     /// This function will abide by the game rules.
     /// The player is asked what card to play.
-    pub fn place_hotel(game_manager: &mut GameManager) -> Result<()> {
+    pub fn place_hotel(
+        player: &mut Player,
+        board: &mut Board,
+        settings: &Settings,
+        round: &Round,
+        bank: &mut Bank,
+        hotel_chain_manager: &mut HotelChainManager,
+    ) -> Result<()> {
         println!("Please choose what hotel card you would like to play.");
         //TODO Add function that checkes what cards can be played
-        let player = player_by_id_mut(
-            game_manager.round.as_ref().unwrap().current_player_id,
-            &mut game_manager.players,
-        )
-        .unwrap();
         // Check if player has at least one card that can be played
         if player.only_illegal_cards() {
             println!("You have no card that could be played.");
             return Ok(());
         }
-        let played_position = read_card(player)?;
+        let played_position = player.read_card()?;
         // Place hotel
-        game_manager.board.place_hotel(&played_position.position)?;
-        ui::print_main_ui(&game_manager);
-        // Player is here set again because print main ui needs the comlete ownership of game_manager
-        let player = player_by_id_mut(
-            game_manager.round.as_ref().unwrap().current_player_id,
-            &mut game_manager.players,
-        )
-        .unwrap();
+        board.place_hotel(&played_position.position)?;
+        ui::print_main_ui(
+            Some(player),
+            board,
+            settings,
+            Some(round),
+            bank,
+            hotel_chain_manager,
+        );
         match played_position.place_hotel_case {
             PlaceHotelCase::SingleHotel => (),
-            PlaceHotelCase::NewChain(positions) => start_chain(
-                positions,
-                player,
-                &mut game_manager.hotel_chain_manager,
-                &mut game_manager.board,
-                &mut game_manager.bank,
-            )?,
-            PlaceHotelCase::ExtendsChain(chain, positions) => extend_chain(
-                chain,
-                positions,
-                &mut game_manager.hotel_chain_manager,
-                &mut game_manager.board,
-            )?,
+            PlaceHotelCase::NewChain(positions) => {
+                start_chain(positions, player, hotel_chain_manager, board, bank)?
+            }
+            PlaceHotelCase::ExtendsChain(chain, positions) => {
+                extend_chain(chain, positions, hotel_chain_manager, board)?
+            }
             PlaceHotelCase::Fusion(chains, origin) => fuse_chains(chains, origin)?,
             _ => (),
         }
@@ -332,7 +282,11 @@ pub mod place_hotel {
         if surrounding_chains.len() == 1 {
             let mut new_members: Vec<Position> = Vec::new();
             for hotel in surrounding_hotels {
-                println!("Hotel at {} will be added to chain {}", hotel, surrounding_chains.get(0).unwrap());
+                println!(
+                    "Hotel at {} will be added to chain {}",
+                    hotel,
+                    surrounding_chains.get(0).unwrap()
+                );
                 new_members.push(hotel);
             }
             new_members.push(*origin);

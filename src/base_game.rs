@@ -1248,15 +1248,17 @@ pub mod player {
         base_game::bank::Bank,
         base_game::board::Position,
         base_game::{hotel_chains::HotelChain, stock::Stocks},
+        data_stream::read_enter,
         game::game::{
             hotel_chain_manager::{self, HotelChainManager},
             GameManager,
         },
     };
     use miette::{miette, Result};
-    use owo_colors::OwoColorize;
+    use owo_colors::{AnsiColors, OwoColorize};
+    use read_input::{prelude::input, InputBuild};
 
-    use super::board::{AnalyzedPosition, Board};
+    use super::board::{self, AnalyzedPosition, Board};
 
     /// Stores all variables that belong to the player
     #[derive(PartialEq)]
@@ -1281,6 +1283,7 @@ pub mod player {
                 money: 6000,
                 owned_stocks: Stocks::new(),
                 analyzed_cards: cards,
+                /// The unique player id, should be the same as the position in the players vector
                 id,
             }
         }
@@ -1428,34 +1431,96 @@ pub mod player {
             //- Net profit: Stores all expenses the player made and calculate the net profit the
             // would make if all stocks where sold now
         }
+
+        /// Promts the user to press enter to draw a new card.
+        /// The card is drawn beforehand.
+        pub fn draw_card(
+            &mut self,
+            card: Position,
+            skip_dialogues: bool,
+            board: &Board,
+            hotel_chain_manager: &HotelChainManager,
+        ) {
+            if !skip_dialogues {
+                print!("Press enter to draw a new card");
+                read_enter();
+            }
+            if !skip_dialogues {
+                println!("Card drawn: {}", &card.to_string().color(AnsiColors::Green));
+            }
+            self.add_card(&card, &board, &hotel_chain_manager);
+            if !skip_dialogues {
+                print!("Press enter to finish your turn");
+                read_enter();
+            }
+        }
+
+        /// Prompts the user to select a card.
+        /// This card is then removed from the players inventory and returned.
+        pub fn read_card(&mut self) -> Result<AnalyzedPosition> {
+            loop {
+                print!("Enter a number 1-6: ");
+                let card_index = input::<usize>().inside(1..=6).get() - 1;
+                self.sort_cards();
+                let analyzed_position = *self.analyzed_cards.get(card_index).as_ref().unwrap();
+                // Check if hotel placement is allowed
+                if analyzed_position.is_illegal() {
+                    println!("This position is illegal: {}", analyzed_position);
+                    println!("Please select another card!");
+                    continue;
+                }
+                let position = analyzed_position.position.clone();
+                //Remove the played card from the players hand cards
+                return Ok(self.remove_card(&position)?);
+            }
+        }
     }
 }
 
 /// User interface drawing
 pub mod ui {
     use crate::{
-        base_game::{bank::Bank, hotel_chains::HotelChain},
-        game::game::{hotel_chain_manager::HotelChainManager, player_by_id, GameManager},
+        base_game::{bank::Bank, board::Board, hotel_chains::HotelChain, settings::Settings},
+        game::game::{
+            hotel_chain_manager::{self, HotelChainManager},
+            round::Round,
+        },
     };
     use owo_colors::{AnsiColors, DynColors, OwoColorize, Rgb};
 
     use super::player::Player;
 
     /// Prints the main user interface.
-    pub fn print_main_ui(game_manager: &GameManager) {
-        game_manager.board.print(game_manager.settings.large_board);
-        let player = player_by_id(
-            game_manager.round.as_ref().unwrap().current_player_id,
-            &game_manager.players,
-        )
-        .unwrap();
+    /// # Arguments
+    /// * `player` - The current player
+    /// * `board` - The current game board
+    /// * `settings` - The games settings
+    /// * `round` - The current game round
+    /// * `bank` - The bank of the game
+    /// * `hotel_chain_manager` - The hotel chain manager of the game
+    pub fn print_main_ui(
+        player: Option<&Player>,
+        board: &Board,
+        settings: &Settings,
+        round: Option<&Round>,
+        bank: &Bank,
+        hotel_chain_manager: &HotelChainManager,
+    ) {
+        board.print(settings.large_board);
         println!();
-        println!("Round {}", &game_manager.round_number);
-        println!("Player {}:", player.id + 1,);
-        player.print_player_ui();
-        //TODO Implement largest shareholder display
-        //Maybe add commandline flag with which it can be enabled to show who is the largest
-        //stareholder currently
+        match round {
+            None => println!("Round 0 - Game has not been started yet"),
+            Some(round) => {
+                println!("Round {}", round.number);
+                match player {
+                    None => println!("Player unavailable"),
+                    Some(player) => {
+                        println!("Player {}:", player.id + 1);
+                        player.print_player_ui();
+                    }
+                };
+            }
+        };
         println!();
         println!("{}", String::from("Game stats:").bright_green());
         println!("{:15}||      Hotels       ||        Stocks          ||      Bonuses for the majority shareholders", "");
@@ -1463,7 +1528,7 @@ pub mod ui {
         println!("==================================================================================================================");
         for chain in HotelChain::iterator() {
             // Set the color of the values
-            let enable_color = game_manager.hotel_chain_manager.chain_status(chain);
+            let enable_color = hotel_chain_manager.chain_status(chain);
             let color = match enable_color {
                 true => DynColors::Ansi(AnsiColors::White),
                 false => DynColors::Rgb(105, 105, 105),
@@ -1472,32 +1537,38 @@ pub mod ui {
                 true => chain.color(),
                 false => Rgb(105, 105, 105),
             };
+            let player_stocks = match player {
+                None => 0 as u32,
+                Some(player) => *player.owned_stocks.stocks_for_hotel(chain),
+            };
             let formatted_string1 = format!(
                 "||   {:2}   || {:7} ||  {:2}  ||   {:2}",
-                game_manager.hotel_chain_manager.chain_length(chain),
-                game_manager.hotel_chain_manager.price_range(chain),
-                game_manager
-                    .bank
-                    .stocks_available(&chain, &game_manager.hotel_chain_manager),
-                player.owned_stocks.stocks_for_hotel(chain),
+                hotel_chain_manager.chain_length(chain),
+                hotel_chain_manager.price_range(chain),
+                bank.stocks_available(&chain, hotel_chain_manager),
+                player_stocks,
             );
             let formatted_string2 = format!(
                 " || {:4}$ ||        {:5}$       ||        {:5}$",
-                Bank::stock_price(&game_manager.hotel_chain_manager, &chain),
-                Bank::stock_price(&game_manager.hotel_chain_manager, &chain) * 10,
-                Bank::stock_price(&game_manager.hotel_chain_manager, &chain) * 5,
+                Bank::stock_price(&hotel_chain_manager, &chain),
+                Bank::stock_price(&hotel_chain_manager, &chain) * 10,
+                Bank::stock_price(&hotel_chain_manager, &chain) * 5,
             );
+            let stock_status_symbol = match player {
+                None => String::from(" "),
+                Some(player) => stock_status_symbol(
+                    &bank,
+                    &hotel_chain_manager,
+                    &chain,
+                    player.id,
+                    settings.extra_info,
+                ),
+            };
             println!(
                 "{:15}{}{}{}",
                 chain.name().color(chain_color),
                 formatted_string1.color(color),
-                stock_status_symbol(
-                    &game_manager.bank,
-                    &game_manager.hotel_chain_manager,
-                    &chain,
-                    player.id,
-                    game_manager.settings.extra_info
-                ),
+                stock_status_symbol,
                 formatted_string2.color(color),
             );
         }

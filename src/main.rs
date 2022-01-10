@@ -12,25 +12,11 @@ mod game;
 /// Does not contain the logic of the different managers. Their logic is implemented in their main impl block.
 mod logic;
 
-use std::slice::SliceIndex;
-
-use base_game::board::letter::LETTERS;
-use base_game::board::{Board, Position};
-use base_game::hotel_chains::HotelChain;
 use base_game::settings::Settings;
-use base_game::{stock, ui};
 use clap::Parser;
 use demo::test_things;
-use game::game::round::Round;
 use game::game::GameManager;
-use miette::{miette, Result};
-use rand::{random, Rng};
 
-use crate::base_game::board::Piece;
-use crate::base_game::player::Player;
-use crate::base_game::ui::print_main_ui;
-use crate::data_stream::read_enter;
-use crate::game::game::hotel_chain_manager;
 //TODO Review struct fields in base_game.rs and decide if it would be a better idea to
 //make them public. Also remove the getters/setters
 //TODO Add flag with which the help card can be enabled. This will cause to print a copy of the
