@@ -1318,6 +1318,16 @@ pub mod player {
             println!();
         }
 
+        /// Returns true if the player has no cards that can be played
+        pub fn only_illegal_cards(&self) -> bool {
+            for card in &self.analyzed_cards {
+                if !card.is_illegal() {
+                    return false;
+                }
+            }
+            true
+        }
+
         /// Sorts the players current hand cards
         pub fn sort_cards(&mut self) {
             self.analyzed_cards.sort()
@@ -1425,7 +1435,7 @@ pub mod player {
 pub mod ui {
     use crate::{
         base_game::{bank::Bank, hotel_chains::HotelChain},
-        game::game::{hotel_chain_manager::HotelChainManager, GameManager},
+        game::game::{hotel_chain_manager::HotelChainManager, player_by_id, GameManager},
     };
     use owo_colors::{AnsiColors, DynColors, OwoColorize, Rgb};
 
@@ -1434,11 +1444,11 @@ pub mod ui {
     /// Prints the main user interface.
     pub fn print_main_ui(game_manager: &GameManager) {
         game_manager.board.print(game_manager.settings.large_board);
-        let player = game_manager
-            .round
-            .as_ref()
-            .unwrap()
-            .current_player(&game_manager.players);
+        let player = player_by_id(
+            game_manager.round.as_ref().unwrap().current_player_id,
+            &game_manager.players,
+        )
+        .unwrap();
         println!();
         println!("Round {}", &game_manager.round_number);
         println!("Player {}:", player.id + 1,);
@@ -1469,13 +1479,7 @@ pub mod ui {
                 game_manager
                     .bank
                     .stocks_available(&chain, &game_manager.hotel_chain_manager),
-                game_manager
-                    .round
-                    .as_ref()
-                    .unwrap()
-                    .current_player(&game_manager.players)
-                    .owned_stocks
-                    .stocks_for_hotel(chain),
+                player.owned_stocks.stocks_for_hotel(chain),
             );
             let formatted_string2 = format!(
                 " || {:4}$ ||        {:5}$       ||        {:5}$",

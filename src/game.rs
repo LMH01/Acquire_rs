@@ -1,6 +1,6 @@
 /// Contains all functionalities that are required to play the game.
 pub mod game {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, slice::SliceIndex};
 
     use miette::{miette, IntoDiagnostic, Result};
     use owo_colors::{AnsiColors, OwoColorize};
@@ -108,6 +108,10 @@ pub mod game {
                 self.board.place_hotel(&card)?;
             }
             self.start_rounds()?;
+            // Analyze the initial player cards
+            for player in &mut self.players {
+                player.analyze_cards(&self.board, &self.hotel_chain_manager);
+            }
             Ok(())
         }
 
@@ -194,6 +198,16 @@ pub mod game {
 
     /// Returns a reference to the player with the entered id
     pub fn player_by_id(id: u32, players: &Vec<Player>) -> Option<&Player> {
+        for player in players {
+            if player.id == id {
+                return Some(player);
+            }
+        }
+        None
+    }
+
+    /// Returns a mut reference to the player with the entered id
+    pub fn player_by_id_mut(id: u32, players: &mut Vec<Player>) -> Option<&mut Player> {
         for player in players {
             if player.id == id {
                 return Some(player);
@@ -302,9 +316,12 @@ pub mod game {
                 //      Add check if no other chains are next to this chain.
                 //      Maybe these checks are overkill and not worth to implement as these
                 //      conditions are normally checked before this function is called.
-                
+
                 if positions.len() < 2 {
-                    return Err(miette!("Unable to start new chain of hotel {}: Not enough buildings!", &hotel_chain));
+                    return Err(miette!(
+                        "Unable to start new chain of hotel {}: Not enough buildings!",
+                        &hotel_chain
+                    ));
                 }
 
                 if self.active_chains.contains_key(&hotel_chain) {
@@ -338,7 +355,7 @@ pub mod game {
                 &mut self,
                 hotel_chain: &HotelChain,
                 position: Position,
-                mut board: Board,
+                board: &mut Board,
             ) -> Result<()> {
                 if !self.active_chains.contains_key(&hotel_chain) {
                     return Err(miette!("Unable to add hotel at position {} to chain {}: The chain has not been founded yet!", &position, &hotel_chain));
@@ -411,7 +428,7 @@ pub mod game {
 
             use crate::{
                 base_game::{board::Position, hotel_chains::HotelChain, settings::Settings, ui},
-                game::game::{round::Round, GameManager},
+                game::game::{player_by_id, player_by_id_mut, round::Round, GameManager},
             };
 
             #[test]
@@ -477,11 +494,11 @@ pub mod game {
                     *hotel_chain,
                     cards,
                     &mut game_manager.board,
-                    game_manager
-                        .round
-                        .as_ref()
-                        .unwrap()
-                        .current_player_mut(&mut game_manager.players),
+                    player_by_id_mut(
+                        game_manager.round.unwrap().current_player_id,
+                        &mut game_manager.players,
+                    )
+                    .unwrap(),
                     &mut game_manager.bank,
                 )?;
                 Ok(())
@@ -500,11 +517,11 @@ pub mod game {
             logic::{draw_card, place_hotel::place_hotel},
         };
 
-        use super::GameManager;
+        use super::{player_by_id_mut, GameManager};
 
         pub struct Round {
             /// The index of the current player
-            pub current_player_index: usize,
+            pub current_player_id: u32,
             pub started: bool,
         }
 
@@ -512,19 +529,9 @@ pub mod game {
             /// Creates a new round
             pub fn new() -> Self {
                 Self {
-                    current_player_index: 0,
+                    current_player_id: 0,
                     started: false,
                 }
-            }
-
-            /// Returns the current player
-            pub fn current_player<'a>(&self, players: &'a Vec<Player>) -> &'a Player {
-                players.get(self.current_player_index).unwrap()
-            }
-
-            /// Returns the current player as mutuable
-            pub fn current_player_mut<'a>(&self, players: &'a mut Vec<Player>) -> &'a mut Player {
-                players.get_mut(self.current_player_index).unwrap()
             }
         }
 
@@ -538,9 +545,9 @@ pub mod game {
             }
             game_manager.round.as_mut().unwrap().started = true;
             game_manager.round_number += 1;
-            // Make a surn for each player
+            // Make a turn for each player
             for i in 0..=game_manager.players.len() - 1 {
-                game_manager.round.as_mut().unwrap().current_player_index = i;
+                game_manager.round.as_mut().unwrap().current_player_id = i as u32;
                 let status = player_turn(game_manager)?;
                 if status {
                     return Ok(true);

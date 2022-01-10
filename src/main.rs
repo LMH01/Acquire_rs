@@ -3,14 +3,14 @@
 mod base_game;
 /// Contains functions that help to read and parse the user input
 mod data_stream;
+/// Contains some code to print the board without that the game has to be started
+mod demo;
 /// Contains all functionalities that are required to play the game. This includes the setting up
 /// of new games, round, turn and player managemnt and more.
 mod game;
 /// Contains the most part of the game logic.
 /// Does not contain the logic of the different managers. Their logic is implemented in their main impl block.
 mod logic;
-/// Contains some code to print the board without that the game has to be started
-mod demo;
 
 use std::slice::SliceIndex;
 
@@ -33,13 +33,11 @@ use crate::data_stream::read_enter;
 use crate::game::game::hotel_chain_manager;
 //TODO Review struct fields in base_game.rs and decide if it would be a better idea to
 //make them public. Also remove the getters/setters
-//TODO Start with gameplay
-//While doing that add functionality that stores the currently largest and second largest shareholder
-//  -> Continue working on that!
-//  Maybe rename LargestShareholders to MajorityShareholders
-//TODO See if i can remove the clone, copy trait from the hotel enum
 //TODO Add flag with which the help card can be enabled. This will cause to print a copy of the
 //info card from the real game to the console
+//TODO Find out why positions are not correctly analyzed when a game is stared. Check why test of
+//start chain does not work. Error is not enough buildings -> Reason might be enum PlaceHotelCase.
+//Continue to work on place hotel actions.
 
 #[derive(Parser)]
 #[clap(about = "The board game Acquire fia command line in Rust")]
@@ -59,7 +57,10 @@ pub struct Opts {
         long_help = "Use to show additional information to the player. This will show information that the player would normally not have. The following is shown:\n - If the player is largest or second largest shareholder"
     )]
     extra_info: bool,
-    #[clap(long, help = "Use to run some demo on how the game looks like instead of the main game")]
+    #[clap(
+        long,
+        help = "Use to run some demo on how the game looks like instead of the main game"
+    )]
     demo: bool,
     #[clap(long, help = "Set what demo type to run", default_value = "0")]
     demo_type: u32,

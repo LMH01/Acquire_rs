@@ -1,10 +1,21 @@
 use std::collections::HashMap;
 
 use miette::Result;
-use owo_colors::{OwoColorize, AnsiColors};
+use owo_colors::{AnsiColors, OwoColorize};
 use rand::Rng;
 
-use crate::{base_game::{board::{Board, Position, letter::LETTERS}, hotel_chains::HotelChain, settings::Settings, ui}, Opts, game::game::{GameManager, round::Round}, data_stream::read_enter};
+use crate::{
+    base_game::{
+        board::{letter::LETTERS, Board, Position},
+        hotel_chains::HotelChain,
+        player::Player,
+        settings::Settings,
+        ui,
+    },
+    data_stream::read_enter,
+    game::game::{player_by_id_mut, round::Round, GameManager},
+    Opts,
+};
 
 fn place_test_hotels(board: &mut Board) -> Result<()> {
     for (index, h) in HotelChain::iterator().enumerate() {
@@ -17,20 +28,16 @@ pub fn test_things(opts: &Opts, settings: Settings) -> Result<()> {
     let mut game_manager = GameManager::new(opts.players, settings)?;
     game_manager.round = Some(Round::new());
     let mut active_chains: Vec<HotelChain> = Vec::new();
+    let mut player = Player::new(vec![Position::new('A', 3)], 0);
     if opts.demo_type == 0 {
-        set_hotel_chains_clever(&mut game_manager, &mut active_chains)?;
+        set_hotel_chains_clever(&mut game_manager, &mut active_chains, &mut player)?;
     } else {
-        set_hotel_chains_random(&mut game_manager, &mut active_chains)?;
+        set_hotel_chains_random(&mut game_manager, &mut active_chains, &mut player)?;
     }
     game_manager
         .bank
         .update_largest_shareholders(&game_manager.players);
-    game_manager
-        .round
-        .as_ref()
-        .unwrap()
-        .current_player_mut(&mut game_manager.players)
-        .analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
+    player.analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
     ui::print_main_ui(&game_manager);
     if active_chains.len() >= 2 {
         let rand1 = rand::thread_rng().gen_range(0..=active_chains.len() - 1);
@@ -52,18 +59,17 @@ pub fn test_things(opts: &Opts, settings: Settings) -> Result<()> {
         game_manager
             .hotel_chain_manager
             .fuse_chains(chain1, chain2, &mut game_manager.board)?;
-        game_manager
-            .round
-            .as_ref()
-            .unwrap()
-            .current_player_mut(&mut game_manager.players)
-            .analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
+        player.analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
         ui::print_main_ui(&game_manager);
     }
     Ok(())
 }
 
-pub fn set_hotel_chains_random(game_manager: &mut GameManager, active_chains: &mut Vec<HotelChain>) -> Result<()> {
+pub fn set_hotel_chains_random(
+    game_manager: &mut GameManager,
+    active_chains: &mut Vec<HotelChain>,
+    player: &mut Player,
+) -> Result<()> {
     for hotel_chain in HotelChain::iterator() {
         if rand::thread_rng().gen_bool(0.4) {
             continue;
@@ -85,11 +91,7 @@ pub fn set_hotel_chains_random(game_manager: &mut GameManager, active_chains: &m
             *hotel_chain,
             cards,
             &mut game_manager.board,
-            game_manager
-                .round
-                .as_ref()
-                .unwrap()
-                .current_player_mut(&mut game_manager.players),
+            player,
             &mut game_manager.bank,
         )?;
         active_chains.push(*hotel_chain);
@@ -97,7 +99,11 @@ pub fn set_hotel_chains_random(game_manager: &mut GameManager, active_chains: &m
     Ok(())
 }
 
-pub fn set_hotel_chains_clever(game_manager: &mut GameManager, active_chains: &mut Vec<HotelChain>) -> Result<()> {
+pub fn set_hotel_chains_clever(
+    game_manager: &mut GameManager,
+    active_chains: &mut Vec<HotelChain>,
+    player: &mut Player,
+) -> Result<()> {
     let mut allowed_positions: Vec<Position> = Vec::new();
     let mut placed_hotels: HashMap<Position, HotelChain> = HashMap::new();
     // initialize pieces
@@ -117,21 +123,26 @@ pub fn set_hotel_chains_clever(game_manager: &mut GameManager, active_chains: &m
                 break;
             }
         }
-        let positions = random_concatenated_positions(hotel_chain, origin, &mut allowed_positions, &mut placed_hotels);
+        let positions = random_concatenated_positions(
+            hotel_chain,
+            origin,
+            &mut allowed_positions,
+            &mut placed_hotels,
+        );
         if positions.len() < 2 {
             continue;
         }
         update_placed_hotels(hotel_chain, &positions, &mut placed_hotels);
-        println!("Origin of chain {} is at {}", hotel_chain.name().color(hotel_chain.color()), origin.color(AnsiColors::Green));
+        println!(
+            "Origin of chain {} is at {}",
+            hotel_chain.name().color(hotel_chain.color()),
+            origin.color(AnsiColors::Green)
+        );
         game_manager.hotel_chain_manager.start_chain(
             *hotel_chain,
             positions,
             &mut game_manager.board,
-            game_manager
-                .round
-                .as_ref()
-                .unwrap()
-                .current_player_mut(&mut game_manager.players),
+            player,
             &mut game_manager.bank,
         )?;
         active_chains.push(*hotel_chain);
@@ -139,7 +150,11 @@ pub fn set_hotel_chains_clever(game_manager: &mut GameManager, active_chains: &m
     Ok(())
 }
 
-fn update_placed_hotels(chain: &HotelChain, new_hotels: &Vec<Position>, placed_hotels: &mut HashMap<Position, HotelChain>) {
+fn update_placed_hotels(
+    chain: &HotelChain,
+    new_hotels: &Vec<Position>,
+    placed_hotels: &mut HashMap<Position, HotelChain>,
+) {
     for hotel in new_hotels {
         placed_hotels.insert(*hotel, *chain);
     }
@@ -154,8 +169,13 @@ fn random_concatenated_positions(
     let size = rand::thread_rng().gen_range(1..=41);
     let mut positions = Vec::new();
     positions.push(origin);
-    for i in 0..=size-1 {
-        match random_neighbour(chain, *positions.get(i).unwrap(), allowed_positions, placed_hotels) {
+    for i in 0..=size - 1 {
+        match random_neighbour(
+            chain,
+            *positions.get(i).unwrap(),
+            allowed_positions,
+            placed_hotels,
+        ) {
             Some(value) => positions.push(value),
             None => break,
         }
@@ -163,7 +183,12 @@ fn random_concatenated_positions(
     positions
 }
 
-fn random_neighbour(chain: &HotelChain, origin: Position, allowed_positions: &mut Vec<Position>, placed_hotels: &mut HashMap<Position, HotelChain>) -> Option<Position> {
+fn random_neighbour(
+    chain: &HotelChain,
+    origin: Position,
+    allowed_positions: &mut Vec<Position>,
+    placed_hotels: &mut HashMap<Position, HotelChain>,
+) -> Option<Position> {
     for _i in 1..=2 {
         let direction = rand::thread_rng().gen_range(0..=3);
         let position = match direction {
@@ -194,7 +219,11 @@ fn random_neighbour(chain: &HotelChain, origin: Position, allowed_positions: &mu
     None
 }
 
-fn is_neighbour_free(chain: &HotelChain, origin: Position, placed_hotels: &mut HashMap<Position, HotelChain>) -> bool {
+fn is_neighbour_free(
+    chain: &HotelChain,
+    origin: Position,
+    placed_hotels: &mut HashMap<Position, HotelChain>,
+) -> bool {
     for i in 0..=3 {
         let position = match i {
             0 => origin.next(),
@@ -208,7 +237,10 @@ fn is_neighbour_free(chain: &HotelChain, origin: Position, placed_hotels: &mut H
         }
         if placed_hotels.contains_key(&position.unwrap()) {
             if placed_hotels.get(&position.unwrap()).unwrap() != chain {
-                println!("Unable to add to hotel at {} to chain {}: Illegal position", origin, chain);
+                println!(
+                    "Unable to add to hotel at {} to chain {}: Illegal position",
+                    origin, chain
+                );
                 return false;
             }
         }

@@ -12,7 +12,7 @@ use crate::{
         player::Player,
     },
     data_stream::read_enter,
-    game::game::{hotel_chain_manager::HotelChainManager, GameManager},
+    game::game::{hotel_chain_manager::HotelChainManager, player_by_id_mut, GameManager},
 };
 
 /// The different ways the game can end.
@@ -69,11 +69,11 @@ pub fn draw_card(game_manager: &mut GameManager) {
     if !game_manager.settings.skip_dialogues {
         println!("Card drawn: {}", &card.to_string().color(AnsiColors::Green));
     }
-    let player = game_manager
-        .round
-        .as_mut()
-        .unwrap()
-        .current_player_mut(&mut game_manager.players);
+    let player = player_by_id_mut(
+        game_manager.round.as_ref().unwrap().current_player_id,
+        &mut game_manager.players,
+    )
+    .unwrap();
     player.add_card(
         &card,
         &game_manager.board,
@@ -95,6 +95,8 @@ fn read_card(player: &mut Player) -> Result<AnalyzedPosition> {
         let analyzed_position = *player.analyzed_cards.get(card_index).as_ref().unwrap();
         // Check if hotel placement is allowed
         if analyzed_position.is_illegal() {
+            println!("This position is illegal: {}", analyzed_position);
+            println!("Please select another card!");
             continue;
         }
         let position = analyzed_position.position.clone();
@@ -111,14 +113,17 @@ pub mod place_hotel {
 
     use crate::{
         base_game::{
+            bank::{self, Bank},
             board::{AnalyzedPosition, Board, Position},
             hotel_chains::HotelChain,
+            player::Player,
             ui,
         },
         game::game::{
             hotel_chain_manager::{self, HotelChainManager},
-            GameManager,
+            player_by_id_mut, GameManager,
         },
+        logic::read_card,
     };
 
     /// Place a hotel on the board.
@@ -127,14 +132,45 @@ pub mod place_hotel {
     pub fn place_hotel(game_manager: &mut GameManager) -> Result<()> {
         println!("Please choose what hotel card you would like to play.");
         //TODO Add function that checkes what cards can be played
-        let player = game_manager
-            .round
-            .as_mut()
-            .unwrap()
-            .current_player_mut(&mut game_manager.players);
-        //let played_card = read_card(player, analyzed_positions);
-        //game_manager.board.place_hotel(&card)?;
+        let player = player_by_id_mut(
+            game_manager.round.as_ref().unwrap().current_player_id,
+            &mut game_manager.players,
+        )
+        .unwrap();
+        // Check if player has at least one card that can be played
+        if player.only_illegal_cards() {
+            println!("You have no card that could be played.");
+            return Ok(());
+        }
+        let played_position = read_card(player)?;
+        // Place hotel
+        game_manager.board.place_hotel(&played_position.position)?;
         ui::print_main_ui(&game_manager);
+        // Player is here set again because print main ui needs the comlete ownership of game_manager
+        let player = player_by_id_mut(
+            game_manager.round.as_ref().unwrap().current_player_id,
+            &mut game_manager.players,
+        )
+        .unwrap();
+        match played_position.place_hotel_case {
+            PlaceHotelCase::SingleHotel => (),
+            PlaceHotelCase::NewChain(positions) => start_chain(
+                positions,
+                player,
+                &mut game_manager.hotel_chain_manager,
+                &mut game_manager.board,
+                &mut game_manager.bank,
+            )?,
+            PlaceHotelCase::ExtendsChain(chain, positions) => extend_chain(
+                chain,
+                positions,
+                &mut game_manager.hotel_chain_manager,
+                &mut game_manager.board,
+            )?,
+            PlaceHotelCase::Fusion(chains) => fuse_chains(chains)?,
+            _ => (),
+        }
+        // Handle cases
         //TODO Add logic for the following cases:
         //1. The board piece founds a new hotel chain
         //2. The board piece extends a existing chain
@@ -144,6 +180,44 @@ pub mod place_hotel {
         //  3.2 Add Logic that can handle fusions between two ore more chains
         Ok(())
     }
+
+    /// The player will start a new chain.
+    /// # Arguments
+    /// * `positions` - The positions that will belong to the new chain
+    /// * `player` - The player that founds the new chain
+    pub fn start_chain(
+        positions: Vec<Position>,
+        player: &mut Player,
+        hotel_chain_manager: &mut HotelChainManager,
+        board: &mut Board,
+        bank: &mut Bank,
+    ) -> Result<()> {
+        //TODO Add logic that makes the player select a new chain
+        hotel_chain_manager.start_chain(HotelChain::Luxor, positions, board, player, bank)?;
+        Ok(())
+    }
+
+    /// The hotel that is placed by the player extends a chain
+    /// # Arguments
+    /// * `chain` - The chain that is extended
+    /// * `positions` - The positions that should extend the chain
+    pub fn extend_chain(
+        chain: HotelChain,
+        positions: Vec<Position>,
+        hotel_chain_manager: &mut HotelChainManager,
+        board: &mut Board,
+    ) -> Result<()> {
+        for position in positions {
+            hotel_chain_manager.add_hotel_to_chain(&chain, position, board)?;
+        }
+        Ok(())
+    }
+
+    /// Handles the fusion between two or more chains
+    pub fn fuse_chains(chains: Vec<HotelChain>) -> Result<()> {
+        Ok(())
+    }
+
     /// The different cases that can hapen when a hotel is placed
     #[derive(PartialEq, Debug, Eq)]
     pub enum PlaceHotelCase {
@@ -388,6 +462,7 @@ pub mod place_hotel {
             let mut board = Board::new();
             let mut bank = Bank::new();
             let mut hotel_chain_manager = HotelChainManager::new();
+            let mut player = Player::new(vec![Position::new('B', 3), Position::new('E', 6)], 0);
             // Place some test hotels
             let mut positions1 = Vec::new();
             let mut positions2 = Vec::new();
@@ -404,14 +479,14 @@ pub mod place_hotel {
                 HotelChain::Airport,
                 positions1,
                 &mut board,
-                &mut Player::new(vec![], 0),
+                &mut player,
                 &mut bank,
             )?;
             hotel_chain_manager.start_chain(
                 HotelChain::Continental,
                 positions2,
                 &mut board,
-                &mut Player::new(vec![], 0),
+                &mut player,
                 &mut bank,
             )?;
             assert_eq!(
@@ -423,35 +498,35 @@ pub mod place_hotel {
                 HotelChain::Festival,
                 vec![Position::new('E', 1), Position::new('E', 2)],
                 &mut board,
-                &mut Player::new(vec![], 0),
+                &mut player,
                 &mut bank,
             )?;
             hotel_chain_manager.start_chain(
                 HotelChain::Imperial,
                 vec![Position::new('G', 1), Position::new('G', 2)],
                 &mut board,
-                &mut Player::new(vec![], 0),
+                &mut player,
                 &mut bank,
             )?;
             hotel_chain_manager.start_chain(
                 HotelChain::Luxor,
                 vec![Position::new('I', 1), Position::new('I', 2)],
                 &mut board,
-                &mut Player::new(vec![], 0),
+                &mut player,
                 &mut bank,
             )?;
             hotel_chain_manager.start_chain(
                 HotelChain::Oriental,
                 vec![Position::new('G', 11), Position::new('G', 12)],
                 &mut board,
-                &mut Player::new(vec![], 0),
+                &mut player,
                 &mut bank,
             )?;
             hotel_chain_manager.start_chain(
                 HotelChain::Prestige,
                 vec![Position::new('E', 11), Position::new('E', 12)],
                 &mut board,
-                &mut Player::new(vec![], 0),
+                &mut player,
                 &mut bank,
             )?;
             board.place_hotel(&Position::new('E', 5))?;
@@ -459,6 +534,9 @@ pub mod place_hotel {
                 "Available chains: {:?}",
                 hotel_chain_manager.available_chains()
             );
+            player.analyze_cards(&board, &hotel_chain_manager);
+            player.print_cards();
+            assert!(player.only_illegal_cards());
             assert_eq!(
                 analyze_position(&Position::new('E', 6), &board, &hotel_chain_manager),
                 PlaceHotelCase::Illegal(IllegalPlacement::ChainStartIllegal)
