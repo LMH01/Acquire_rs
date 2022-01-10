@@ -50,7 +50,7 @@ pub mod game {
         pub players: Vec<Player>,
         /// The number of the currently running round
         pub round_number: u32,
-        pub round: Option<Round>,
+        pub round: Option<Round>,//TODO Remove the round field
         number_of_players: u32,
         game_started: bool,
         /// Stores the settings
@@ -495,7 +495,7 @@ pub mod game {
                     cards,
                     &mut game_manager.board,
                     player_by_id_mut(
-                        game_manager.round.unwrap().current_player_id,
+                        game_manager.round.as_ref().unwrap().current_player_id,
                         &mut game_manager.players,
                     )
                     .unwrap(),
@@ -559,6 +559,8 @@ pub mod game {
         /// Plays a single player turn
         /// When this player finishes the game this round `true` is returned
         fn player_turn(game_manager: &mut GameManager) -> Result<bool> {
+            // Update the players cards to new game state
+            player_by_id_mut(game_manager.round.as_ref().unwrap().current_player_id, &mut game_manager.players).unwrap().analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
             ui::print_main_ui(game_manager);
             place_hotel(game_manager)?;
             //TODO board should be updated when the hotel has been placed

@@ -114,8 +114,8 @@ pub mod place_hotel {
     use crate::{
         base_game::{
             bank::{self, Bank},
-            board::{AnalyzedPosition, Board, Position},
-            hotel_chains::HotelChain,
+            board::{AnalyzedPosition, Board, Position, Piece},
+            hotel_chains::{HotelChain, self},
             player::Player,
             ui,
         },
@@ -167,7 +167,7 @@ pub mod place_hotel {
                 &mut game_manager.hotel_chain_manager,
                 &mut game_manager.board,
             )?,
-            PlaceHotelCase::Fusion(chains) => fuse_chains(chains)?,
+            PlaceHotelCase::Fusion(chains, origin) => fuse_chains(chains, origin)?,
             _ => (),
         }
         // Handle cases
@@ -193,7 +193,10 @@ pub mod place_hotel {
         bank: &mut Bank,
     ) -> Result<()> {
         //TODO Add logic that makes the player select a new chain
-        hotel_chain_manager.start_chain(HotelChain::Luxor, positions, board, player, bank)?;
+        for chain in hotel_chain_manager.available_chains().unwrap() {
+            hotel_chain_manager.start_chain(chain, positions, board, player, bank)?;
+            break;
+        }
         Ok(())
     }
 
@@ -214,17 +217,18 @@ pub mod place_hotel {
     }
 
     /// Handles the fusion between two or more chains
-    pub fn fuse_chains(chains: Vec<HotelChain>) -> Result<()> {
+    pub fn fuse_chains(chains: Vec<HotelChain>, origin: Position) -> Result<()> {
         Ok(())
     }
 
     /// The different cases that can hapen when a hotel is placed
     #[derive(PartialEq, Debug, Eq)]
     pub enum PlaceHotelCase {
+        //TODO Add rustdoc for the enum variants that describes the arguments (link to functions)
         SingleHotel,
         NewChain(Vec<Position>),
         ExtendsChain(HotelChain, Vec<Position>),
-        Fusion(Vec<HotelChain>),
+        Fusion(Vec<HotelChain>, Position),
         Illegal(IllegalPlacement),
     }
 
@@ -235,7 +239,7 @@ pub mod place_hotel {
                 Self::SingleHotel => String::from("SingleHotel"),
                 Self::NewChain(_vec) => String::from("NewChain"),
                 Self::ExtendsChain(_chain, _vec) => String::from("ExtendsChain"),
-                Self::Fusion(_vec) => String::from("Fusion"),
+                Self::Fusion(_vec, _origin) => String::from("Fusion"),
                 Self::Illegal(_illegal) => String::from("Illegal"),
             }
         }
@@ -291,7 +295,7 @@ pub mod place_hotel {
         hotel_chain_manager: &HotelChainManager,
     ) -> PlaceHotelCase {
         let surrounding_positions: Vec<Position> = surrounding_positions(&origin);
-        // Stores the surrounding hotels that do belong to a chain
+        // Stores the surrounding chains
         let mut surrounding_chains: Vec<HotelChain> = Vec::new();
         // Stores the surrounding hotels that do not belong to any chain
         let mut surrounding_hotels: Vec<Position> = Vec::new();
@@ -321,14 +325,17 @@ pub mod place_hotel {
             for hotel in surrounding_hotels {
                 founding_members.push(hotel);
             }
+            founding_members.push(*origin);
             return PlaceHotelCase::NewChain(founding_members);
         }
         // Case 3: Extends chain
         if surrounding_chains.len() == 1 {
             let mut new_members: Vec<Position> = Vec::new();
             for hotel in surrounding_hotels {
+                println!("Hotel at {} will be added to chain {}", hotel, surrounding_chains.get(0).unwrap());
                 new_members.push(hotel);
             }
+            new_members.push(*origin);
             return PlaceHotelCase::ExtendsChain(*surrounding_chains.get(0).unwrap(), new_members);
         }
         // Case 4: Fusion
@@ -343,7 +350,7 @@ pub mod place_hotel {
         if cant_fuse >= 2 {
             return PlaceHotelCase::Illegal(IllegalPlacement::FusionIllegal);
         }
-        return PlaceHotelCase::Fusion(surrounding_chains);
+        return PlaceHotelCase::Fusion(surrounding_chains, *origin);
     }
 
     /// Analyzes the surrounding positions of the piece and returns them

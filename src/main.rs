@@ -35,9 +35,11 @@ use crate::game::game::hotel_chain_manager;
 //make them public. Also remove the getters/setters
 //TODO Add flag with which the help card can be enabled. This will cause to print a copy of the
 //info card from the real game to the console
-//TODO Find out why positions are not correctly analyzed when a game is stared. Check why test of
-//start chain does not work. Error is not enough buildings -> Reason might be enum PlaceHotelCase.
+//TODO Fix that extends chain displays one hotel to much
 //Continue to work on place hotel actions.
+//Check where the positions are analyzed.
+//Implement what happens when the player has no cards left (if all cards are illegal because they
+//would fuse safe chains give option to refresh complete hand of player)
 
 #[derive(Parser)]
 #[clap(about = "The board game Acquire fia command line in Rust")]

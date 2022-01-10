@@ -286,7 +286,7 @@ pub mod board {
                     chain.name().color(chain.color()),
                     positions.len() + 1
                 ),
-                PlaceHotelCase::Fusion(_chains) => String::from("Fuse chains")
+                PlaceHotelCase::Fusion(_chains, origin) => String::from("Fuse chains")
                     .color(AnsiColors::Green)
                     .to_string(),
                 PlaceHotelCase::Illegal(reason) => format!("Illegal: {}", reason.reason_short()),
