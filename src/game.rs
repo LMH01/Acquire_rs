@@ -618,10 +618,10 @@ pub mod game {
                 //1. Place piece
                 let hotel_placed =
                     place_hotel(player, board, settings, self, bank, hotel_chain_manager)?;
-                //2. Check if end game condition is meet
+                //2. Check if end game condition is met
                 //      If yes ask give user the option to end the game here
                 if let Some(condition) = check_end_condition(board, hotel_chain_manager) {
-                    player.print_string_ln(format!("The following game ending condition is meet: {}", condition.description().color(AnsiColors::Green)));
+                    player.print_string_ln(format!("The following game ending condition is met: {}", condition.description().color(AnsiColors::Green)));
                     let input = player.read_input("Would you like to end the game (you will still be able to by stocks)? [Y/n]: ".to_string(), vec!['Y', 'y', 'N', 'n']);
                     match input {
                         'Y' => game_ended = true,

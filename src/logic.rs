@@ -32,7 +32,7 @@ pub enum EndCondition {
 }
 
 impl EndCondition {
-    fn is_condition_meet(&self, board: &Board, hotel_chain_manager: &HotelChainManager) -> bool {
+    fn is_condition_met(&self, board: &Board, hotel_chain_manager: &HotelChainManager) -> bool {
         match self {
             Self::AllChainsMoreThan10HotelsAndNoSpaceForNewChain => {
                 let mut all_chains_safe = true;
@@ -96,15 +96,15 @@ impl EndCondition {
     }
 }
 
-/// Checks if the game state meets at least one condition because of which the game can be
+/// Checks if the game state mets at least one condition because of which the game can be
 /// finished.
 /// # Returns
-/// * `None` - No ending condition is meet.
-/// * `Some(condition)` - One condition is meet.
-/// * `true` - When the game meets at leaste one end condition
+/// * `None` - No ending condition is met.
+/// * `Some(condition)` - One condition is met.
+/// * `true` - When the game mets at leaste one end condition
 pub fn check_end_condition(board: &Board, hotel_chain_manager: &HotelChainManager) -> Option<EndCondition> {
     for end_condition in EndCondition::iterator() {
-        if end_condition.is_condition_meet(board, hotel_chain_manager) {
+        if end_condition.is_condition_met(board, hotel_chain_manager) {
             return Some(*end_condition);
         }
     }
@@ -608,14 +608,14 @@ mod tests {
     };
 
     #[test]
-    fn is_end_game_condition_meet_working() -> Result<()> {
+    fn is_end_game_condition_met_working() -> Result<()> {
         let mut board = Board::new();
         let mut hotel_chain_manager = HotelChainManager::new();
         let mut bank = Bank::new();
         let mut player = Player::new(vec![], 0);
         let mut positions = Vec::new();
         // Check no end condition is met
-        assert!(!check_end_condition(&board, &hotel_chain_manager));
+        assert!(check_end_condition(&board, &hotel_chain_manager).is_none());
         for c in vec!['A', 'B', 'C', 'D'] {
             for i in 1..=12 {
                 positions.push(Position::new(c, i));
@@ -629,7 +629,7 @@ mod tests {
             &mut bank,
         )?;
         // Check end condition is met when one hotel has 41 or more hotels
-        assert!(check_end_condition(&board, &hotel_chain_manager));
+        assert!(check_end_condition(&board, &hotel_chain_manager).is_some());
         let mut board = Board::new();
         let mut hotel_chain_manager = HotelChainManager::new();
         for c in vec!['A', 'C', 'E', 'G', 'I'] {
@@ -662,7 +662,7 @@ mod tests {
             &hotel_chain_manager,
         );
         // Check all hotels 10 or more and no place to found new
-        assert!(check_end_condition(&board, &hotel_chain_manager));
+        assert!(check_end_condition(&board, &hotel_chain_manager).is_some());
         assert!(!can_game_continue(&board, &hotel_chain_manager));
         Ok(())
     }
