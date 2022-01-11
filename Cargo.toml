@@ -13,3 +13,7 @@ owo-colors = "3.2.0"
 read_input = "0.8"
 
 [features]
+
+# Colored is used in windows builds to switch the terminal output
+[target.'cfg(windows)'.dependencies.colored]
+version = "2.0.0"

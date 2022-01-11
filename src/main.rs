@@ -63,6 +63,7 @@ pub struct Opts {
 
 fn main() -> miette::Result<()> {
     let opts = Opts::parse();
+    set_terminal_output();
     //        let mut board = Board::new();
     //        board.print();
     //        board.place_hotel(Position::new(Letter::E, 6))?;
@@ -83,4 +84,16 @@ fn main() -> miette::Result<()> {
 
 fn print_welcome() {
     println!("Welcome to the Game Acquire!");
+}
+
+// If the os is windows the virtual terminal will be set to true
+
+#[cfg(windows)]
+fn set_terminal_output() {
+    colored::control::set_virtual_terminal(true).unwrap();
+}
+
+#[cfg(unix)]
+fn set_terminal_output() {
+    // Nothing additional has to be setup
 }
