@@ -1474,7 +1474,7 @@ pub mod player {
                 self.get_enter("Press enter to draw a new card");
             }
             if !skip_dialogues {
-                self.print_string(format!(
+                self.print_text(&format!(
                     "Card drawn: {}",
                     &card.to_string().color(AnsiColors::Green)
                 ));
@@ -1505,7 +1505,7 @@ pub mod player {
                             true => IllegalPlacement::ChainStartIllegal.description(),
                             false => IllegalPlacement::FusionIllegal.description(),
                         };
-                    self.print_string_ln(format!(
+                    self.print_text_ln(&format!(
                         "This position is illegal [{}]: {}",
                         analyzed_position
                             .position
@@ -1562,24 +1562,6 @@ pub mod player {
         /// # Note
         /// The self parameter is not yet used
         pub fn print_text_ln(&self, text: &str) {
-            println!("{}", &text);
-            //TODO Add network functionality
-        }
-
-        /// Prints the text to the player.
-        /// Linebreak is not written.
-        /// # Note
-        /// The self parameter is not yet used
-        pub fn print_string(&self, text: String) {
-            print!("{}", &text);
-            //TODO Add network functionality
-        }
-        
-        /// Prints the text to the player.
-        /// A linebreak is written.
-        /// # Note
-        /// The self parameter is not yet used
-        pub fn print_string_ln(&self, text: String) {
             println!("{}", &text);
             //TODO Add network functionality
         }
