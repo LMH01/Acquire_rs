@@ -132,9 +132,10 @@ pub fn can_game_continue(board: &Board, hotel_chain_manager: &HotelChainManager)
 
 /// All functions related to placing a hotel
 pub mod place_hotel {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, cmp::Ordering};
 
     use miette::Result;
+    use owo_colors::{OwoColorize, AnsiColors};
 
     use crate::{
         base_game::{
@@ -192,7 +193,7 @@ pub mod place_hotel {
             PlaceHotelCase::ExtendsChain(chain, positions) => {
                 extend_chain(chain, positions, hotel_chain_manager, board)?
             }
-            PlaceHotelCase::Fusion(chains, origin) => fuse_chains(chains, origin)?,
+            PlaceHotelCase::Fusion(chains, origin) => fuse_chains(chains, origin, &player, board, hotel_chain_manager)?,
             _ => (),
         }
         // Handle cases
@@ -242,7 +243,51 @@ pub mod place_hotel {
     }
 
     /// Handles the fusion between two or more chains
-    pub fn fuse_chains(chains: Vec<HotelChain>, origin: Position) -> Result<()> {
+    pub fn fuse_chains(chains: Vec<HotelChain>, origin: Position, player: &Player, board: &mut Board, hotel_chain_manager: &mut HotelChainManager) -> Result<()> {
+        // Contains the oder in which the hotels are fused. The first element fuses in the second,
+        // the second in the third and the third in the fourth.
+        let mut fuse_order = Vec::new();
+        //TODO This text should be broadcasted to each player
+        player.print_text_ln(&format!("Fusion at {}!", &origin.color(AnsiColors::Green).to_string()));
+        // Determine the order in which the hotels are fused
+        match chains.len() {
+            2 => {
+                let chain1 = chains.get(0).unwrap();
+                let chain2 = chains.get(1).unwrap();
+                match hotel_chain_manager.chain_length(chain1).cmp(&hotel_chain_manager.chain_length(chain2)) {
+                    Ordering::Greater => {
+                        fuse_order.push(chain2);
+                        fuse_order.push(chain1);
+                    },
+                    Ordering::Less => {
+                        fuse_order.push(chain1);
+                        fuse_order.push(chain2);
+                    },
+                    Ordering::Equal => {
+                        // Player decides which chain should fuse into which
+                        let fusion_case = player.read_input(format!("[1] = Fuse {} in {}\n[2] = Fuse {} in {}\nChoose a case: ", chain1.name().color(chain1.color()), chain2.name().color(chain2.color()), chain2.name().color(chain2.color()), chain1.name().color(chain1.color())), vec![0, 1]);
+                        match fusion_case {
+                            0 => {
+                                fuse_order.push(chain1);
+                                fuse_order.push(chain2);
+                            },
+                            1 => {
+                                fuse_order.push(chain2);
+                                fuse_order.push(chain1);
+                            },
+                            _ => (),
+                        }
+                    },
+                }
+            },
+            _ => (),
+        };
+        // Fuse oder has been determined
+        let chain1 = *fuse_order.get(0).unwrap();
+        let chain2 = *fuse_order.get(1).unwrap();
+        player.get_enter(&format!("Press enter to fuse {} into {} ", chain1.name().color(chain1.color()).to_string(), chain2.name().color(chain2.color()).to_string()));
+        hotel_chain_manager.fuse_chains(chain2, chain1, board)?;
+        hotel_chain_manager.add_hotel_to_chain(chain2, origin, board)?;
         Ok(())
     }
 

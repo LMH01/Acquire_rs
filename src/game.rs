@@ -355,6 +355,11 @@ pub mod game {
                 position: Position,
                 board: &mut Board,
             ) -> Result<()> {
+                print!("Active chains: ");
+                for (chain, _pos) in &self.active_chains {
+                    print!("{}, ", &chain);
+                }
+                println!();
                 if !self.active_chains.contains_key(&hotel_chain) {
                     return Err(miette!("Unable to add hotel at position {} to chain {}: The chain has not been founded yet!", &position, &hotel_chain));
                 }

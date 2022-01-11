@@ -1513,7 +1513,7 @@ pub mod player {
                             .to_string(),
                         reason.color(AnsiColors::Red).to_string()
                     ));
-                    self.print_text("Please select another card!");
+                    self.print_text_ln("Please select another card!");
                     continue;
                 }
                 let position = analyzed_position.position.clone();
