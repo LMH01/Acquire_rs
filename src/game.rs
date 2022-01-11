@@ -185,6 +185,10 @@ pub mod game {
     /// * `Ok(Some(position))` - Card has been drawn successfully
     /// * `Err(err)` - The random card does not exist in the positon cards vector
     pub fn draw_card(position_cards: &mut Vec<Position>) -> Result<Option<Position>> {
+        // No cards are left
+        if position_cards.len() == 0 {
+            return Ok(None);
+        }
         let random_number = rand::thread_rng().gen_range(0..=position_cards.len() - 1);
         if let None = position_cards.get(random_number) {
             println!("position_cards length: {}", position_cards.len());
@@ -522,6 +526,7 @@ pub mod game {
         use std::slice::SliceIndex;
 
         use miette::{miette, Result};
+        use read_input::{prelude::input, InputBuild};
 
         use crate::{
             base_game::{
@@ -532,7 +537,7 @@ pub mod game {
                 ui,
             },
             data_stream::read_enter,
-            logic::place_hotel::place_hotel,
+            logic::{place_hotel::place_hotel, check_end_condition},
         };
 
         use super::{draw_card, hotel_chain_manager::HotelChainManager, GameManager};
@@ -607,13 +612,26 @@ pub mod game {
                     bank,
                     hotel_chain_manager,
                 );
-                place_hotel(player, board, settings, self, bank, hotel_chain_manager)?;
-                //TODO board should be updated when the hotel has been placed
-                //TODO Implemnt function
+                let mut game_ended = false;
                 //1. Place piece
-                //2. Check if win condition is meet
+                place_hotel(player, board, settings, self, bank, hotel_chain_manager)?;
+                //2. Check if end game condition is meet
                 //      If yes ask give user the option to end the game here
+                if check_end_condition(board, hotel_chain_manager) {
+                    println!("At least one game ending condition is meet.");
+                    print!("Would you like to end the game (you will still be able to by stocks)? [Y/n]: ");
+                    let input = input::<char>().inside(['Y', 'y', 'N', 'n']).get();
+                    match input {
+                        'Y' => game_ended = true,
+                        'y' => game_ended = true,
+                        _ => (),
+                    }
+                }
                 //3. Buy stocks
+                // If game has ended no new card is drawn
+                if game_ended {
+                    return Ok(true);
+                }
                 //4. Draw new card
                 let drawn_position = super::draw_card(position_cards)?;
                 match drawn_position {

@@ -248,6 +248,24 @@ pub mod board {
                 None => None,
             }
         }
+
+        /// Returns the neighbouring positions
+        pub fn neighbours(&self) -> Vec<Position> {
+            let mut neighbours = Vec::new();
+            if let Some(next) = self.next() {
+                neighbours.push(next);
+            }
+            if let Some(down) = self.down() {
+                neighbours.push(down);
+            }
+            if let Some(prev) = self.prev() {
+                neighbours.push(prev);
+            }
+            if let Some(up) = self.up() {
+                neighbours.push(up);
+            }
+            neighbours
+        }
     }
 
     impl Display for Position {
@@ -1252,7 +1270,8 @@ pub mod player {
         game::game::{
             hotel_chain_manager::{self, HotelChainManager},
             GameManager,
-        }, logic::place_hotel::{IllegalPlacement, PlaceHotelCase},
+        },
+        logic::place_hotel::{IllegalPlacement, PlaceHotelCase},
     };
     use miette::{miette, Result};
     use owo_colors::{AnsiColors, OwoColorize, Rgb};
@@ -1459,17 +1478,29 @@ pub mod player {
         /// This card is then removed from the players inventory and returned.
         pub fn read_card(&mut self) -> Result<AnalyzedPosition> {
             loop {
-                print!("Enter a number 1-6: ");
-                let card_index = input::<usize>().inside(1..=6).get() - 1;
+                print!("Enter a number 1-{}: ", self.analyzed_cards.len());
+                let card_index = input::<usize>().inside(1..self.analyzed_cards.len()).get() - 1;
                 self.sort_cards();
                 let analyzed_position = *self.analyzed_cards.get(card_index).as_ref().unwrap();
                 // Check if hotel placement is allowed
                 if analyzed_position.is_illegal() {
-                    let reason = match analyzed_position.place_hotel_case.eq(&PlaceHotelCase::Illegal(IllegalPlacement::ChainStartIllegal)) {
-                        true => IllegalPlacement::ChainStartIllegal.description(),
-                        false => IllegalPlacement::FusionIllegal.description(),
-                    };
-                    println!("This position is illegal [{}]: {}", analyzed_position.position.color(Rgb(105, 105, 105)).to_string(), reason.color(AnsiColors::Red).to_string());
+                    let reason =
+                        match analyzed_position
+                            .place_hotel_case
+                            .eq(&PlaceHotelCase::Illegal(
+                                IllegalPlacement::ChainStartIllegal,
+                            )) {
+                            true => IllegalPlacement::ChainStartIllegal.description(),
+                            false => IllegalPlacement::FusionIllegal.description(),
+                        };
+                    println!(
+                        "This position is illegal [{}]: {}",
+                        analyzed_position
+                            .position
+                            .color(Rgb(105, 105, 105))
+                            .to_string(),
+                        reason.color(AnsiColors::Red).to_string()
+                    );
                     println!("Please select another card!");
                     continue;
                 }

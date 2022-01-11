@@ -7,31 +7,73 @@ use read_input::{prelude::input, InputBuild};
 use crate::{
     base_game::{
         bank::{Bank, LargestShareholders},
-        board::{AnalyzedPosition, Position},
+        board::{AnalyzedPosition, Board, Position},
         hotel_chains::HotelChain,
         player::Player,
     },
     data_stream::read_enter,
-    game::game::{hotel_chain_manager::HotelChainManager, GameManager},
+    game::game::{
+        hotel_chain_manager::{self, HotelChainManager},
+        GameManager,
+    },
+    logic::place_hotel::{analyze_position, PlaceHotelCase},
 };
+
+use self::place_hotel::IllegalPlacement;
 
 /// The different ways the game can end.
 enum EndCondition {
     /// The game can be finished when all chains on the board have at least 10 hotels and
     /// when there is no space to found a new chain
     AllChainsMoreThan10HotelsAndNoSpaceForNewChain,
-    /// The game can be finished when at least one chain has more than 41 hotels
-    OneChainMoreThan41Hotels,
+    /// The game can be finished when at least one chain has 41 or more hotels
+    OneChain41OrMoreHotels,
 }
 
 impl EndCondition {
-    fn is_condition_meet(&self) -> bool {
+    fn is_condition_meet(&self, board: &Board, hotel_chain_manager: &HotelChainManager) -> bool {
         match self {
             Self::AllChainsMoreThan10HotelsAndNoSpaceForNewChain => {
-                todo!();
+                let mut all_chains_safe = true;
+                for chain in HotelChain::iterator() {
+                    if hotel_chain_manager.chain_status(chain) {
+                        if hotel_chain_manager.chain_length(chain) <= 10 {
+                            all_chains_safe = false;
+                        }
+                    }
+                }
+                if !all_chains_safe {
+                    return false;
+                }
+                for line in &board.pieces {
+                    for piece in line {
+                        match analyze_position(&piece.position, board, hotel_chain_manager) {
+                            PlaceHotelCase::NewChain(_positions) => return false,
+                            PlaceHotelCase::SingleHotel => {
+                                let neighbours = piece.position.neighbours();
+                                // Check if one of the neighbours is free for a single hotel.
+                                // If yes two single hotels stand next to each other and could
+                                // found a new chain.
+                                for neighbour in neighbours {
+                                    match analyze_position(&neighbour, board, hotel_chain_manager) {
+                                        PlaceHotelCase::SingleHotel => return false,
+                                        _ => continue,
+                                    }
+                                }
+                            }
+                            _ => continue,
+                        }
+                    }
+                }
+                return true;
             }
-            Self::OneChainMoreThan41Hotels => {
-                todo!();
+            Self::OneChain41OrMoreHotels => {
+                for chain in HotelChain::iterator() {
+                    if hotel_chain_manager.chain_length(chain) >= 41 {
+                        return true;
+                    }
+                }
+                false
             }
         }
     }
@@ -39,7 +81,7 @@ impl EndCondition {
     fn iterator() -> Iter<'static, EndCondition> {
         const END_CONDITION: [EndCondition; 2] = [
             EndCondition::AllChainsMoreThan10HotelsAndNoSpaceForNewChain,
-            EndCondition::OneChainMoreThan41Hotels,
+            EndCondition::OneChain41OrMoreHotels,
         ];
         END_CONDITION.iter()
     }
@@ -49,10 +91,30 @@ impl EndCondition {
 /// finished.
 /// # Returns
 /// * `true` - When the game meets at leaste one end condition
-pub fn check_end_condition() -> bool {
+pub fn check_end_condition(board: &Board, hotel_chain_manager: &HotelChainManager) -> bool {
     for end_condition in EndCondition::iterator() {
-        if end_condition.is_condition_meet() {
+        if end_condition.is_condition_meet(board, hotel_chain_manager) {
             return true;
+        }
+    }
+    false
+}
+
+/// Checks if there are still positions on the board left that could be played.
+/// If there are none true is returned.
+/// Used to determine if the game will finish definitly.
+pub fn can_game_continue(board: &Board, hotel_chain_manager: &HotelChainManager) -> bool {
+    for line in &board.pieces {
+        for piece in line {
+            if piece.chain.is_none() {
+                match analyze_position(&piece.position, board, hotel_chain_manager) {
+                    PlaceHotelCase::Illegal(_reason) => continue,
+                    _ => {
+                        println!("Position legal: {}", piece.position);
+                        return true;
+                    }
+                }
+            }
         }
     }
     false
@@ -217,8 +279,12 @@ pub mod place_hotel {
         /// Returns a string that contains the detailed reson why this hotel can not be placed
         pub fn description(&self) -> String {
             match self {
-                IllegalPlacement::FusionIllegal => String::from("The piece would start a fusion between chains that can no longer be fused."),
-                IllegalPlacement::ChainStartIllegal => String::from("The piece would start a new chain but all 7 chains are already active."),
+                IllegalPlacement::FusionIllegal => String::from(
+                    "The piece would start a fusion between chains that can no longer be fused.",
+                ),
+                IllegalPlacement::ChainStartIllegal => String::from(
+                    "The piece would start a new chain but all 7 chains are already active.",
+                ),
             }
         }
     }
@@ -338,13 +404,17 @@ pub mod place_hotel {
                 board::{Board, Position},
                 hotel_chains::HotelChain,
                 player::Player,
+                settings::Settings,
+                ui,
             },
-            game::game::hotel_chain_manager::HotelChainManager,
-            logic::place_hotel::{analyze_position, IllegalPlacement, PlaceHotelCase},
+            game::game::hotel_chain_manager::{self, HotelChainManager},
+            logic::{
+                check_end_condition,
+                place_hotel::{analyze_position, IllegalPlacement, PlaceHotelCase},
+            },
         };
 
         use super::surrounding_positions;
-
         #[test]
         fn surrounding_positions_correct() -> Result<()> {
             let origin = Position::new('B', 2);
@@ -504,5 +574,83 @@ pub mod place_hotel {
             );
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use miette::Result;
+
+    use crate::{
+        base_game::{
+            bank::Bank,
+            board::{Board, Position},
+            hotel_chains::HotelChain,
+            player::Player,
+            settings::Settings,
+            ui,
+        },
+        game::game::hotel_chain_manager::HotelChainManager,
+        logic::{can_game_continue, check_end_condition},
+    };
+
+    #[test]
+    fn is_end_game_condition_meet_working() -> Result<()> {
+        let mut board = Board::new();
+        let mut hotel_chain_manager = HotelChainManager::new();
+        let mut bank = Bank::new();
+        let mut player = Player::new(vec![], 0);
+        let mut positions = Vec::new();
+        // Check no end condition is met
+        assert!(!check_end_condition(&board, &hotel_chain_manager));
+        for c in vec!['A', 'B', 'C', 'D'] {
+            for i in 1..=12 {
+                positions.push(Position::new(c, i));
+            }
+        }
+        hotel_chain_manager.start_chain(
+            HotelChain::Luxor,
+            positions,
+            &mut board,
+            &mut player,
+            &mut bank,
+        )?;
+        // Check end condition is met when one hotel has 41 or more hotels
+        assert!(check_end_condition(&board, &hotel_chain_manager));
+        let mut board = Board::new();
+        let mut hotel_chain_manager = HotelChainManager::new();
+        for c in vec!['A', 'C', 'E', 'G', 'I'] {
+            let mut positions = Vec::new();
+            for i in 1..=12 {
+                positions.push(Position::new(c, i));
+            }
+            let chain = match c {
+                'A' => HotelChain::Airport,
+                'C' => HotelChain::Continental,
+                'E' => HotelChain::Luxor,
+                'G' => HotelChain::Oriental,
+                'I' => HotelChain::Prestige,
+                _ => HotelChain::Imperial,
+            };
+            hotel_chain_manager.start_chain(
+                chain,
+                positions,
+                &mut board,
+                &mut player,
+                &mut bank,
+            )?;
+        }
+        ui::print_main_ui(
+            Some(&player),
+            &board,
+            &Settings::new(false, false, false),
+            None,
+            &bank,
+            &hotel_chain_manager,
+        );
+        // Check all hotels 10 or more and no place to found new
+        assert!(check_end_condition(&board, &hotel_chain_manager));
+        assert!(!can_game_continue(&board, &hotel_chain_manager));
+        Ok(())
     }
 }
