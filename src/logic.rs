@@ -145,6 +145,9 @@ pub mod place_hotel {
     /// Place a hotel on the board.
     /// This function will abide by the game rules.
     /// The player is asked what card to play.
+    /// # Returns
+    /// * `Ok(true)` - A hotel has been placed
+    /// * `Ok(false)` - No hotel has been placed
     pub fn place_hotel(
         player: &mut Player,
         board: &mut Board,
@@ -152,13 +155,13 @@ pub mod place_hotel {
         round: &Round,
         bank: &mut Bank,
         hotel_chain_manager: &mut HotelChainManager,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         println!("Please choose what hotel card you would like to play.");
         //TODO Add function that checkes what cards can be played
         // Check if player has at least one card that can be played
         if player.only_illegal_cards() {
             println!("You have no card that could be played.");
-            return Ok(());
+            return Ok(false);
         }
         let played_position = player.read_card()?;
         // Place hotel
@@ -190,7 +193,7 @@ pub mod place_hotel {
         //3. The board piece creates a fusion between chains
         //  3.1 Add Logic that can handle fusions between two chains
         //  3.2 Add Logic that can handle fusions between two ore more chains
-        Ok(())
+        Ok(true)
     }
 
     /// The player will start a new chain.

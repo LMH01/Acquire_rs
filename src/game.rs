@@ -614,7 +614,7 @@ pub mod game {
                 );
                 let mut game_ended = false;
                 //1. Place piece
-                place_hotel(player, board, settings, self, bank, hotel_chain_manager)?;
+                let hotel_placed = place_hotel(player, board, settings, self, bank, hotel_chain_manager)?;
                 //2. Check if end game condition is meet
                 //      If yes ask give user the option to end the game here
                 if check_end_condition(board, hotel_chain_manager) {
@@ -632,7 +632,11 @@ pub mod game {
                 if game_ended {
                     return Ok(true);
                 }
-                //4. Draw new card
+                //4. Draw new card if the hotel has been placed
+                if !hotel_placed {
+                    print!("Press enter to finish your turn");
+                    return Ok(true);
+                }
                 let drawn_position = super::draw_card(position_cards)?;
                 match drawn_position {
                     None => {

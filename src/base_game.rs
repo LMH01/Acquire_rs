@@ -1479,7 +1479,7 @@ pub mod player {
         pub fn read_card(&mut self) -> Result<AnalyzedPosition> {
             loop {
                 print!("Enter a number 1-{}: ", self.analyzed_cards.len());
-                let card_index = input::<usize>().inside(1..self.analyzed_cards.len()).get() - 1;
+                let card_index = input::<usize>().inside(1..=self.analyzed_cards.len()).get() - 1;
                 self.sort_cards();
                 let analyzed_position = *self.analyzed_cards.get(card_index).as_ref().unwrap();
                 // Check if hotel placement is allowed
