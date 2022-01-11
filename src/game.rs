@@ -526,6 +526,7 @@ pub mod game {
         use std::slice::SliceIndex;
 
         use miette::{miette, Result};
+        use owo_colors::{OwoColorize, AnsiColors};
         use read_input::{prelude::input, InputBuild};
 
         use crate::{
@@ -537,7 +538,7 @@ pub mod game {
                 ui,
             },
             data_stream::read_enter,
-            logic::{place_hotel::place_hotel, check_end_condition},
+            logic::{check_end_condition, place_hotel::place_hotel},
         };
 
         use super::{draw_card, hotel_chain_manager::HotelChainManager, GameManager};
@@ -604,6 +605,7 @@ pub mod game {
             ) -> Result<bool> {
                 // Update the players cards to new game state
                 player.analyze_cards(board, hotel_chain_manager);
+                player.sort_cards();
                 ui::print_main_ui(
                     Some(player),
                     board,
@@ -614,35 +616,36 @@ pub mod game {
                 );
                 let mut game_ended = false;
                 //1. Place piece
-                let hotel_placed = place_hotel(player, board, settings, self, bank, hotel_chain_manager)?;
+                let hotel_placed =
+                    place_hotel(player, board, settings, self, bank, hotel_chain_manager)?;
                 //2. Check if end game condition is meet
                 //      If yes ask give user the option to end the game here
-                if check_end_condition(board, hotel_chain_manager) {
-                    println!("At least one game ending condition is meet.");
-                    print!("Would you like to end the game (you will still be able to by stocks)? [Y/n]: ");
-                    let input = input::<char>().inside(['Y', 'y', 'N', 'n']).get();
+                if let Some(condition) = check_end_condition(board, hotel_chain_manager) {
+                    player.print_string_ln(format!("The following game ending condition is meet: {}", condition.description().color(AnsiColors::Green)));
+                    let input = player.read_input("Would you like to end the game (you will still be able to by stocks)? [Y/n]: ".to_string(), vec!['Y', 'y', 'N', 'n']);
                     match input {
                         'Y' => game_ended = true,
                         'y' => game_ended = true,
                         _ => (),
                     }
+                    
                 }
-                //3. Buy stocks
+                //3. Buy
                 // If game has ended no new card is drawn
                 if game_ended {
                     return Ok(true);
                 }
                 //4. Draw new card if the hotel has been placed
                 if !hotel_placed {
-                    print!("Press enter to finish your turn");
-                    return Ok(true);
+                    // Hotel was not placed
+                    player.get_enter("Press enter to finish your turn");
+                    return Ok(false);
                 }
                 let drawn_position = super::draw_card(position_cards)?;
                 match drawn_position {
                     None => {
-                        println!("No card can be drawn because no cards are left.");
-                        print!("Press enter to finish your turn");
-                        read_enter();
+                        player.print_text_ln("No card can be drawn because no cards are left.");
+                        player.get_enter("Press enter to finish your turn");
                     }
                     Some(card) => {
                         player.draw_card(card, settings.skip_dialogues, board, hotel_chain_manager)

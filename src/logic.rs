@@ -22,7 +22,8 @@ use crate::{
 use self::place_hotel::IllegalPlacement;
 
 /// The different ways the game can end.
-enum EndCondition {
+#[derive(Clone, Copy)]
+pub enum EndCondition {
     /// The game can be finished when all chains on the board have at least 10 hotels and
     /// when there is no space to found a new chain
     AllChainsMoreThan10HotelsAndNoSpaceForNewChain,
@@ -78,6 +79,14 @@ impl EndCondition {
         }
     }
 
+    /// Returns a description on the end condition
+    pub fn description(&self) -> String {
+        match self {
+            Self::AllChainsMoreThan10HotelsAndNoSpaceForNewChain => String::from("All chains have at least 10 hotels and no new chains can be founded"),
+            Self::OneChain41OrMoreHotels => String::from("One chain has 41 or more hotels"),
+        }
+    }
+
     fn iterator() -> Iter<'static, EndCondition> {
         const END_CONDITION: [EndCondition; 2] = [
             EndCondition::AllChainsMoreThan10HotelsAndNoSpaceForNewChain,
@@ -90,14 +99,16 @@ impl EndCondition {
 /// Checks if the game state meets at least one condition because of which the game can be
 /// finished.
 /// # Returns
+/// * `None` - No ending condition is meet.
+/// * `Some(condition)` - One condition is meet.
 /// * `true` - When the game meets at leaste one end condition
-pub fn check_end_condition(board: &Board, hotel_chain_manager: &HotelChainManager) -> bool {
+pub fn check_end_condition(board: &Board, hotel_chain_manager: &HotelChainManager) -> Option<EndCondition> {
     for end_condition in EndCondition::iterator() {
         if end_condition.is_condition_meet(board, hotel_chain_manager) {
-            return true;
+            return Some(*end_condition);
         }
     }
-    false
+    None
 }
 
 /// Checks if there are still positions on the board left that could be played.
@@ -110,7 +121,6 @@ pub fn can_game_continue(board: &Board, hotel_chain_manager: &HotelChainManager)
                 match analyze_position(&piece.position, board, hotel_chain_manager) {
                     PlaceHotelCase::Illegal(_reason) => continue,
                     _ => {
-                        println!("Position legal: {}", piece.position);
                         return true;
                     }
                 }
@@ -156,11 +166,11 @@ pub mod place_hotel {
         bank: &mut Bank,
         hotel_chain_manager: &mut HotelChainManager,
     ) -> Result<bool> {
-        println!("Please choose what hotel card you would like to play.");
+        player.print_text_ln("Please choose what hotel card you would like to play.");
         //TODO Add function that checkes what cards can be played
         // Check if player has at least one card that can be played
         if player.only_illegal_cards() {
-            println!("You have no card that could be played.");
+            player.print_text_ln("You have no card that could be played.");
             return Ok(false);
         }
         let played_position = player.read_card()?;
@@ -188,8 +198,8 @@ pub mod place_hotel {
         // Handle cases
         //TODO Add logic for the following cases:
         //1. The board piece founds a new hotel chain
-        //2. The board piece extends a existing chain
-        //  2.1 The board piece extends a existing chain by more than 1 piece
+        //2. The board piece extends a existing chain - Done
+        //  2.1 The board piece extends a existing chain by more than 1 piece - Done
         //3. The board piece creates a fusion between chains
         //  3.1 Add Logic that can handle fusions between two chains
         //  3.2 Add Logic that can handle fusions between two ore more chains
@@ -351,7 +361,7 @@ pub mod place_hotel {
         if surrounding_chains.len() == 1 {
             let mut new_members: Vec<Position> = Vec::new();
             for hotel in surrounding_hotels {
-                println!(
+                println!(//TODO Check if this is player depended or debug and should be deleted
                     "Hotel at {} will be added to chain {}",
                     hotel,
                     surrounding_chains.get(0).unwrap()

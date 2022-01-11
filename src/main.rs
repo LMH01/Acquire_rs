@@ -11,6 +11,8 @@ mod game;
 /// Contains the most part of the game logic.
 /// Does not contain the logic of the different managers. Their logic is implemented in their main impl block.
 mod logic;
+/// Contains some functions that dont fit in another module.
+mod utils;
 
 use base_game::settings::Settings;
 use clap::Parser;

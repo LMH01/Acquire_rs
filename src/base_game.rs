@@ -1260,7 +1260,13 @@ pub mod bank {
 
 /// Player management
 pub mod player {
-    use std::slice::IterMut;
+    use std::{
+        cmp::PartialEq,
+        cmp::PartialOrd,
+        ops::RangeInclusive,
+        slice::{IterMut, SliceIndex},
+        str::FromStr,
+    };
 
     use crate::{
         base_game::bank::Bank,
@@ -1272,6 +1278,7 @@ pub mod player {
             GameManager,
         },
         logic::place_hotel::{IllegalPlacement, PlaceHotelCase},
+        utils::gemerate_number_vector,
     };
     use miette::{miette, Result};
     use owo_colors::{AnsiColors, OwoColorize, Rgb};
@@ -1327,6 +1334,8 @@ pub mod player {
             self.owned_stocks.decrease_stocks(chain, amount);
         }
 
+        //TODO Make network compatible (Maybe return complete string that can than be either sent
+        //to the client or printed in the console)
         /// Print the cards the player currently has
         pub fn print_cards(&self) {
             println!();
@@ -1405,6 +1414,7 @@ pub mod player {
             todo!();
         }
 
+        //TODO Make network compatible (Maybe return string that can then be printed)
         /// Prints the current player to the console
         pub fn print_player_ui(&self) {
             // Print money
@@ -1461,16 +1471,17 @@ pub mod player {
             hotel_chain_manager: &HotelChainManager,
         ) {
             if !skip_dialogues {
-                print!("Press enter to draw a new card");
-                read_enter();
+                self.get_enter("Press enter to draw a new card");
             }
             if !skip_dialogues {
-                println!("Card drawn: {}", &card.to_string().color(AnsiColors::Green));
+                self.print_string(format!(
+                    "Card drawn: {}",
+                    &card.to_string().color(AnsiColors::Green)
+                ));
             }
             self.add_card(&card, &board, &hotel_chain_manager);
             if !skip_dialogues {
-                print!("Press enter to finish your turn");
-                read_enter();
+                self.get_enter("Press enter to finish your turn");
             }
         }
 
@@ -1478,9 +1489,10 @@ pub mod player {
         /// This card is then removed from the players inventory and returned.
         pub fn read_card(&mut self) -> Result<AnalyzedPosition> {
             loop {
-                print!("Enter a number 1-{}: ", self.analyzed_cards.len());
-                let card_index = input::<usize>().inside(1..=self.analyzed_cards.len()).get() - 1;
-                self.sort_cards();
+                let card_index = self.read_input(
+                    format!("Enter a number 1-{}: ", self.analyzed_cards.len()),
+                    gemerate_number_vector(1, self.analyzed_cards.len() as u32),
+                ) as usize - 1;
                 let analyzed_position = *self.analyzed_cards.get(card_index).as_ref().unwrap();
                 // Check if hotel placement is allowed
                 if analyzed_position.is_illegal() {
@@ -1493,21 +1505,83 @@ pub mod player {
                             true => IllegalPlacement::ChainStartIllegal.description(),
                             false => IllegalPlacement::FusionIllegal.description(),
                         };
-                    println!(
+                    self.print_string_ln(format!(
                         "This position is illegal [{}]: {}",
                         analyzed_position
                             .position
                             .color(Rgb(105, 105, 105))
                             .to_string(),
                         reason.color(AnsiColors::Red).to_string()
-                    );
-                    println!("Please select another card!");
+                    ));
+                    self.print_text("Please select another card!");
                     continue;
                 }
                 let position = analyzed_position.position.clone();
                 //Remove the played card from the players hand cards
                 return Ok(self.remove_card(&position)?);
             }
+        }
+
+        /// Promts the user to enter something
+        /// # Arguments
+        /// * `text` - The text that is displayed before the :
+        /// * `allowed_values` - The values that are allowed to be entered
+        /// * `T` - The data type that should be read
+        /// # Note
+        /// The self parameter is not yet used
+        pub fn read_input<T: 'static + FromStr + PartialEq>(
+            &self,
+            text: String,
+            allowed_values: Vec<T>,
+        ) -> T {
+            print!("{}", text);
+            input::<T>().inside(allowed_values).get()
+            //TODO Add network functionality
+        }
+
+        /// Prints a text to the player and waits until they pressed enter
+        /// # Note
+        /// The self parameter is not yet used
+        pub fn get_enter(&self, text: &str) {
+            print!("{}", &text);
+            read_enter();
+            //TODO Add network functionality
+        }
+
+        /// Prints the text to the player.
+        /// Linebreak is not written.
+        /// # Note
+        /// The self parameter is not yet used
+        pub fn print_text(&self, text: &str) {
+            print!("{}", &text);
+            //TODO Add network functionality
+        }
+        
+        /// Prints the text to the player.
+        /// A linebreak is written.
+        /// # Note
+        /// The self parameter is not yet used
+        pub fn print_text_ln(&self, text: &str) {
+            println!("{}", &text);
+            //TODO Add network functionality
+        }
+
+        /// Prints the text to the player.
+        /// Linebreak is not written.
+        /// # Note
+        /// The self parameter is not yet used
+        pub fn print_string(&self, text: String) {
+            print!("{}", &text);
+            //TODO Add network functionality
+        }
+        
+        /// Prints the text to the player.
+        /// A linebreak is written.
+        /// # Note
+        /// The self parameter is not yet used
+        pub fn print_string_ln(&self, text: String) {
+            println!("{}", &text);
+            //TODO Add network functionality
         }
     }
 }
