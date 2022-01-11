@@ -207,7 +207,7 @@ pub mod place_hotel {
 
     impl IllegalPlacement {
         /// Returns a string that contains the brief reson why this hotel can not be placed
-        pub fn reason_short(&self) -> String {
+        pub fn reason(&self) -> String {
             match self {
                 IllegalPlacement::FusionIllegal => String::from("Fusion illegal"),
                 IllegalPlacement::ChainStartIllegal => String::from("Chain start illegal"),
@@ -215,10 +215,10 @@ pub mod place_hotel {
         }
 
         /// Returns a string that contains the detailed reson why this hotel can not be placed
-        pub fn reason_long(&self) -> String {
+        pub fn description(&self) -> String {
             match self {
-                IllegalPlacement::FusionIllegal => String::from("Fusion illegal: The piece would start a fusion between chains that can no longer be fused."),
-                IllegalPlacement::ChainStartIllegal => String::from("Chain start illegal: All 7 chains are already active."),
+                IllegalPlacement::FusionIllegal => String::from("The piece would start a fusion between chains that can no longer be fused."),
+                IllegalPlacement::ChainStartIllegal => String::from("The piece would start a new chain but all 7 chains are already active."),
             }
         }
     }

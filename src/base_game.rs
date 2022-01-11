@@ -289,7 +289,7 @@ pub mod board {
                 PlaceHotelCase::Fusion(_chains, origin) => String::from("Fuse chains")
                     .color(AnsiColors::Green)
                     .to_string(),
-                PlaceHotelCase::Illegal(reason) => format!("Illegal: {}", reason.reason_short()),
+                PlaceHotelCase::Illegal(reason) => format!("Illegal: {}", reason.reason()),
                 PlaceHotelCase::SingleHotel => String::new(),
             };
             // No special formatting is needed
@@ -1252,10 +1252,10 @@ pub mod player {
         game::game::{
             hotel_chain_manager::{self, HotelChainManager},
             GameManager,
-        },
+        }, logic::place_hotel::{IllegalPlacement, PlaceHotelCase},
     };
     use miette::{miette, Result};
-    use owo_colors::{AnsiColors, OwoColorize};
+    use owo_colors::{AnsiColors, OwoColorize, Rgb};
     use read_input::{prelude::input, InputBuild};
 
     use super::board::{self, AnalyzedPosition, Board};
@@ -1465,7 +1465,11 @@ pub mod player {
                 let analyzed_position = *self.analyzed_cards.get(card_index).as_ref().unwrap();
                 // Check if hotel placement is allowed
                 if analyzed_position.is_illegal() {
-                    println!("This position is illegal: {}", analyzed_position);
+                    let reason = match analyzed_position.place_hotel_case.eq(&PlaceHotelCase::Illegal(IllegalPlacement::ChainStartIllegal)) {
+                        true => IllegalPlacement::ChainStartIllegal.description(),
+                        false => IllegalPlacement::FusionIllegal.description(),
+                    };
+                    println!("This position is illegal [{}]: {}", analyzed_position.position.color(Rgb(105, 105, 105)).to_string(), reason.color(AnsiColors::Red).to_string());
                     println!("Please select another card!");
                     continue;
                 }
