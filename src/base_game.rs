@@ -1008,12 +1008,12 @@ pub mod bank {
         /// # Arguments
         /// * `players` - The playrs that play the game
         /// * `chain` - The chain for which the bonuses should be payed
-        pub fn payout_majority_shareholder_bonuses(
+        pub fn give_majority_shareholder_bonuses(
             &self,
             players: &mut Vec<Player>,
             chain: &HotelChain,
             hotel_chain_manager: &HotelChainManager,
-        ) {
+        ) -> Result<()> {
             //TODO Add functionality that the summary is printed to each player
             let largest_shareholders = self
                 .largest_shareholders
@@ -1025,7 +1025,12 @@ pub mod bank {
                 .second_largest_shareholder
                 .get(chain)
                 .unwrap();
+            // Check if largest shareholders are set.
+            if largest_shareholders.len() == 0 && second_largest_shareholders.len() == 0 {
+                return Err(miette!("Unable to give majority shareholder bonuses: The largest shareholders are not set for chain {}", chain));
+            }
             let largest_shareholder_bonus = Bank::stock_price(hotel_chain_manager, chain) * 10;
+            let second_largest_shareholder_bonus = Bank::stock_price(hotel_chain_manager, chain) * 5;
             match largest_shareholders.len() {
                 1 => {
                     players
@@ -1036,10 +1041,12 @@ pub mod bank {
                         1 => players
                             .get_mut(*second_largest_shareholders.get(0).unwrap() as usize)
                             .unwrap()
-                            .add_money(largest_shareholder_bonus / 2),
+                            .add_money(second_largest_shareholder_bonus),
                         _ => {
                             let number_of_second_largest_shareholders = second_largest_shareholders.len();
-                            let bonus = (largest_shareholder_bonus / 2) / number_of_second_largest_shareholders as u32;
+                            let bonus = second_largest_shareholder_bonus / number_of_second_largest_shareholders as u32;
+                            // Round to next 100
+                            let bonus = (bonus + 99) / 100 * 100;
                             for i in second_largest_shareholders {
                                 players
                                     .get_mut(*i as usize)
@@ -1051,7 +1058,10 @@ pub mod bank {
                 }
                 _ => {
                     let number_of_largest_shareholders = largest_shareholders.len();
-                    let bonus = largest_shareholder_bonus / number_of_largest_shareholders as u32;
+                    println!("lsb: {}, nols: {}", largest_shareholder_bonus, number_of_largest_shareholders);
+                    let bonus = (largest_shareholder_bonus + second_largest_shareholder_bonus) / number_of_largest_shareholders as u32;
+                    // Round to next 100
+                    let bonus = (bonus + 99) / 100 * 100;
                     for i in largest_shareholders {
                     players
                         .get_mut(*i as usize)
@@ -1060,6 +1070,7 @@ pub mod bank {
                     }
                 }
             }
+            Ok(())
         }
 
         /// Checks if the player is one of the largest shareholders for the chain.
@@ -1307,21 +1318,64 @@ pub mod bank {
             ));
         }
 
-        #[cfg(test)]
-        fn payout_majority_shareholder_bonuses_works() -> Result<()> {
+        #[test]
+        fn give_majority_shareholder_bonuses_works() -> Result<()> {
             use crate::{game::game::hotel_chain_manager::{self, HotelChainManager}, base_game::board::Board};
 
+            // Basic scenario setup
             let mut bank = Bank::new();
             let mut board = Board::new();
             let mut players = Vec::new();
             players.push(Player::new(vec![], 0));
             players.push(Player::new(vec![], 1));
+            players.push(Player::new(vec![], 2));
             let mut hotel_chain_manager = HotelChainManager::new();
             let chain = HotelChain::Imperial;
             let player = players.get_mut(0).unwrap();
             hotel_chain_manager.start_chain(chain, vec![Position::new('A', 1), Position::new('A', 2)], &mut board, player, &mut bank)?;
             bank.buy_stock(&hotel_chain_manager, &chain, player)?;
+            player.money = 6000;
             //TODO Coninue work here
+            // Test cases:
+            // 1. 1 Player largest and second largest
+            bank.update_largest_shareholders(&players);
+            bank.print_largest_shareholders();
+            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager)?;
+            let player = players.get_mut(0).unwrap();
+            assert_eq!(player.money, 10500);
+            // 2. More than 1 player largest and second largest
+            player.money = 6000;
+            let player2 = players.get_mut(1).unwrap();
+            bank.buy_stock(&hotel_chain_manager, &chain, player2)?;
+            bank.buy_stock(&hotel_chain_manager, &chain, player2)?;
+            player2.money = 6000;
+            bank.update_largest_shareholders(&players);
+            bank.print_largest_shareholders();
+            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager)?;
+            let player = players.get_mut(0).unwrap();
+            assert_eq!(player.money, 8300);
+            let player2 = players.get_mut(1).unwrap();
+            assert_eq!(player2.money, 8300);
+            // 3. 1 Player largest and more than 1 player second largest
+            //  Player is largest shareholder and player 2 and 3 are second largest shareholder
+            let player = players.get_mut(0).unwrap();
+            bank.buy_stock(&hotel_chain_manager, &chain, player)?;
+            player.money = 6000;
+            let player2 = players.get_mut(1).unwrap();
+            player2.money = 6000;
+            let player3 = players.get_mut(2).unwrap();
+            bank.buy_stock(&hotel_chain_manager, &chain, player3)?;
+            bank.buy_stock(&hotel_chain_manager, &chain, player3)?;
+            player3.money = 6000;
+            bank.update_largest_shareholders(&players);
+            bank.print_largest_shareholders();
+            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager);
+            let player = players.get_mut(0).unwrap();
+            assert_eq!(player.money, 9000);
+            let player2 = players.get_mut(1).unwrap();
+            assert_eq!(player2.money, 6800);
+            let player3 = players.get_mut(1).unwrap();
+            assert_eq!(player3.money, 6800);
             Ok(())
         }
 
@@ -1371,7 +1425,7 @@ pub mod player {
         pub owned_stocks: Stocks,
         /// Contains the cards that the player currently has on his hand
         pub analyzed_cards: Vec<AnalyzedPosition>,
-        /// The id of the player
+        /// The id of the player (This should be the index at which this player is stored in the players vecor in the game manager).
         pub id: u32,
     }
 
