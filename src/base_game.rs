@@ -1004,6 +1004,64 @@ pub mod bank {
             }
         }
 
+        /// Gives the largest and second largest shareholders the bonus.
+        /// # Arguments
+        /// * `players` - The playrs that play the game
+        /// * `chain` - The chain for which the bonuses should be payed
+        pub fn payout_majority_shareholder_bonuses(
+            &self,
+            players: &mut Vec<Player>,
+            chain: &HotelChain,
+            hotel_chain_manager: &HotelChainManager,
+        ) {
+            //TODO Add functionality that the summary is printed to each player
+            let largest_shareholders = self
+                .largest_shareholders
+                .largest_shareholder
+                .get(chain)
+                .unwrap();
+            let second_largest_shareholders = self
+                .largest_shareholders
+                .second_largest_shareholder
+                .get(chain)
+                .unwrap();
+            let largest_shareholder_bonus = Bank::stock_price(hotel_chain_manager, chain) * 10;
+            match largest_shareholders.len() {
+                1 => {
+                    players
+                        .get_mut(*largest_shareholders.get(0).unwrap() as usize)
+                        .unwrap()
+                        .add_money(largest_shareholder_bonus);
+                    match second_largest_shareholders.len() {
+                        1 => players
+                            .get_mut(*second_largest_shareholders.get(0).unwrap() as usize)
+                            .unwrap()
+                            .add_money(largest_shareholder_bonus / 2),
+                        _ => {
+                            let number_of_second_largest_shareholders = second_largest_shareholders.len();
+                            let bonus = (largest_shareholder_bonus / 2) / number_of_second_largest_shareholders as u32;
+                            for i in second_largest_shareholders {
+                                players
+                                    .get_mut(*i as usize)
+                                    .unwrap()
+                                    .add_money(bonus);
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    let number_of_largest_shareholders = largest_shareholders.len();
+                    let bonus = largest_shareholder_bonus / number_of_largest_shareholders as u32;
+                    for i in largest_shareholders {
+                    players
+                        .get_mut(*i as usize)
+                        .unwrap()
+                        .add_money(bonus);
+                    }
+                }
+            }
+        }
+
         /// Checks if the player is one of the largest shareholders for the chain.
         pub fn is_largest_shareholder(&self, player_id: u32, chain: &HotelChain) -> bool {
             self.largest_shareholders
@@ -1249,6 +1307,24 @@ pub mod bank {
             ));
         }
 
+        #[cfg(test)]
+        fn payout_majority_shareholder_bonuses_works() -> Result<()> {
+            use crate::{game::game::hotel_chain_manager::{self, HotelChainManager}, base_game::board::Board};
+
+            let mut bank = Bank::new();
+            let mut board = Board::new();
+            let mut players = Vec::new();
+            players.push(Player::new(vec![], 0));
+            players.push(Player::new(vec![], 1));
+            let mut hotel_chain_manager = HotelChainManager::new();
+            let chain = HotelChain::Imperial;
+            let player = players.get_mut(0).unwrap();
+            hotel_chain_manager.start_chain(chain, vec![Position::new('A', 1), Position::new('A', 2)], &mut board, player, &mut bank)?;
+            bank.buy_stock(&hotel_chain_manager, &chain, player)?;
+            //TODO Coninue work here
+            Ok(())
+        }
+
         fn is_error(input: Result<()>) -> bool {
             return match input {
                 Err(_) => true,
@@ -1492,7 +1568,8 @@ pub mod player {
                 let card_index = self.read_input(
                     format!("Enter a number 1-{}: ", self.analyzed_cards.len()),
                     gemerate_number_vector(1, self.analyzed_cards.len() as u32),
-                ) as usize - 1;
+                ) as usize
+                    - 1;
                 let analyzed_position = *self.analyzed_cards.get(card_index).as_ref().unwrap();
                 // Check if hotel placement is allowed
                 if analyzed_position.is_illegal() {
@@ -1556,7 +1633,7 @@ pub mod player {
             print!("{}", &text);
             //TODO Add network functionality
         }
-        
+
         /// Prints the text to the player.
         /// A linebreak is written.
         /// # Note

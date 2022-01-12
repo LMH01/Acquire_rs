@@ -374,6 +374,7 @@ pub mod game {
 
             /// Fuses the two hotel chains into one.
             /// Will update the board and the active chains.
+            /// Will not do anything with the shares.
             /// # Arguments
             /// * `alive` - The hotel chain that survives the fusion
             /// * `dead` - The hotel chain that dies
@@ -531,7 +532,7 @@ pub mod game {
         use std::slice::SliceIndex;
 
         use miette::{miette, Result};
-        use owo_colors::{OwoColorize, AnsiColors};
+        use owo_colors::{AnsiColors, OwoColorize};
         use read_input::{prelude::input, InputBuild};
 
         use crate::{
@@ -581,9 +582,9 @@ pub mod game {
                 self.started = true;
                 // Make a turn for each player
                 for i in 0..=players.len() - 1 {
-                    let player = players.get_mut(i).unwrap();
                     let status = self.player_turn(
-                        player,
+                        i,
+                        players,
                         board,
                         &settings,
                         bank,
@@ -601,13 +602,15 @@ pub mod game {
             /// When this player finishes the game this round `true` is returned
             fn player_turn(
                 &self,
-                player: &mut Player,
+                player_index: usize,
+                players: &mut Vec<Player>,
                 board: &mut Board,
                 settings: &Settings,
                 bank: &mut Bank,
                 hotel_chain_manager: &mut HotelChainManager,
                 position_cards: &mut Vec<Position>,
             ) -> Result<bool> {
+                let player = players.get_mut(player_index).unwrap();
                 // Update the players cards to new game state
                 player.analyze_cards(board, hotel_chain_manager);
                 player.sort_cards();
@@ -621,19 +624,29 @@ pub mod game {
                 );
                 let mut game_ended = false;
                 //1. Place piece
-                let hotel_placed =
-                    place_hotel(player, board, settings, self, bank, hotel_chain_manager)?;
+                let hotel_placed = place_hotel(
+                    player_index,
+                    players,
+                    board,
+                    settings,
+                    self,
+                    bank,
+                    hotel_chain_manager,
+                )?;
+                let player = players.get_mut(player_index).unwrap();
                 //2. Check if end game condition is met
                 //      If yes ask give user the option to end the game here
                 if let Some(condition) = check_end_condition(board, hotel_chain_manager) {
-                    player.print_text_ln(&format!("The following game ending condition is met: {}", condition.description().color(AnsiColors::Green)));
+                    player.print_text_ln(&format!(
+                        "The following game ending condition is met: {}",
+                        condition.description().color(AnsiColors::Green)
+                    ));
                     let input = player.read_input("Would you like to end the game (you will still be able to by stocks)? [Y/n]: ".to_string(), vec!['Y', 'y', 'N', 'n']);
                     match input {
                         'Y' => game_ended = true,
                         'y' => game_ended = true,
                         _ => (),
                     }
-                    
                 }
                 //3. Buy
                 // If game has ended no new card is drawn

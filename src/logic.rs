@@ -82,7 +82,9 @@ impl EndCondition {
     /// Returns a description on the end condition
     pub fn description(&self) -> String {
         match self {
-            Self::AllChainsMoreThan10HotelsAndNoSpaceForNewChain => String::from("All chains have at least 10 hotels and no new chains can be founded"),
+            Self::AllChainsMoreThan10HotelsAndNoSpaceForNewChain => {
+                String::from("All chains have at least 10 hotels and no new chains can be founded")
+            }
             Self::OneChain41OrMoreHotels => String::from("One chain has 41 or more hotels"),
         }
     }
@@ -102,7 +104,10 @@ impl EndCondition {
 /// * `None` - No ending condition is met.
 /// * `Some(condition)` - One condition is met.
 /// * `true` - When the game mets at leaste one end condition
-pub fn check_end_condition(board: &Board, hotel_chain_manager: &HotelChainManager) -> Option<EndCondition> {
+pub fn check_end_condition(
+    board: &Board,
+    hotel_chain_manager: &HotelChainManager,
+) -> Option<EndCondition> {
     for end_condition in EndCondition::iterator() {
         if end_condition.is_condition_met(board, hotel_chain_manager) {
             return Some(*end_condition);
@@ -132,10 +137,10 @@ pub fn can_game_continue(board: &Board, hotel_chain_manager: &HotelChainManager)
 
 /// All functions related to placing a hotel
 pub mod place_hotel {
-    use std::{collections::HashMap, cmp::Ordering};
+    use std::{cmp::Ordering, collections::HashMap, slice::SliceIndex};
 
     use miette::Result;
-    use owo_colors::{OwoColorize, AnsiColors};
+    use owo_colors::{AnsiColors, OwoColorize};
 
     use crate::{
         base_game::{
@@ -160,13 +165,15 @@ pub mod place_hotel {
     /// * `Ok(true)` - A hotel has been placed
     /// * `Ok(false)` - No hotel has been placed
     pub fn place_hotel(
-        player: &mut Player,
+        player_index: usize,
+        players: &mut Vec<Player>,
         board: &mut Board,
         settings: &Settings,
         round: &Round,
         bank: &mut Bank,
         hotel_chain_manager: &mut HotelChainManager,
     ) -> Result<bool> {
+        let mut player = players.get_mut(player_index).unwrap();
         player.print_text_ln("Please choose what hotel card you would like to play.");
         //TODO Add function that checkes what cards can be played
         // Check if player has at least one card that can be played
@@ -187,13 +194,26 @@ pub mod place_hotel {
         );
         match played_position.place_hotel_case {
             PlaceHotelCase::SingleHotel => (),
-            PlaceHotelCase::NewChain(positions) => {
-                start_chain(positions, player, hotel_chain_manager, board, bank)?
-            }
+            PlaceHotelCase::NewChain(positions) => start_chain(
+                positions,
+                player_index,
+                players,
+                hotel_chain_manager,
+                board,
+                bank,
+            )?,
             PlaceHotelCase::ExtendsChain(chain, positions) => {
                 extend_chain(chain, positions, hotel_chain_manager, board)?
             }
-            PlaceHotelCase::Fusion(chains, origin) => fuse_chains(chains, origin, &player, board, hotel_chain_manager)?,
+            PlaceHotelCase::Fusion(chains, origin) => fuse_chains(
+                chains,
+                origin,
+                player_index,
+                players,
+                board,
+                bank,
+                hotel_chain_manager,
+            )?,
             _ => (),
         }
         // Handle cases
@@ -213,11 +233,13 @@ pub mod place_hotel {
     /// * `player` - The player that founds the new chain
     pub fn start_chain(
         positions: Vec<Position>,
-        player: &mut Player,
+        player_index: usize,
+        players: &mut Vec<Player>,
         hotel_chain_manager: &mut HotelChainManager,
         board: &mut Board,
         bank: &mut Bank,
     ) -> Result<()> {
+        let player = players.get_mut(player_index).unwrap();
         //TODO Add logic that makes the player select a new chain
         for chain in hotel_chain_manager.available_chains().unwrap() {
             hotel_chain_manager.start_chain(chain, positions, board, player, bank)?;
@@ -242,53 +264,106 @@ pub mod place_hotel {
         Ok(())
     }
 
-    /// Handles the fusion between two or more chains
-    pub fn fuse_chains(chains: Vec<HotelChain>, origin: Position, player: &Player, board: &mut Board, hotel_chain_manager: &mut HotelChainManager) -> Result<()> {
+    /// Analyses the length of input chains. When some chains are equally long the player that
+    /// started the fusion is asked which chain should survive.
+    pub fn fuse_chains(
+        chains: Vec<HotelChain>,
+        origin: Position,
+        player_index: usize,
+        players: &mut Vec<Player>,
+        board: &mut Board,
+        bank: &Bank,
+        hotel_chain_manager: &mut HotelChainManager,
+    ) -> Result<()> {
+        let player = players.get_mut(player_index).unwrap();
         // Contains the oder in which the hotels are fused. The first element fuses in the second,
         // the second in the third and the third in the fourth.
         let mut fuse_order = Vec::new();
         //TODO This text should be broadcasted to each player
-        player.print_text_ln(&format!("Fusion at {}!", &origin.color(AnsiColors::Green).to_string()));
+        player.print_text_ln(&format!(
+            "Fusion at {}!",
+            &origin.color(AnsiColors::Green).to_string()
+        ));
         // Determine the order in which the hotels are fused
         match chains.len() {
             2 => {
                 let chain1 = chains.get(0).unwrap();
                 let chain2 = chains.get(1).unwrap();
-                match hotel_chain_manager.chain_length(chain1).cmp(&hotel_chain_manager.chain_length(chain2)) {
+                match hotel_chain_manager
+                    .chain_length(chain1)
+                    .cmp(&hotel_chain_manager.chain_length(chain2))
+                {
                     Ordering::Greater => {
                         fuse_order.push(chain2);
                         fuse_order.push(chain1);
-                    },
+                    }
                     Ordering::Less => {
                         fuse_order.push(chain1);
                         fuse_order.push(chain2);
-                    },
+                    }
                     Ordering::Equal => {
                         // Player decides which chain should fuse into which
-                        let fusion_case = player.read_input(format!("[1] = Fuse {} in {}\n[2] = Fuse {} in {}\nChoose a case: ", chain1.name().color(chain1.color()), chain2.name().color(chain2.color()), chain2.name().color(chain2.color()), chain1.name().color(chain1.color())), vec![0, 1]);
+                        let fusion_case = player.read_input(
+                            format!(
+                                "[1] = Fuse {} in {}\n[2] = Fuse {} in {}\nChoose a case: ",
+                                chain1.name().color(chain1.color()),
+                                chain2.name().color(chain2.color()),
+                                chain2.name().color(chain2.color()),
+                                chain1.name().color(chain1.color())
+                            ),
+                            vec![0, 1],
+                        );
                         match fusion_case {
                             0 => {
                                 fuse_order.push(chain1);
                                 fuse_order.push(chain2);
-                            },
+                            }
                             1 => {
                                 fuse_order.push(chain2);
                                 fuse_order.push(chain1);
-                            },
+                            }
                             _ => (),
                         }
-                    },
+                    }
                 }
-            },
+            }
             _ => (),
         };
         // Fuse oder has been determined
         let chain1 = *fuse_order.get(0).unwrap();
         let chain2 = *fuse_order.get(1).unwrap();
-        player.get_enter(&format!("Press enter to fuse {} into {} ", chain1.name().color(chain1.color()).to_string(), chain2.name().color(chain2.color()).to_string()));
+        player.get_enter(&format!(
+            "Press enter to fuse {} into {} ",
+            chain1.name().color(chain1.color()).to_string(),
+            chain2.name().color(chain2.color()).to_string()
+        ));
         hotel_chain_manager.fuse_chains(chain2, chain1, board)?;
         hotel_chain_manager.add_hotel_to_chain(chain2, origin, board)?;
         Ok(())
+    }
+
+    /// The stocks will be sold or exchanged and the chains will be fused.
+    /// This function uses [`crate::game::game::hotel_chain_manager::HotelChainManager::fuse_chains`] to update
+    /// the active chains and the board.
+    /// The currently playing player is asked to press enter do start the fusion.
+    fn fuse_two_chains(
+        alive: &HotelChain,
+        dead: &HotelChain,
+        player_index: usize,
+        players: &mut Vec<Player>,
+        board: &mut Board,
+        hotel_chain_manager: &mut HotelChainManager,
+        bank: &Bank,
+    ) {
+        let player = players.get_mut(player_index).unwrap();
+        player.get_enter(&format!(
+            "Press enter to fuse {} into {} ",
+            dead.name().color(dead.color()).to_string(),
+            alive.name().color(alive.color()).to_string()
+        ));
+        // 1. Payout the majority shareholder bonuses
+
+        // 2. Trade stocks
     }
 
     /// The different cases that can hapen when a hotel is placed
@@ -406,7 +481,8 @@ pub mod place_hotel {
         if surrounding_chains.len() == 1 {
             let mut new_members: Vec<Position> = Vec::new();
             for hotel in surrounding_hotels {
-                println!(//TODO Check if this is player depended or debug and should be deleted
+                println!(
+                    //TODO Check if this is player depended or debug and should be deleted
                     "Hotel at {} will be added to chain {}",
                     hotel,
                     surrounding_chains.get(0).unwrap()
