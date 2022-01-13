@@ -19,15 +19,9 @@ use clap::Parser;
 use demo::test_things;
 use game::game::GameManager;
 
-//TODO Review struct fields in base_game.rs and decide if it would be a better idea to
-//make them public. Also remove the getters/setters
 //TODO Add flag with which the help card can be enabled. This will cause to print a copy of the
 //info card from the real game to the console
-//TODO Fix that extends chain displays one hotel to much
-//Continue to work on place hotel actions.
-//Check where the positions are analyzed.
-//Implement what happens when the player has no cards left (if all cards are illegal because they
-//would fuse safe chains give option to refresh complete hand of player)
+//TODO Change $ to €
 
 #[derive(Parser)]
 #[clap(about = "The board game Acquire fia command line in Rust")]

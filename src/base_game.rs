@@ -874,6 +874,64 @@ pub mod bank {
             Ok(())
         }
 
+        /// Sell a number of stocks back to the bank
+        /// # Returns
+        /// * `Err` - When the player tries to sell more stocks than they have
+        pub fn sell_stock(
+            &mut self,
+            player: &mut Player,
+            amount: u32,
+            chain: &HotelChain,
+            hotel_chain_manager: &HotelChainManager,
+        ) -> Result<()> {
+            let player_stocks = *player.owned_stocks.stocks.get(chain).unwrap();
+            if player_stocks < amount {
+                return Err(miette!(
+                    "Unable to sell stocks: The player tried to sell {} stocks but only has {}.",
+                    amount,
+                    player.owned_stocks.stocks.get(chain).unwrap()
+                ));
+            }
+            let stock_price = Bank::stock_price(hotel_chain_manager, chain);
+            // Move stocks from players inventory to the bank
+            player.owned_stocks.set_stocks(chain, 0);
+            self.stocks_for_sale.set_stocks(chain, player_stocks);
+            // Give money to player
+            player.add_money(stock_price * player_stocks);
+            Ok(())
+        }
+
+        /// Exchanges the stocks of one chain into another
+        /// # Arguments
+        /// * `to_exchange` - The number of stocks that should be exchanged
+        /// # Returns
+        /// * `Err` - When `to_exchange` is odd, when no stocks are left for the hotel_chain into
+        /// which the stocks should be exchanged
+        pub fn exchange_stock(
+            &mut self,
+            player: &mut Player,
+            to_exchange: u32,
+            dead: &HotelChain,
+            alive: &HotelChain,
+        ) -> Result<()> {
+            let available_to_exchange = self.stocks_for_sale.stocks_for_hotel(&alive);
+            if to_exchange % 2 != 0 {
+                return Err(miette!("Unable to echange stocks: {} is odd", to_exchange));
+            }
+            if available_to_exchange < &(to_exchange / 2) {
+                // Not enough stocks available for exchange
+                return Err(miette!(
+                    "Unable to exchange stocks: Not enough stocks left to exchange."
+                ));
+            }
+            // Trade stocks
+            player.remove_stocks(dead, to_exchange);
+            self.stocks_for_sale.increase_stocks(dead, to_exchange);
+            self.stocks_for_sale.decrease_stocks(alive, to_exchange / 2);
+            player.add_stocks(alive, to_exchange / 2);
+            Ok(())
+        }
+
         /// Gives one stock of the hotel chain to the player for free
         /// # Arguments
         /// * `players` - The list of players playing the game. Used to update largest
@@ -1005,6 +1063,7 @@ pub mod bank {
         }
 
         /// Gives the largest and second largest shareholders the bonus.
+        /// A player that is given a bonus will recieve a message.
         /// # Arguments
         /// * `players` - The playrs that play the game
         /// * `chain` - The chain for which the bonuses should be payed
@@ -1030,43 +1089,52 @@ pub mod bank {
                 return Err(miette!("Unable to give majority shareholder bonuses: The largest shareholders are not set for chain {}", chain));
             }
             let largest_shareholder_bonus = Bank::stock_price(hotel_chain_manager, chain) * 10;
-            let second_largest_shareholder_bonus = Bank::stock_price(hotel_chain_manager, chain) * 5;
+            let second_largest_shareholder_bonus =
+                Bank::stock_price(hotel_chain_manager, chain) * 5;
             match largest_shareholders.len() {
                 1 => {
-                    players
+                    let largest_shareholder = players
                         .get_mut(*largest_shareholders.get(0).unwrap() as usize)
-                        .unwrap()
-                        .add_money(largest_shareholder_bonus);
+                        .unwrap();
+                    largest_shareholder.add_money(largest_shareholder_bonus);
+                    largest_shareholder.get_enter(&format!(
+                        "Player {}, you recieved {}$ because you where the largest shareholder.",
+                        largest_shareholder.id + 1,
+                        largest_shareholder_bonus
+                    ));
                     match second_largest_shareholders.len() {
-                        1 => players
-                            .get_mut(*second_largest_shareholders.get(0).unwrap() as usize)
-                            .unwrap()
-                            .add_money(second_largest_shareholder_bonus),
+                        1 => {
+                            let second_largest_shareholder = players
+                                .get_mut(*second_largest_shareholders.get(0).unwrap() as usize)
+                                .unwrap();
+                            second_largest_shareholder.add_money(second_largest_shareholder_bonus);
+                            second_largest_shareholder.get_enter(&format!("Player {}, you recieved {}$ because you where the second largest shareholder.", second_largest_shareholder.id+1, second_largest_shareholder_bonus));
+                        }
                         _ => {
-                            let number_of_second_largest_shareholders = second_largest_shareholders.len();
-                            let bonus = second_largest_shareholder_bonus / number_of_second_largest_shareholders as u32;
+                            let number_of_second_largest_shareholders =
+                                second_largest_shareholders.len();
+                            let bonus = second_largest_shareholder_bonus
+                                / number_of_second_largest_shareholders as u32;
                             // Round to next 100
                             let bonus = (bonus + 99) / 100 * 100;
                             for i in second_largest_shareholders {
-                                players
-                                    .get_mut(*i as usize)
-                                    .unwrap()
-                                    .add_money(bonus);
+                                let player = players.get_mut(*i as usize).unwrap();
+                                player.add_money(bonus);
+                                player.get_enter(&format!("Player {}, you recieved {}$ because you where one of the second largest shareholders.", player.id+1, bonus));
                             }
                         }
                     }
                 }
                 _ => {
                     let number_of_largest_shareholders = largest_shareholders.len();
-                    println!("lsb: {}, nols: {}", largest_shareholder_bonus, number_of_largest_shareholders);
-                    let bonus = (largest_shareholder_bonus + second_largest_shareholder_bonus) / number_of_largest_shareholders as u32;
+                    let bonus = (largest_shareholder_bonus + second_largest_shareholder_bonus)
+                        / number_of_largest_shareholders as u32;
                     // Round to next 100
                     let bonus = (bonus + 99) / 100 * 100;
                     for i in largest_shareholders {
-                    players
-                        .get_mut(*i as usize)
-                        .unwrap()
-                        .add_money(bonus);
+                        let player = players.get_mut(*i as usize).unwrap();
+                        player.add_money(bonus);
+                        player.get_enter(&format!("Player {}, you recieved {}$ because you where one of the largest shareholders.", player.id+1, bonus));
                     }
                 }
             }
@@ -1121,10 +1189,16 @@ pub mod bank {
 
         use crate::{
             base_game::{
-                bank::Bank, board::Position, hotel_chains::HotelChain, player::Player,
+                bank::Bank,
+                board::{Board, Position},
+                hotel_chains::HotelChain,
+                player::Player,
                 settings::Settings,
             },
-            game::game::GameManager,
+            game::game::{
+                hotel_chain_manager::{self, HotelChainManager},
+                GameManager,
+            },
         };
 
         #[test]
@@ -1212,6 +1286,18 @@ pub mod bank {
                 game.players.get_mut(0).unwrap(),
             );
             assert!(is_error(input));
+        }
+
+        #[test]
+        fn exchange_stocks_works() -> Result<()> {
+            let mut bank = Bank::new();
+            let mut player = Player::new(vec![], 0);
+            let dead = HotelChain::Airport;
+            let alive = HotelChain::Festival;
+            player.owned_stocks.increase_stocks(&dead, 6);
+            bank.exchange_stock(&mut player, 6, &dead, &HotelChain::Festival)?;
+            assert_eq!(*player.owned_stocks.stocks_for_hotel(&alive), 3);
+            Ok(())
         }
 
         #[test]
@@ -1319,8 +1405,38 @@ pub mod bank {
         }
 
         #[test]
+        #[ignore] // Ignored because test requires that the tester presses enter a couple of times
+        fn sell_stock_works() -> Result<()> {
+            let mut bank = Bank::new();
+            let mut board = Board::new();
+            let mut hotel_chain_manager = HotelChainManager::new();
+            let player = Player::new(vec![], 0);
+            let mut players = vec![player];
+            let chain = HotelChain::Airport;
+            // Test error
+            assert!(bank
+                .sell_stock(players.get_mut(0).unwrap(), 4, &chain, &hotel_chain_manager)
+                .is_err());
+            hotel_chain_manager.start_chain(
+                chain,
+                vec![Position::new('A', 1), Position::new('A', 2)],
+                &mut board,
+                &mut players.get_mut(0).unwrap(),
+                &mut bank,
+            )?;
+            bank.update_largest_shareholders(&players);
+            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager)?;
+            assert_eq!(players.get(0).unwrap().money, 9000);
+            Ok(())
+        }
+
+        #[test]
+        #[ignore] // Ignored because test requires that the tester presses enter a couple of times
         fn give_majority_shareholder_bonuses_works() -> Result<()> {
-            use crate::{game::game::hotel_chain_manager::{self, HotelChainManager}, base_game::board::Board};
+            use crate::{
+                base_game::board::Board,
+                game::game::hotel_chain_manager::{self, HotelChainManager},
+            };
 
             // Basic scenario setup
             let mut bank = Bank::new();
@@ -1332,7 +1448,13 @@ pub mod bank {
             let mut hotel_chain_manager = HotelChainManager::new();
             let chain = HotelChain::Imperial;
             let player = players.get_mut(0).unwrap();
-            hotel_chain_manager.start_chain(chain, vec![Position::new('A', 1), Position::new('A', 2)], &mut board, player, &mut bank)?;
+            hotel_chain_manager.start_chain(
+                chain,
+                vec![Position::new('A', 1), Position::new('A', 2)],
+                &mut board,
+                player,
+                &mut bank,
+            )?;
             bank.buy_stock(&hotel_chain_manager, &chain, player)?;
             player.money = 6000;
             //TODO Coninue work here
@@ -1369,7 +1491,7 @@ pub mod bank {
             player3.money = 6000;
             bank.update_largest_shareholders(&players);
             bank.print_largest_shareholders();
-            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager);
+            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager)?;
             let player = players.get_mut(0).unwrap();
             assert_eq!(player.money, 9000);
             let player2 = players.get_mut(1).unwrap();
@@ -1408,7 +1530,7 @@ pub mod player {
             GameManager,
         },
         logic::place_hotel::{IllegalPlacement, PlaceHotelCase},
-        utils::gemerate_number_vector,
+        utils::generate_number_vector,
     };
     use miette::{miette, Result};
     use owo_colors::{AnsiColors, OwoColorize, Rgb};
@@ -1449,7 +1571,7 @@ pub mod player {
             self.money += money;
         }
 
-        /// Remove money to the player
+        /// Remove money from the player
         pub fn remove_money(&mut self, money: u32) {
             self.money -= money;
         }
@@ -1525,23 +1647,11 @@ pub mod player {
             self.sort_cards();
         }
 
-        /// Analyzes the players hand cards again and updates the place hotel case value
+        /// Analyzes the players hand cards and updates the place hotel case value
         pub fn analyze_cards(&mut self, board: &Board, hotel_chain_manager: &HotelChainManager) {
             for card in &mut self.analyzed_cards {
                 card.check(board, hotel_chain_manager);
             }
-        }
-
-        /// Checks if this player is the largest shareholder for the chain
-        pub fn is_largest_shareholder(&self, bank: &Bank) -> bool {
-            //self.bonuses.largest_shareholder.contains(&chain)
-            todo!();
-        }
-
-        /// Checks if this player is the second largest shareholder for the chain
-        pub fn is_second_largest_shareholder(&self, bank: &Bank) -> bool {
-            //self.bonuses.second_largest_shareholder.contains(&chain)
-            todo!();
         }
 
         //TODO Make network compatible (Maybe return string that can then be printed)
@@ -1621,7 +1731,7 @@ pub mod player {
             loop {
                 let card_index = self.read_input(
                     format!("Enter a number 1-{}: ", self.analyzed_cards.len()),
-                    gemerate_number_vector(1, self.analyzed_cards.len() as u32),
+                    generate_number_vector(1, self.analyzed_cards.len() as u32),
                 ) as usize
                     - 1;
                 let analyzed_position = *self.analyzed_cards.get(card_index).as_ref().unwrap();
@@ -1653,16 +1763,130 @@ pub mod player {
             }
         }
 
+        /// The player is involved in a fusion.
+        /// This function will ask the player what they would like to do with the stocks that they
+        /// have of the chain that is being fused.
+        pub fn handle_fusion_stocks(
+            &mut self,
+            dead: &HotelChain,
+            alive: &HotelChain,
+            bank: &mut Bank,
+            hotel_chain_manager: &HotelChainManager,
+        ) -> Result<()> {
+            let number_of_stocks = *self.owned_stocks.stocks_for_hotel(dead);
+            self.print_text_ln(&format!(
+                "Player {}, it's your turn to decide what you would like to do with your {} stock(s):",
+                self.id + 1,
+                number_of_stocks
+            ));
+            let stock_price = Bank::stock_price(hotel_chain_manager, dead);
+            let mut stocks_unasigned;
+            let mut stocks_to_exchange = 0;
+            let mut stocks_to_sell;
+            // loop that runs until the player has decided what they would like to do with the
+            // stocks
+            loop {
+                //TODO Test if stocks can no longer be exchanged when the stock does not have any
+                //more stocks (do this when buy stocks is implemented).
+                // First ask how many stocks should be exchanged
+                stocks_unasigned = number_of_stocks;
+                let mut allowed_values = vec![];
+                // fill allowed values
+                let mut allowed_string = String::new();
+                let mut new_alive_stocks_number = 0;
+                // Stores how many stocks the bank has left of the chain that survives the fusion
+                let stocks_left_to_exchange = bank.stocks_for_sale.stocks_for_hotel(alive);
+                for i in 0..=stocks_unasigned {
+                    if i % 2 == 0 && *stocks_left_to_exchange >= i {
+                        if i != 0 {
+                            allowed_string.push_str(", ");
+                        }
+                        allowed_values.push(i);
+                        allowed_string.push_str(&i.to_string());
+                    }
+                }
+                if allowed_values.len() != 1 {
+                    stocks_to_exchange = self.read_input(
+                        format!(
+                            "Please enter how many stocks you would like to exchange [{}]: ",
+                            allowed_string
+                        ),
+                        allowed_values,
+                    );
+                    new_alive_stocks_number = stocks_to_exchange / 2;
+                } else {
+                    // No stocks available for trade
+                    if *stocks_left_to_exchange == 0 {
+                        self.print_text_ln(&format!(
+                        "Please enter how many stocks you would like to exchange [{}]: 0 {}",
+                        allowed_string,
+                        "- the bank does not have any stocks left that could be exchanged to you".color(Rgb(105, 105, 105))
+                    ));
+                    } else {
+                        self.print_text_ln(&format!(
+                            "Please enter how many stocks you would like to exchange [{}]: 0 {}",
+                            allowed_string,
+                            "- you don't have enough stocks to exchange them"
+                                .color(Rgb(105, 105, 105))
+                        ));
+                    }
+                }
+                stocks_unasigned -= stocks_to_exchange;
+                // Check if stocks are left that could be sold
+                stocks_to_sell = 0;
+                if stocks_unasigned != 0 {
+                    stocks_to_sell = self.read_input(
+                        format!(
+                            "Please enter how many stocks you would like to sell [0-{}]: ",
+                            stocks_unasigned
+                        ),
+                        generate_number_vector(0, stocks_unasigned),
+                    );
+                } else {
+                    // No stocks left to sell
+                    self.print_text_ln(&format!(
+                        "Please enter how many stocks you would like to sell [0-0]: 0 {}",
+                        "- not stocks left to sell".color(Rgb(105, 105, 105))
+                    ));
+                }
+                println!(
+                    "The following will happen to your stocks:\nTotal {} stocks: {} - {} = {}\nTotal {} stocks: {} + {} = {}\nMoney: {}$ + {}$ = {}$",
+                    dead.name().color(dead.color()), self.owned_stocks.stocks_for_hotel(dead), stocks_to_sell+&stocks_to_exchange, self.owned_stocks.stocks_for_hotel(dead)-(stocks_to_sell+stocks_to_exchange),
+                    alive.name().color(alive.color()), self.owned_stocks.stocks_for_hotel(alive), new_alive_stocks_number, self.owned_stocks.stocks_for_hotel(alive)+new_alive_stocks_number,
+                    self.money, Bank::stock_price(hotel_chain_manager, dead)*stocks_to_sell, self.money+Bank::stock_price(hotel_chain_manager, dead)*stocks_to_sell,
+                );
+                match self.read_input(
+                    String::from("Is this correct? [Y/n]: "),
+                    vec!['Y', 'y', 'N', 'n'],
+                ) {
+                    'Y' => break,
+                    'y' => break,
+                    'N' => continue,
+                    'n' => continue,
+                    _ => (),
+                }
+            }
+            // Exchange stocks
+            if stocks_to_exchange > 0 {
+                bank.exchange_stock(self, stocks_to_exchange, dead, alive);
+            }
+            // Sell stocks
+            if stocks_to_sell > 0 {
+                bank.sell_stock(self, stocks_to_sell, dead, hotel_chain_manager);
+            }
+            Ok(())
+        }
+
         /// Promts the user to enter something
         /// # Arguments
-        /// * `text` - The text that is displayed before the :
+        /// * `text` - The text that is displayed
         /// * `allowed_values` - The values that are allowed to be entered
         /// * `T` - The data type that should be read
         /// # Note
         /// The self parameter is not yet used
         pub fn read_input<T: 'static + FromStr + PartialEq>(
             &self,
-            text: String,
+            text: String, //TODO Change to &str
             allowed_values: Vec<T>,
         ) -> T {
             print!("{}", text);
@@ -1677,6 +1901,21 @@ pub mod player {
             print!("{}", &text);
             read_enter();
             //TODO Add network functionality
+        }
+
+        /// Displayes the message `Is this correct? [Y/n]: ` to the player and returns if they
+        /// pressed yes or no.
+        pub fn get_correct(&self) -> bool {
+            match self.read_input(
+                String::from("Is this correct? [Y/n]: "),
+                vec!['Y', 'y', 'N', 'n'],
+            ) {
+                'Y' => return true,
+                'y' => return true,
+                'N' => return false,
+                'n' => return false,
+                _ => false,
+            }
         }
 
         /// Prints the text to the player.

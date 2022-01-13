@@ -20,6 +20,7 @@ use crate::{
         round::Round,
         GameManager,
     },
+    logic::place_hotel::fuse_chains,
     Opts,
 };
 
@@ -31,6 +32,8 @@ fn place_test_hotels(board: &mut Board) -> Result<()> {
 }
 
 pub fn test_things(opts: &Opts, settings: Settings) -> Result<()> {
+    fuse_chains_works_with_three()?;
+    return Ok(());
     let mut game_manager = GameManager::new(opts.players, settings)?;
     let mut active_chains: Vec<HotelChain> = Vec::new();
     let round = Round::new(1);
@@ -287,4 +290,62 @@ pub fn draw_card(allowed_cards: &mut Vec<Position>) -> Position {
     let position = allowed_cards.get(random_number).unwrap().clone();
     allowed_cards.remove(random_number);
     position
+}
+fn fuse_chains_works_with_three() -> Result<()> {
+    let mut board = Board::new();
+    let mut bank = Bank::new();
+    let mut hotel_chain_manager = HotelChainManager::new();
+    let mut players = vec![Player::new(vec![], 0), Player::new(vec![], 1)];
+    let round = Round::new(1);
+    let settings = Settings::new(false, false, false);
+    hotel_chain_manager.start_chain(
+        HotelChain::Imperial,
+        vec![Position::new('E', 3), Position::new('E', 4)],
+        &mut board,
+        players.get_mut(0).unwrap(),
+        &mut bank,
+    )?;
+    hotel_chain_manager.start_chain(
+        HotelChain::Oriental,
+        vec![Position::new('C', 5), Position::new('D', 5)],
+        &mut board,
+        players.get_mut(0).unwrap(),
+        &mut bank,
+    )?;
+    hotel_chain_manager.start_chain(
+        HotelChain::Airport,
+        vec![Position::new('F', 5), Position::new('G', 5)],
+        &mut board,
+        players.get_mut(0).unwrap(),
+        &mut bank,
+    )?;
+    hotel_chain_manager.start_chain(
+        HotelChain::Prestige,
+        vec![Position::new('E', 6), Position::new('E', 7)],
+        &mut board,
+        players.get_mut(0).unwrap(),
+        &mut bank,
+    )?;
+    board.print(false);
+    let chains = vec![
+        HotelChain::Imperial,
+        HotelChain::Oriental,
+        HotelChain::Airport,
+        HotelChain::Prestige,
+    ];
+    let origin = Position::new('E', 5);
+    board.place_hotel(&origin)?;
+    fuse_chains(
+        chains,
+        origin,
+        0,
+        &mut players,
+        &mut board,
+        &mut bank,
+        &mut hotel_chain_manager,
+        &round,
+        &settings,
+    )?;
+    board.print(false);
+    Ok(())
 }
