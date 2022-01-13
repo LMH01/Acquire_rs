@@ -632,6 +632,7 @@ pub mod game {
                 //2. Check if end game condition is met
                 //      If yes ask give user the option to end the game here
                 if let Some(condition) = check_end_condition(board, hotel_chain_manager) {
+                    ui::print_main_ui(Some(player), board, settings, Some(self), bank, hotel_chain_manager);
                     player.print_text_ln(&format!(
                         "The following game ending condition is met: {}",
                         condition.description().color(AnsiColors::Green)

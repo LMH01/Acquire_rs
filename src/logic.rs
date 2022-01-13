@@ -245,10 +245,28 @@ pub mod place_hotel {
     ) -> Result<()> {
         let player = players.get_mut(player_index).unwrap();
         //TODO Add logic that makes the player select a new chain
-        for chain in hotel_chain_manager.available_chains().unwrap() {
-            hotel_chain_manager.start_chain(chain, positions, board, player, bank)?;
-            break;
+        let mut available_chains = HashMap::new();
+        let mut available_chains_identifier = Vec::new();
+        for chain in HotelChain::iterator() {
+            if hotel_chain_manager.available_chains().unwrap().contains(chain) {
+                available_chains.insert(chain.identifier(), *chain);
+                available_chains_identifier.push(chain.identifier());
+            }
         }
+        let mut available_chains_help = String::new();
+        let mut first = true;
+        for (k, v) in &available_chains {
+            if first {
+                first = false;
+            } else {
+                available_chains_help.push_str(", ");
+            }
+            available_chains_help.push_str(&format!("{}", k.color(v.color()).to_string()));
+        }
+        let input = player.read_input(format!("What chain would you like to start? [{}]: ", available_chains_help), available_chains_identifier);
+
+        let chain = available_chains.get(&input).unwrap();
+        hotel_chain_manager.start_chain(*chain, positions, board, player, bank)?;
         Ok(())
     }
 
@@ -390,7 +408,59 @@ pub mod place_hotel {
         Ok(())
     }
 
-    /// Asks the player the order in which the three or four chains should be fused.
+    /// Determines which chain will surivive the fusion.
+    /// If the two chains are equal in size the player that started the fusion is asked which chain
+    /// should survive.
+    /// # Returns
+    /// A vector: The first element will be fused into the second element
+    fn resolve_fusion_order<'a>(
+        player: &Player,
+        chain1: &'a HotelChain,
+        chain2: &'a HotelChain,
+        hotel_chain_manager: &HotelChainManager,
+    ) -> Vec<&'a HotelChain> {
+        let mut fuse_order = Vec::new();
+        match hotel_chain_manager
+            .chain_length(chain1)
+            .cmp(&hotel_chain_manager.chain_length(chain2))
+        {
+            Ordering::Greater => {
+                fuse_order.push(chain2);
+                fuse_order.push(chain1);
+            }
+            Ordering::Less => {
+                fuse_order.push(chain1);
+                fuse_order.push(chain2);
+            }
+            Ordering::Equal => {
+                // Player decides which chain should fuse into which
+                let fusion_case = player.read_input(
+                    format!(
+                        "[1] = Fuse {} in {}\n[2] = Fuse {} in {}\nChoose a case: ",
+                        chain1.name().color(chain1.color()),
+                        chain2.name().color(chain2.color()),
+                        chain2.name().color(chain2.color()),
+                        chain1.name().color(chain1.color())
+                    ),
+                    vec![1, 2],
+                );
+                match fusion_case {
+                    1 => {
+                        fuse_order.push(chain1);
+                        fuse_order.push(chain2);
+                    }
+                    2 => {
+                        fuse_order.push(chain2);
+                        fuse_order.push(chain1);
+                    }
+                    _ => (),
+                }
+            }
+        }
+        fuse_order
+    }
+    
+    /// Asks the player the order in which order the three or four chains should be fused.
     fn resolve_fusion_order_three_and_four_chains<'a>(
         player: &Player,
         chains: &'a Vec<HotelChain>,
@@ -470,57 +540,6 @@ pub mod place_hotel {
         Ok(fuse_order)
     }
 
-    /// Determines which chain will surivive the fusion.
-    /// If the two chains are equal in size the player that started the fusion is asked which chain
-    /// should survive.
-    /// #Returns
-    /// A vector: The first element will be fused into the second element
-    fn resolve_fusion_order<'a>(
-        player: &Player,
-        chain1: &'a HotelChain,
-        chain2: &'a HotelChain,
-        hotel_chain_manager: &HotelChainManager,
-    ) -> Vec<&'a HotelChain> {
-        let mut fuse_order = Vec::new();
-        match hotel_chain_manager
-            .chain_length(chain1)
-            .cmp(&hotel_chain_manager.chain_length(chain2))
-        {
-            Ordering::Greater => {
-                fuse_order.push(chain2);
-                fuse_order.push(chain1);
-            }
-            Ordering::Less => {
-                fuse_order.push(chain1);
-                fuse_order.push(chain2);
-            }
-            Ordering::Equal => {
-                // Player decides which chain should fuse into which
-                let fusion_case = player.read_input(
-                    format!(
-                        "[1] = Fuse {} in {}\n[2] = Fuse {} in {}\nChoose a case: ",
-                        chain1.name().color(chain1.color()),
-                        chain2.name().color(chain2.color()),
-                        chain2.name().color(chain2.color()),
-                        chain1.name().color(chain1.color())
-                    ),
-                    vec![1, 2],
-                );
-                match fusion_case {
-                    1 => {
-                        fuse_order.push(chain1);
-                        fuse_order.push(chain2);
-                    }
-                    2 => {
-                        fuse_order.push(chain2);
-                        fuse_order.push(chain1);
-                    }
-                    _ => (),
-                }
-            }
-        }
-        fuse_order
-    }
 
     /// Determines what the longest chain is.
     /// # Returns
@@ -751,12 +770,6 @@ pub mod place_hotel {
         if surrounding_chains.len() == 1 {
             let mut new_members: Vec<Position> = Vec::new();
             for hotel in surrounding_hotels {
-                println!(
-                    //TODO Check if this is player depended or debug and should be deleted
-                    "Hotel at {} will be added to chain {}",
-                    hotel,
-                    surrounding_chains.get(0).unwrap()
-                );
                 new_members.push(hotel);
             }
             new_members.push(*origin);

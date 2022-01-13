@@ -351,7 +351,6 @@ pub mod board {
         /// Analyzes the position again and updates the place hotel case value
         pub fn check(&mut self, board: &Board, hotel_chain_manager: &HotelChainManager) {
             self.place_hotel_case = analyze_position(&self.position, board, hotel_chain_manager);
-            println!("Analyzed position {}, is now {}", self.position, self);
         }
 
         /// Checks if this position is illegal
