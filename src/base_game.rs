@@ -41,21 +41,29 @@ pub mod board {
         pub fn print(&self, large_board: bool) {
             println!();
             let mut letters = LETTERS.iter();
+            let mut first_line = true;
             for x in &self.pieces {
+                if !first_line {
+                    if large_board {
+                        println!("--------------------------------------------------");
+                    }
+                } else {
+                    first_line = false;
+                }
                 print!("{} ", letters.next().unwrap());
                 for y in x {
                     if large_board {
-                        print!("[{}] ", y.print_text(false));
+                        print!("| {} ", y.print_text(true));
                     } else {
                         print!("{}  ", y.print_text(true))
                     }
                 }
-                println!()
+                println!();
             }
             if large_board {
-                print!("    ");
+                print!("   ");
                 for x in 1..=12 {
-                    print!("{:2}    ", &x);
+                    print!("{:2}  ", &x);
                 }
             } else {
                 print!(" ");
