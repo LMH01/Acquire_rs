@@ -248,7 +248,11 @@ pub mod place_hotel {
         let mut available_chains = HashMap::new();
         let mut available_chains_identifier = Vec::new();
         for chain in HotelChain::iterator() {
-            if hotel_chain_manager.available_chains().unwrap().contains(chain) {
+            if hotel_chain_manager
+                .available_chains()
+                .unwrap()
+                .contains(chain)
+            {
                 available_chains.insert(chain.identifier(), *chain);
                 available_chains_identifier.push(chain.identifier());
             }
@@ -263,7 +267,13 @@ pub mod place_hotel {
             }
             available_chains_help.push_str(&format!("{}", k.color(v.color()).to_string()));
         }
-        let input = player.read_input(format!("What chain would you like to start? [{}]: ", available_chains_help), available_chains_identifier);
+        let input = player.read_input(
+            format!(
+                "What chain would you like to start? [{}]: ",
+                available_chains_help
+            ),
+            available_chains_identifier,
+        );
 
         let chain = available_chains.get(&input).unwrap();
         hotel_chain_manager.start_chain(*chain, positions, board, player, bank)?;
@@ -300,9 +310,9 @@ pub mod place_hotel {
         settings: &Settings,
     ) -> Result<()> {
         let player = players.get_mut(player_index).unwrap();
-        // Contains the oder in which the hotels are fused. The first element fuses in the second,
-        // the second in the third and the third in the fourth.
+        // Contains the order in which the hotels are fused with the surviving chain.
         let mut fuse_order = Vec::new();
+        let surviving_chain;
         //TODO This text should be broadcasted to each player
         player.print_text_ln(&format!(
             "Fusion between {} chains at {}!",
@@ -314,7 +324,10 @@ pub mod place_hotel {
             2 => {
                 let chain1 = chains.get(0).unwrap();
                 let chain2 = chains.get(1).unwrap();
-                fuse_order = resolve_fusion_order(player, chain1, chain2, hotel_chain_manager);
+                let resolved_order =
+                    resolve_fusion_order(player, chain1, chain2, hotel_chain_manager);
+                fuse_order.push(*resolved_order.get(0).unwrap());
+                surviving_chain = *resolved_order.get(1).unwrap();
             }
             3 => {
                 let chain1 = chains.get(0).unwrap();
@@ -322,25 +335,32 @@ pub mod place_hotel {
                 let chain3 = chains.get(2).unwrap();
                 match longest_chain(chain1, chain2, Some(chain3), None, hotel_chain_manager) {
                     Some(chain) => {
+                        let mut resolved_order = Vec::new();
                         if chain == chain1 {
-                            fuse_order =
+                            resolved_order =
                                 resolve_fusion_order(player, chain2, chain3, hotel_chain_manager);
                         }
                         if chain == chain2 {
-                            fuse_order =
+                            resolved_order =
                                 resolve_fusion_order(player, chain1, chain3, hotel_chain_manager);
                         }
                         if chain == chain3 {
-                            fuse_order =
+                            resolved_order =
                                 resolve_fusion_order(player, chain1, chain2, hotel_chain_manager);
                         }
-                        fuse_order.push(chain);
+                        fuse_order.push(resolved_order.get(0).unwrap());
+                        fuse_order.push(resolved_order.get(1).unwrap());
+                        surviving_chain = chain;
                     }
                     None => {
                         // All three chains are equally long
                         player.print_text_ln("All three chains are equally long.");
                         player.print_text_ln("Note: The chain that you pic first will be fused into the second and the second will be fused into the third.");
-                        fuse_order = resolve_fusion_order_three_and_four_chains(player, &chains)?;
+                        let resolved_order =
+                            resolve_fusion_order_three_and_four_chains(player, &chains)?;
+                        fuse_order.push(resolved_order.get(0).unwrap());
+                        fuse_order.push(resolved_order.get(1).unwrap());
+                        surviving_chain = resolved_order.get(2).unwrap();
                     }
                 }
             }
@@ -356,16 +376,18 @@ pub mod place_hotel {
                     .print_text_ln("2. The order in which the smaller chains are fused is determined by thair size.\n   The smallest chain fuses into the second smallest chain and so on.");
                 player.print_text_ln("3. The player that stared the fusion can decide the fusion order, if all chains are the same size");
                 player.print_text_ln("Note: The chain that you pic first will be fused into the second, second will be fused into the third and the third will be fused into the fourth.");
-                fuse_order = resolve_fusion_order_three_and_four_chains(player, &chains)?
+                let resolved_order = resolve_fusion_order_three_and_four_chains(player, &chains)?;
+                fuse_order.push(resolved_order.get(0).unwrap());
+                fuse_order.push(resolved_order.get(1).unwrap());
+                fuse_order.push(resolved_order.get(2).unwrap());
+                surviving_chain = resolved_order.get(3).unwrap();
             }
-            _ => (),
+            _ => return Err(miette!("Unable to fuse chains: The amount of input chains is invalid. Should be 1-4, was {}", chains.len())),
         };
         // Fuse oder has been determined
         let chain1 = *fuse_order.get(0).unwrap();
-        let chain2 = *fuse_order.get(1).unwrap();
-        let mut survived_chain = *fuse_order.get(1).unwrap();
         fuse_two_chains(
-            chain2,
+            surviving_chain,
             chain1,
             player_index,
             players,
@@ -373,12 +395,19 @@ pub mod place_hotel {
             hotel_chain_manager,
             bank,
         )?;
-        if fuse_order.len() > 2 {
+        if fuse_order.len() > 1 {
             let player = players.get_mut(player_index).unwrap();
-            ui::print_main_ui(Some(player), board, settings, Some(round), bank, hotel_chain_manager);
-            let chain3 = *fuse_order.get(2).unwrap();
+            ui::print_main_ui(
+                Some(player),
+                board,
+                settings,
+                Some(round),
+                bank,
+                hotel_chain_manager,
+            );
+            let chain2 = *fuse_order.get(1).unwrap();
             fuse_two_chains(
-                chain3,
+                surviving_chain,
                 chain2,
                 player_index,
                 players,
@@ -386,13 +415,19 @@ pub mod place_hotel {
                 hotel_chain_manager,
                 bank,
             )?;
-            survived_chain = *fuse_order.get(2).unwrap();
-            if fuse_order.len() > 3 {
+            if fuse_order.len() > 2 {
                 let player = players.get_mut(player_index).unwrap();
-                ui::print_main_ui(Some(player), board, settings, Some(round), bank, hotel_chain_manager);
-                let chain4 = *fuse_order.get(3).unwrap();
+                ui::print_main_ui(
+                    Some(player),
+                    board,
+                    settings,
+                    Some(round),
+                    bank,
+                    hotel_chain_manager,
+                );
+                let chain3 = *fuse_order.get(2).unwrap();
                 fuse_two_chains(
-                    chain4,
+                    surviving_chain,
                     chain3,
                     player_index,
                     players,
@@ -400,11 +435,10 @@ pub mod place_hotel {
                     hotel_chain_manager,
                     bank,
                 )?;
-                survived_chain = *fuse_order.get(3).unwrap();
             }
         }
         // Add the hotel that caused the fusion the the chain that survived
-        hotel_chain_manager.add_hotel_to_chain(survived_chain, origin, board)?;
+        hotel_chain_manager.add_hotel_to_chain(surviving_chain, origin, board)?;
         Ok(())
     }
 
@@ -459,7 +493,7 @@ pub mod place_hotel {
         }
         fuse_order
     }
-    
+
     /// Asks the player the order in which order the three or four chains should be fused.
     fn resolve_fusion_order_three_and_four_chains<'a>(
         player: &Player,
@@ -472,15 +506,48 @@ pub mod place_hotel {
         }
         let mut fuse_order = Vec::new();
         loop {
-            player.print_text_ln("Please choose the order in which the hotels should be fused:");
+            // Setup variables for user input
+            let mut available_chains_identifier = Vec::new();
+            let mut available_chains = HashMap::new();
+            for chain in chains {
+                available_chains_identifier.push(chain.identifier());
+                available_chains.insert(chain.identifier(), *chain);
+            }
+            // Setup pretty print for user
+            let mut available_chains_help = String::new();
+            let mut first = true;
+            for (k, v) in &available_chains {
+                if first {
+                    first = false;
+                } else {
+                    available_chains_help.push_str(", ");
+                }
+                available_chains_help.push_str(&format!("{}", k.color(v.color()).to_string()));
+            }
+            let surviving_chain = player.read_input(
+                format!(
+                    "Which chain should surivive the fusion? [{}]: ",
+                    available_chains_help
+                ),
+                available_chains_identifier,
+            );
+            // Contains the chain that the player decided should survive.
+            let surviving_chain_temp = *available_chains.get(&surviving_chain).unwrap();
+            player.print_text_ln(&format!("Please choose the order in which the hotels should be fused into {}:", surviving_chain_temp.name().color(surviving_chain_temp.color())));
             let mut available_positions: Vec<u32>;
             if chains.len() == 3 {
-                available_positions = vec![1, 2, 3];
+                available_positions = vec![1, 2];
             } else {
-                available_positions = vec![1, 2, 3, 4];
+                available_positions = vec![1, 2, 3];
             }
             let mut determined_positions = HashMap::new();
+            let mut surviving_chain = None;
             for chain in chains {
+                if *chain == surviving_chain_temp {
+                    // Surviving chain is now a reference that is not owned by the function
+                    surviving_chain = Some(chain);
+                    continue;
+                }
                 let mut allowed_values_string = String::new();
                 let mut first_position = true;
                 for p in &available_positions {
@@ -502,26 +569,29 @@ pub mod place_hotel {
                 determined_positions.insert(pos, chain);
                 remove_content_from_vec(pos, &mut available_positions)?;
             }
+            let surviving_chain = surviving_chain.unwrap();
             // Show summary
             player.print_text_ln("The fusion will take place as followed:");
             let chain1 = *determined_positions.get(&1).unwrap();
             let chain2 = *determined_positions.get(&2).unwrap();
-            let chain3 = *determined_positions.get(&3).unwrap();
             if chains.len() == 3 {
                 player.print_text_ln(&format!(
-                    "{} -> {} -> {}",
+                    "1. {} -> {}\n2. {} -> {}",
                     chain1.name().color(chain1.color()),
+                    surviving_chain.name().color(surviving_chain.color()),
                     chain2.name().color(chain2.color()),
-                    chain3.name().color(chain3.color())
+                    surviving_chain.name().color(surviving_chain.color())
                 ));
             } else {
-                let chain4 = *determined_positions.get(&4).unwrap();
+                let chain3 = *determined_positions.get(&3).unwrap();
                 player.print_text_ln(&format!(
-                    "{} -> {} -> {} -> {}",
+                    "1. {} -> {}\n2. {} -> {}\n3. {} -> {}",
                     chain1.name().color(chain1.color()),
+                    surviving_chain.name().color(surviving_chain.color()),
                     chain2.name().color(chain2.color()),
+                    surviving_chain.name().color(surviving_chain.color()),
                     chain3.name().color(chain3.color()),
-                    chain4.name().color(chain4.color())
+                    surviving_chain.name().color(surviving_chain.color()),
                 ));
             }
             match player.get_correct() {
@@ -531,7 +601,7 @@ pub mod place_hotel {
                     fuse_order.push(*determined_positions.get(&2).unwrap());
                     fuse_order.push(*determined_positions.get(&3).unwrap());
                     if chains.len() == 4 {
-                        fuse_order.push(*determined_positions.get(&4).unwrap());
+                        fuse_order.push(surviving_chain);
                     }
                     break;
                 }
@@ -539,7 +609,6 @@ pub mod place_hotel {
         }
         Ok(fuse_order)
     }
-
 
     /// Determines what the longest chain is.
     /// # Returns
