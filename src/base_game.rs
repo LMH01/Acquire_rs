@@ -1074,11 +1074,14 @@ pub mod bank {
         /// # Arguments
         /// * `players` - The playrs that play the game
         /// * `chain` - The chain for which the bonuses should be payed
+        /// * `inform_player` - If true the player will recieve a message that they got their
+        /// shareholder bonus. This message has to be confirmed by enter.
         pub fn give_majority_shareholder_bonuses(
             &self,
             players: &mut Vec<Player>,
             chain: &HotelChain,
             hotel_chain_manager: &HotelChainManager,
+            inform_player: bool,
         ) -> Result<()> {
             //TODO Add functionality that the summary is printed to each player
             let largest_shareholders = self
@@ -1104,18 +1107,22 @@ pub mod bank {
                         .get_mut(*largest_shareholders.get(0).unwrap() as usize)
                         .unwrap();
                     largest_shareholder.add_money(largest_shareholder_bonus);
-                    largest_shareholder.get_enter(&format!(
+                    if inform_player {
+                        largest_shareholder.get_enter(&format!(
                         "Player {}, you recieved {}$ because you where the largest shareholder.",
                         largest_shareholder.id + 1,
                         largest_shareholder_bonus
                     ));
+                    }
                     match second_largest_shareholders.len() {
                         1 => {
                             let second_largest_shareholder = players
                                 .get_mut(*second_largest_shareholders.get(0).unwrap() as usize)
                                 .unwrap();
                             second_largest_shareholder.add_money(second_largest_shareholder_bonus);
-                            second_largest_shareholder.get_enter(&format!("Player {}, you recieved {}$ because you where the second largest shareholder.", second_largest_shareholder.id+1, second_largest_shareholder_bonus));
+                            if inform_player {
+                                second_largest_shareholder.get_enter(&format!("Player {}, you recieved {}$ because you where the second largest shareholder.", second_largest_shareholder.id+1, second_largest_shareholder_bonus));
+                            }
                         }
                         _ => {
                             let number_of_second_largest_shareholders =
@@ -1127,7 +1134,9 @@ pub mod bank {
                             for i in second_largest_shareholders {
                                 let player = players.get_mut(*i as usize).unwrap();
                                 player.add_money(bonus);
-                                player.get_enter(&format!("Player {}, you recieved {}$ because you where one of the second largest shareholders.", player.id+1, bonus));
+                                if inform_player {
+                                    player.get_enter(&format!("Player {}, you recieved {}$ because you where one of the second largest shareholders.", player.id+1, bonus));
+                                }
                             }
                         }
                     }
@@ -1141,7 +1150,9 @@ pub mod bank {
                     for i in largest_shareholders {
                         let player = players.get_mut(*i as usize).unwrap();
                         player.add_money(bonus);
-                        player.get_enter(&format!("Player {}, you recieved {}$ because you where one of the largest shareholders.", player.id+1, bonus));
+                        if inform_player {
+                            player.get_enter(&format!("Player {}, you recieved {}$ because you where one of the largest shareholders.", player.id+1, bonus));
+                        }
                     }
                 }
             }
@@ -1412,7 +1423,6 @@ pub mod bank {
         }
 
         #[test]
-        #[ignore] // Ignored because test requires that the tester presses enter a couple of times
         fn sell_stock_works() -> Result<()> {
             let mut bank = Bank::new();
             let mut board = Board::new();
@@ -1432,13 +1442,12 @@ pub mod bank {
                 &mut bank,
             )?;
             bank.update_largest_shareholders(&players);
-            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager)?;
+            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager, false)?;
             assert_eq!(players.get(0).unwrap().money, 9000);
             Ok(())
         }
 
         #[test]
-        #[ignore] // Ignored because test requires that the tester presses enter a couple of times
         fn give_majority_shareholder_bonuses_works() -> Result<()> {
             use crate::{
                 base_game::board::Board,
@@ -1469,7 +1478,7 @@ pub mod bank {
             // 1. 1 Player largest and second largest
             bank.update_largest_shareholders(&players);
             bank.print_largest_shareholders();
-            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager)?;
+            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager, false)?;
             let player = players.get_mut(0).unwrap();
             assert_eq!(player.money, 10500);
             // 2. More than 1 player largest and second largest
@@ -1480,7 +1489,7 @@ pub mod bank {
             player2.money = 6000;
             bank.update_largest_shareholders(&players);
             bank.print_largest_shareholders();
-            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager)?;
+            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager, false)?;
             let player = players.get_mut(0).unwrap();
             assert_eq!(player.money, 8300);
             let player2 = players.get_mut(1).unwrap();
@@ -1498,7 +1507,7 @@ pub mod bank {
             player3.money = 6000;
             bank.update_largest_shareholders(&players);
             bank.print_largest_shareholders();
-            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager)?;
+            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager, false)?;
             let player = players.get_mut(0).unwrap();
             assert_eq!(player.money, 9000);
             let player2 = players.get_mut(1).unwrap();
@@ -1915,38 +1924,56 @@ pub mod player {
                 let mut money_available = self.money;
                 for chain in hotel_chain_manager.active_chains() {
                     // Check conditions under which no stocks can be bought
-                    let main_message = format!("How many stocks would you like to buy of {}?", chain.name().color(chain.color()));
-                    if stocks_left == 0{
+                    let main_message = format!(
+                        "How many stocks would you like to buy of {}?",
+                        chain.name().color(chain.color())
+                    );
+                    if stocks_left == 0 {
                         // Player has already bought 3 stocks
-                        self.print_text_ln(&format!("{} [0-0]: 0 {}", main_message, "- already bought 3 stocks".color(Rgb(105, 105, 105))));
+                        self.print_text_ln(&format!(
+                            "{} [0-0]: 0 {}",
+                            main_message,
+                            "- already bought 3 stocks".color(Rgb(105, 105, 105))
+                        ));
                         continue;
                     }
                     if *bank.stocks_available(&chain, hotel_chain_manager) == 0 {
                         // No stocks left
-                        self.print_text_ln(&format!("{} [0-0]: 0 {}", main_message, "- no stocks left".color(Rgb(105, 105, 105))));
+                        self.print_text_ln(&format!(
+                            "{} [0-0]: 0 {}",
+                            main_message,
+                            "- no stocks left".color(Rgb(105, 105, 105))
+                        ));
                         continue;
                     }
                     let stock_price = Bank::stock_price(hotel_chain_manager, &chain);
                     if money_available < stock_price {
                         // Player does not have enough money
-                        self.print_text_ln(&format!("{} [0-0]: 0 {}", main_message, "- not enough money".color(Rgb(105, 105, 105))));
+                        self.print_text_ln(&format!(
+                            "{} [0-0]: 0 {}",
+                            main_message,
+                            "- not enough money".color(Rgb(105, 105, 105))
+                        ));
                         continue;
                     }
-                    // Check how many stocks the player could buy with thair current money
+                    // Check how many stocks the player could buy with their current money
                     let mut money_for_stocks = 0;
-                    if self.money >= stock_price {
+                    if money_available >= stock_price {
                         money_for_stocks = 1;
                     }
-                    if self.money >= stock_price*2 {
+                    if money_available >= stock_price * 2 {
                         money_for_stocks = 2;
                     }
-                    if self.money >= stock_price*3 {
+                    if money_available >= stock_price * 3 {
                         money_for_stocks = 3;
                     }
                     let mut stocks_can_be_bought = min(money_for_stocks, stocks_left);
                     // Check if the stocks available in the bank are less then the stocks that the
                     // player could buy
-                    stocks_can_be_bought = min(stocks_can_be_bought, *bank.stocks_available(&chain, hotel_chain_manager));
+                    stocks_can_be_bought = min(
+                        stocks_can_be_bought,
+                        *bank.stocks_available(&chain, hotel_chain_manager),
+                    );
                     let bought = self.read_input(
                         format!(
                             "How many stocks would you like to buy of {}? [0-{}]: ",
@@ -1958,7 +1985,7 @@ pub mod player {
                     if bought > 0 {
                         stocks_bought.insert(chain, bought);
                         stocks_left -= bought;
-                        money_available -= bought*stock_price;
+                        money_available -= bought * stock_price;
                     }
                 }
                 // Check if player bought any stocks
@@ -1973,10 +2000,21 @@ pub mod player {
                 let mut expanses = 0;
                 for (k, v) in &stocks_bought {
                     let current_stocks = self.owned_stocks.stocks_for_hotel(&k);
-                    self.print_text_ln(&format!("Total {} stocks: {} + {} = {}", k.name().color(k.color()), current_stocks, v, current_stocks + v));
-                    expanses += Bank::stock_price(hotel_chain_manager, &k)*v;
+                    self.print_text_ln(&format!(
+                        "Total {} stocks: {} + {} = {}",
+                        k.name().color(k.color()),
+                        current_stocks,
+                        v,
+                        current_stocks + v
+                    ));
+                    expanses += Bank::stock_price(hotel_chain_manager, &k) * v;
                 }
-                self.print_text_ln(&format!("Money: {} - {} = {}", self.money, expanses, self.money - expanses));
+                self.print_text_ln(&format!(
+                    "Money: {} - {} = {}",
+                    self.money,
+                    expanses,
+                    self.money - expanses
+                ));
                 if !self.get_correct() {
                     continue;
                 }

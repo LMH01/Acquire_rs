@@ -3,7 +3,7 @@ pub mod game {
     use std::{collections::HashMap, slice::SliceIndex};
 
     use miette::{miette, IntoDiagnostic, Result};
-    use owo_colors::{AnsiColors, OwoColorize};
+    use owo_colors::{AnsiColors, OwoColorize, Rgb};
     use rand::Rng;
 
     use crate::{
@@ -127,6 +127,7 @@ pub mod game {
                 round_number += 1;
             }
             //TODO Add final account (=Endabrechnung)
+            final_account(&mut self.players, &mut self.bank, &self.hotel_chain_manager)?;
             Ok(())
         }
 
@@ -212,6 +213,75 @@ pub mod game {
             }
         }
         None
+    }
+
+    /// Sells all stocks back to the bank, gives majority shareholder bonuses and determines
+    /// which player won the game
+    pub fn final_account(
+        players: &mut Vec<Player>,
+        bank: &mut Bank,
+        hotel_chain_manager: &HotelChainManager,
+    ) -> Result<()> {
+        for chain in hotel_chain_manager.active_chains() {
+            //1. Give majority shareholder bonuses
+            bank.give_majority_shareholder_bonuses(players, &chain, hotel_chain_manager, false)?;
+            //2. Sell stocks
+            for player in players.iter_mut() {
+                bank.sell_stock(
+                    player,
+                    *player.owned_stocks.stocks_for_hotel(&chain),
+                    &chain,
+                    hotel_chain_manager,
+                )?;
+            }
+        }
+        let mut player_money_map = HashMap::new();
+        let mut player_money = Vec::new();
+        for player in players.iter() {
+            player_money_map.insert(player.money, player.id);
+            player_money.push(player.money);
+        }
+        player_money.sort();
+        for i in 0..=players.len() - 1 {
+            let money = player_money.get(i).unwrap();
+            let player_id = player_money_map.get(money).unwrap();
+            let player = players.get(*player_id as usize).unwrap();
+            // Should be sent do every player
+            match player_id {
+                0 => println!(
+                    "{}",
+                    format!("1. Player {} - {}", player.id, money).color(Rgb(225, 215, 0))
+                ),
+                1 => println!(
+                    "{}",
+                    format!("2. Player {} - {}", player.id, money).color(Rgb(192, 192, 192))
+                ),
+                2 => println!(
+                    "{}",
+                    format!("3. Player {} - {}", player.id, money).color(Rgb(191, 137, 112))
+                ),
+                _ => println!("{}. Player {} - {}", i + 1, player.id, money),
+            }
+        }
+        for i in 0..=players.len() - 1 {
+            let money = player_money.get(i).unwrap();
+            let player_id = player_money_map.get(money).unwrap();
+            let player = players.get(*player_id as usize).unwrap();
+            // Should be sent do every player
+            match i {
+                0 => player.print_text_ln(&format!(
+                    "Player {}, congratulations, you are the winner!",
+                    player.id + 1
+                )),
+                1 => player
+                    .print_text_ln(&format!("Player {}, you are second place!", player.id + 1)),
+                2 => {
+                    player.print_text_ln(&format!("Player {}, you are third place!", player.id + 1))
+                }
+                _ => player.print_text_ln(&format!("Player {}, you have lost!", player.id + 1)),
+            }
+        }
+        Ok(())
     }
 
     /// Manages the currently active hotel chains
@@ -436,11 +506,38 @@ pub mod game {
 
             use crate::{
                 base_game::{
-                    board::Position, hotel_chains::HotelChain, player::Player, settings::Settings,
+                    bank::Bank,
+                    board::{Board, Position},
+                    hotel_chains::HotelChain,
+                    player::Player,
+                    settings::Settings,
                     ui,
                 },
-                game::game::{draw_card, round::Round, GameManager},
+                game::game::{draw_card, final_account, round::Round, GameManager},
             };
+
+            use super::HotelChainManager;
+
+            #[test]
+            fn final_account_correct() -> Result<()> {
+                let mut bank = Bank::new();
+                let mut players = vec![Player::new(vec![], 0), Player::new(vec![], 1)];
+                let mut hotel_chain_manager = HotelChainManager::new();
+                let mut board = Board::new();
+                let chain = HotelChain::Continental;
+                hotel_chain_manager.start_chain(
+                    chain,
+                    vec![Position::new('A', 1), Position::new('B', 1)],
+                    &mut board,
+                    players.get_mut(0).unwrap(),
+                    &mut bank,
+                )?;
+                bank.buy_stock(&hotel_chain_manager, &chain, players.get_mut(0).unwrap())?;
+                bank.update_largest_shareholders(&players);
+                final_account(&mut players, &mut bank, &hotel_chain_manager)?;
+                assert_eq!(players.get(0).unwrap().money, 12400);
+                Ok(())
+            }
 
             #[test]
             fn chain_status_and_length_correct() -> Result<()> {
@@ -661,6 +758,8 @@ pub mod game {
                     }
                 }
                 //3. Buy stocks
+                bank.update_largest_shareholders(players);
+                let player = players.get_mut(player_index).unwrap();
                 if !hotel_chain_manager.active_chains().is_empty() {
                     ui::print_main_ui(
                         Some(player),

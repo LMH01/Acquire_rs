@@ -277,6 +277,7 @@ pub mod place_hotel {
 
         let chain = available_chains.get(&input).unwrap();
         hotel_chain_manager.start_chain(*chain, positions, board, player, bank)?;
+        bank.update_largest_shareholders(players);
         Ok(())
     }
 
@@ -711,7 +712,7 @@ pub mod place_hotel {
         ));
         // 1. Payout the majority shareholder bonuses
         bank.update_largest_shareholders(players);
-        bank.give_majority_shareholder_bonuses(players, dead, hotel_chain_manager)?;
+        bank.give_majority_shareholder_bonuses(players, dead, hotel_chain_manager, true)?;
         // 2. Trade stocks
         for i in 0..=players.len() {
             let mut index = player_index + i;
