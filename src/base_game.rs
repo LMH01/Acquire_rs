@@ -999,13 +999,7 @@ pub mod bank {
                         match current_player_stocks.cmp(&largest_shareholder_stocks) {
                             // The player will be set second largest shareholder if the
                             // currently second largest shareholder has less stocks then them
-                            Ordering::Less => {
-                                println!(
-                                    "Hotel {}, Player {}: Less stocks than largest shareholder",
-                                    chain.name(),
-                                    player.id
-                                );
-                            }
+                            Ordering::Less => (),
                             // Player has equal stocks => booth players will be set to largest
                             // and second largest shareholder
                             Ordering::Equal => {
@@ -1442,7 +1436,12 @@ pub mod bank {
                 &mut bank,
             )?;
             bank.update_largest_shareholders(&players);
-            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager, false)?;
+            bank.give_majority_shareholder_bonuses(
+                &mut players,
+                &chain,
+                &hotel_chain_manager,
+                false,
+            )?;
             assert_eq!(players.get(0).unwrap().money, 9000);
             Ok(())
         }
@@ -1478,7 +1477,12 @@ pub mod bank {
             // 1. 1 Player largest and second largest
             bank.update_largest_shareholders(&players);
             bank.print_largest_shareholders();
-            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager, false)?;
+            bank.give_majority_shareholder_bonuses(
+                &mut players,
+                &chain,
+                &hotel_chain_manager,
+                false,
+            )?;
             let player = players.get_mut(0).unwrap();
             assert_eq!(player.money, 10500);
             // 2. More than 1 player largest and second largest
@@ -1489,7 +1493,12 @@ pub mod bank {
             player2.money = 6000;
             bank.update_largest_shareholders(&players);
             bank.print_largest_shareholders();
-            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager, false)?;
+            bank.give_majority_shareholder_bonuses(
+                &mut players,
+                &chain,
+                &hotel_chain_manager,
+                false,
+            )?;
             let player = players.get_mut(0).unwrap();
             assert_eq!(player.money, 8300);
             let player2 = players.get_mut(1).unwrap();
@@ -1507,7 +1516,12 @@ pub mod bank {
             player3.money = 6000;
             bank.update_largest_shareholders(&players);
             bank.print_largest_shareholders();
-            bank.give_majority_shareholder_bonuses(&mut players, &chain, &hotel_chain_manager, false)?;
+            bank.give_majority_shareholder_bonuses(
+                &mut players,
+                &chain,
+                &hotel_chain_manager,
+                false,
+            )?;
             let player = players.get_mut(0).unwrap();
             assert_eq!(player.money, 9000);
             let player2 = players.get_mut(1).unwrap();
@@ -1815,7 +1829,8 @@ pub mod player {
                 // Stores how many stocks the bank has left of the chain that survives the fusion
                 let stocks_left_to_exchange = bank.stocks_for_sale.stocks_for_hotel(alive);
                 for i in 0..=stocks_unasigned {
-                    if i % 2 == 0 && *stocks_left_to_exchange >= i {
+                    if i % 2 == 0 && *stocks_left_to_exchange >= i / 2 {
+                        // i/2 is calculated because two stocks will be traded into one
                         if i != 0 {
                             allowed_string.push_str(", ");
                         }
@@ -1886,11 +1901,11 @@ pub mod player {
             }
             // Exchange stocks
             if stocks_to_exchange > 0 {
-                bank.exchange_stock(self, stocks_to_exchange, dead, alive);
+                bank.exchange_stock(self, stocks_to_exchange, dead, alive)?;
             }
             // Sell stocks
             if stocks_to_sell > 0 {
-                bank.sell_stock(self, stocks_to_sell, dead, hotel_chain_manager);
+                bank.sell_stock(self, stocks_to_sell, dead, hotel_chain_manager)?;
             }
             Ok(())
         }

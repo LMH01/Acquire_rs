@@ -247,20 +247,20 @@ pub mod game {
             let player_id = player_money_map.get(money).unwrap();
             let player = players.get(*player_id as usize).unwrap();
             // Should be sent do every player
-            match player_id {
+            match 0 {
                 0 => println!(
                     "{}",
-                    format!("1. Player {} - {}", player.id, money).color(Rgb(225, 215, 0))
+                    format!("1. Player {} - {}", player.id + 1, money).color(Rgb(225, 215, 0))
                 ),
                 1 => println!(
                     "{}",
-                    format!("2. Player {} - {}", player.id, money).color(Rgb(192, 192, 192))
+                    format!("2. Player {} - {}", player.id + 1, money).color(Rgb(192, 192, 192))
                 ),
                 2 => println!(
                     "{}",
-                    format!("3. Player {} - {}", player.id, money).color(Rgb(191, 137, 112))
+                    format!("3. Player {} - {}", player.id + 1, money).color(Rgb(191, 137, 112))
                 ),
-                _ => println!("{}. Player {} - {}", i + 1, player.id, money),
+                _ => println!("{}. Player {} - {}", player.id + 1, player.id, money),
             }
         }
         for i in 0..=players.len() - 1 {

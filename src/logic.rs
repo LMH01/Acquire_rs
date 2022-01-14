@@ -714,7 +714,7 @@ pub mod place_hotel {
         bank.update_largest_shareholders(players);
         bank.give_majority_shareholder_bonuses(players, dead, hotel_chain_manager, true)?;
         // 2. Trade stocks
-        for i in 0..=players.len() {
+        for i in 0..=players.len() - 1 {
             let mut index = player_index + i;
             if index > players.len() - 1 {
                 index = 0;
