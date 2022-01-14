@@ -22,6 +22,7 @@ use game::game::GameManager;
 //TODO Add flag with which the help card can be enabled. This will cause to print a copy of the
 //info card from the real game to the console
 //TODO Change $ to €
+//TODO Add: Player can rerol their hand cards if all cards are unplayable because of illegal fusion
 
 #[derive(Parser)]
 #[clap(about = "The board game Acquire fia command line in Rust")]

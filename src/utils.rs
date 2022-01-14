@@ -32,3 +32,23 @@ pub fn remove_content_from_vec<T: PartialEq>(to_remove: T, vec: &mut Vec<T>) -> 
         ))
     }
 }
+
+/// Returns the specified content from the vector as reference.
+pub fn get_content_from_vec<T: PartialEq>(to_find: T, vec: &Vec<T>) -> Result<&T> {
+    let mut index_to_remove = 0;
+    let mut value_found = false;
+    for (index, content) in vec.iter().enumerate() {
+        if *content == to_find {
+            index_to_remove = index;
+            value_found = true;
+            break;
+        }
+    }
+    if value_found {
+        Ok(vec.get(index_to_remove).unwrap())
+    } else {
+        Err(miette!(
+            "Unable to get value from vector: Value was not found."
+        ))
+    }
+}

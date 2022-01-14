@@ -868,7 +868,7 @@ pub mod bank {
             }
             let stock_price = Bank::stock_price(&hotel_chain_manager, &hotel);
             // Check if player has enough money to buy the stock
-            if player.money <= stock_price {
+            if player.money < stock_price {
                 return Err(miette!(
                     "Unable to buy stock from chain {}: Not enough money.",
                     &hotel
@@ -1520,8 +1520,10 @@ pub mod bank {
 /// Player management
 pub mod player {
     use std::{
+        cmp::min,
         cmp::PartialEq,
         cmp::PartialOrd,
+        collections::HashMap,
         ops::RangeInclusive,
         slice::{IterMut, SliceIndex},
         str::FromStr,
@@ -1882,6 +1884,110 @@ pub mod player {
                 bank.sell_stock(self, stocks_to_sell, dead, hotel_chain_manager);
             }
             Ok(())
+        }
+
+        /// If chains are active, the player is asked if they would like to buy a maximum of three
+        /// stocks from available chains.
+        pub fn buy_stocks(&mut self, bank: &mut Bank, hotel_chain_manager: &HotelChainManager) {
+            // Check if stocks are available to be bought
+            if hotel_chain_manager.active_chains().len() == 0 {
+                return ();
+            }
+            // Check if player has enough money to buy the lowest costing stock
+            // Stores the value of the stock that costs the least
+            let mut min_stock_value = 2000;
+            for chain in hotel_chain_manager.active_chains() {
+                let value = Bank::stock_price(hotel_chain_manager, &chain);
+                if value < min_stock_value {
+                    min_stock_value = value;
+                }
+            }
+            self.print_text_ln(&format!(
+                "Player {}, you can buy a maximum of three stocks now:",
+                self.id + 1
+            ));
+            // Runs until the player confirms the stocks bought
+            loop {
+                // Stores how many stockes the player is allowed to buy
+                let mut stocks_left = 3;
+                let mut stocks_bought = HashMap::new();
+                // Stores the money available for the current trade
+                let mut money_available = self.money;
+                for chain in hotel_chain_manager.active_chains() {
+                    // Check conditions under which no stocks can be bought
+                    let main_message = format!("How many stocks would you like to buy of {}?", chain.name().color(chain.color()));
+                    if stocks_left == 0{
+                        // Player has already bought 3 stocks
+                        self.print_text_ln(&format!("{} [0-0]: 0 {}", main_message, "- already bought 3 stocks".color(Rgb(105, 105, 105))));
+                        continue;
+                    }
+                    if *bank.stocks_available(&chain, hotel_chain_manager) == 0 {
+                        // No stocks left
+                        self.print_text_ln(&format!("{} [0-0]: 0 {}", main_message, "- no stocks left".color(Rgb(105, 105, 105))));
+                        continue;
+                    }
+                    let stock_price = Bank::stock_price(hotel_chain_manager, &chain);
+                    if money_available < stock_price {
+                        // Player does not have enough money
+                        self.print_text_ln(&format!("{} [0-0]: 0 {}", main_message, "- not enough money".color(Rgb(105, 105, 105))));
+                        continue;
+                    }
+                    // Check how many stocks the player could buy with thair current money
+                    let mut money_for_stocks = 0;
+                    if self.money >= stock_price {
+                        money_for_stocks = 1;
+                    }
+                    if self.money >= stock_price*2 {
+                        money_for_stocks = 2;
+                    }
+                    if self.money >= stock_price*3 {
+                        money_for_stocks = 3;
+                    }
+                    let mut stocks_can_be_bought = min(money_for_stocks, stocks_left);
+                    // Check if the stocks available in the bank are less then the stocks that the
+                    // player could buy
+                    stocks_can_be_bought = min(stocks_can_be_bought, *bank.stocks_available(&chain, hotel_chain_manager));
+                    let bought = self.read_input(
+                        format!(
+                            "How many stocks would you like to buy of {}? [0-{}]: ",
+                            chain.name().color(chain.color()),
+                            stocks_can_be_bought,
+                        ),
+                        generate_number_vector(0, stocks_can_be_bought),
+                    );
+                    if bought > 0 {
+                        stocks_bought.insert(chain, bought);
+                        stocks_left -= bought;
+                        money_available -= bought*stock_price;
+                    }
+                }
+                // Check if player bought any stocks
+                if stocks_bought.is_empty() {
+                    self.print_text_ln("You did not buy any stocks.");
+                    if self.get_correct() {
+                        break;
+                    }
+                    continue;
+                }
+                self.print_text_ln("The following will happen to your stocks:");
+                let mut expanses = 0;
+                for (k, v) in &stocks_bought {
+                    let current_stocks = self.owned_stocks.stocks_for_hotel(&k);
+                    self.print_text_ln(&format!("Total {} stocks: {} + {} = {}", k.name().color(k.color()), current_stocks, v, current_stocks + v));
+                    expanses += Bank::stock_price(hotel_chain_manager, &k)*v;
+                }
+                self.print_text_ln(&format!("Money: {} - {} = {}", self.money, expanses, self.money - expanses));
+                if !self.get_correct() {
+                    continue;
+                }
+                // Player confirmed transaction
+                for (k, v) in &stocks_bought {
+                    for _i in 1..=*v {
+                        bank.buy_stock(hotel_chain_manager, &k, self).unwrap();
+                    }
+                }
+                break;
+            }
         }
 
         /// Promts the user to enter something

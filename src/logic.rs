@@ -533,7 +533,12 @@ pub mod place_hotel {
             );
             // Contains the chain that the player decided should survive.
             let surviving_chain_temp = *available_chains.get(&surviving_chain).unwrap();
-            player.print_text_ln(&format!("Please choose the order in which the hotels should be fused into {}:", surviving_chain_temp.name().color(surviving_chain_temp.color())));
+            player.print_text_ln(&format!(
+                "Please choose the order in which the hotels should be fused into {}:",
+                surviving_chain_temp
+                    .name()
+                    .color(surviving_chain_temp.color())
+            ));
             let mut available_positions: Vec<u32>;
             if chains.len() == 3 {
                 available_positions = vec![1, 2];

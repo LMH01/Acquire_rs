@@ -255,6 +255,15 @@ pub mod game {
                     .unwrap()
             }
 
+            /// Returns a vector of currently active chains
+            pub fn active_chains(&self) -> Vec<HotelChain> {
+                let mut chains = Vec::new();
+                for (k, _v) in &self.active_chains {
+                    chains.push(*k);
+                }
+                chains
+            }
+
             /// Returns true if the chain is currently active
             pub fn chain_status(&self, hotel: &HotelChain) -> bool {
                 self.active_chains.contains_key(hotel)
@@ -632,7 +641,14 @@ pub mod game {
                 //2. Check if end game condition is met
                 //      If yes ask give user the option to end the game here
                 if let Some(condition) = check_end_condition(board, hotel_chain_manager) {
-                    ui::print_main_ui(Some(player), board, settings, Some(self), bank, hotel_chain_manager);
+                    ui::print_main_ui(
+                        Some(player),
+                        board,
+                        settings,
+                        Some(self),
+                        bank,
+                        hotel_chain_manager,
+                    );
                     player.print_text_ln(&format!(
                         "The following game ending condition is met: {}",
                         condition.description().color(AnsiColors::Green)
@@ -644,7 +660,18 @@ pub mod game {
                         _ => (),
                     }
                 }
-                //3. Buy
+                //3. Buy stocks
+                if !hotel_chain_manager.active_chains().is_empty() {
+                    ui::print_main_ui(
+                        Some(player),
+                        board,
+                        settings,
+                        Some(self),
+                        bank,
+                        hotel_chain_manager,
+                    );
+                    player.buy_stocks(bank, hotel_chain_manager);
+                }
                 // If game has ended no new card is drawn
                 if game_ended {
                     return Ok(true);
