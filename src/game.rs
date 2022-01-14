@@ -242,12 +242,12 @@ pub mod game {
             player_money.push(player.money);
         }
         player_money.sort();
-        for i in 0..=players.len() - 1 {
-            let money = player_money.get(i).unwrap();
+        player_money.reverse();
+        for money in &player_money {
             let player_id = player_money_map.get(money).unwrap();
             let player = players.get(*player_id as usize).unwrap();
             // Should be sent do every player
-            match i {
+            match player_id {
                 0 => println!(
                     "{}",
                     format!("1. Player {} - {}", player.id + 1, money).color(Rgb(225, 215, 0))
