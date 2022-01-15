@@ -173,7 +173,7 @@ pub fn broadcast(message: &str, players: &Vec<Player>) {
     }
 }
 
-/// Send a message to every player except for the player that currently has thair turn.
+/// Send a message to every player except for the player that currently has their turn.
 /// If the game is only played local the message is only written once to the console.
 pub fn broadcast_others(message: &str, current_player_name: &String, players: &Vec<Player>) {
     for player in players {

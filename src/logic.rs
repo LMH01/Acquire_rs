@@ -401,7 +401,7 @@ pub mod place_hotel {
                 player
                     .print_text_ln("1. The chain with the most hotels absorbs all smaller chains");
                 player
-                    .print_text_ln("2. The order in which the smaller chains are fused is determined by thair size.\n   The smallest chain fuses into the second smallest chain and so on.");
+                    .print_text_ln("2. The order in which the smaller chains are fused is determined by their size.\n   The smallest chain fuses into the second smallest chain and so on.");
                 player.print_text_ln("3. The player that stared the fusion can decide the fusion order, if all chains are the same size");
                 player.print_text_ln("Note: The chain that you pic first will be fused into the second, second will be fused into the third and the third will be fused into the fourth.");
                 let resolved_order = resolve_fusion_order_three_and_four_chains(player, &chains)?;
