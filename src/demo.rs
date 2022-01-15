@@ -15,7 +15,7 @@ use crate::{
     },
     data_stream::read_enter,
     game::game::{
-        self,
+        self, final_account,
         hotel_chain_manager::{self, HotelChainManager},
         round::Round,
         GameManager,
@@ -32,8 +32,6 @@ fn place_test_hotels(board: &mut Board) -> Result<()> {
 }
 
 pub fn test_things(opts: &Opts, settings: Settings) -> Result<()> {
-    fuse_chains_works_with_three()?;
-    return Ok(());
     let mut game_manager = GameManager::new(opts.players, settings)?;
     let mut active_chains: Vec<HotelChain> = Vec::new();
     let round = Round::new(1);
@@ -67,8 +65,9 @@ pub fn test_things(opts: &Opts, settings: Settings) -> Result<()> {
     game_manager.bank.print_largest_shareholders();
     let player = game_manager.players.get_mut(0).unwrap();
     player.analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
-    ui::print_main_ui(
+    ui::print_main_ui_console(
         Some(&player),
+        Some(&player.name),
         &game_manager.board,
         &game_manager.settings,
         Some(&round),
@@ -96,8 +95,9 @@ pub fn test_things(opts: &Opts, settings: Settings) -> Result<()> {
             .hotel_chain_manager
             .fuse_chains(chain1, chain2, &mut game_manager.board)?;
         player.analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
-        ui::print_main_ui(
+        ui::print_main_ui_console(
             Some(&player),
+            Some(&player.name),
             &game_manager.board,
             &game_manager.settings,
             Some(&round),
@@ -347,5 +347,6 @@ fn fuse_chains_works_with_three() -> Result<()> {
         &settings,
     )?;
     board.print(false);
+    final_account(&mut players, &mut bank, &hotel_chain_manager)?;
     Ok(())
 }

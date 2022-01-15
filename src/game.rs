@@ -16,6 +16,7 @@ pub mod game {
             ui,
         },
         data_stream::{self, read_enter},
+        network::{broadcast, ClientPlayer},
     };
 
     use self::{hotel_chain_manager::HotelChainManager, round::Round};
@@ -49,6 +50,8 @@ pub mod game {
         game_started: bool,
         /// Stores the settings
         pub settings: Settings,
+        /// Stores if the game is ran as server
+        pub server: bool,
     }
 
     impl GameManager {
@@ -69,13 +72,34 @@ pub mod game {
                 players,
                 game_started: false,
                 settings,
+                server: false,
+            })
+        }
+
+        /// Initializes a new server game.
+        /// The client players will be added as players and a local player is added.
+        pub fn new_server(
+            mut client_players: Vec<ClientPlayer>,
+            settings: Settings,
+        ) -> Result<Self> {
+            let mut position_cards = GameManager::init_position_cards();
+            let players = GameManager::init_players_lan(&mut client_players, &mut position_cards)?;
+            Ok(Self {
+                board: Board::new(),
+                position_cards,
+                bank: Bank::new(),
+                hotel_chain_manager: HotelChainManager::new(),
+                players,
+                game_started: false,
+                settings,
+                server: true,
             })
         }
 
         /// Starts the game that has been created previously.
         /// Returns an Error when the game has already been started.
         pub fn start_game(&mut self) -> Result<()> {
-            println!("Starting game!");
+            broadcast("Starting game!", &self.players);
             if self.game_started {
                 return Err(miette!(
                     "Unable to start game: Game has already been started!"
@@ -83,20 +107,55 @@ pub mod game {
             } else {
                 self.game_started = true;
             }
-            println!("Each player draws a card now, the player with the lowest card starts.");
-            let mut cards: Vec<Position> = Vec::new();
-            for i in 1..=self.players.len() {
-                let card = draw_card(&mut self.position_cards)?.unwrap();
-                println!("Press enter to draw the card.");
+            broadcast(
+                "Each player draws a card now, the player with the lowest card starts.",
+                &self.players,
+            );
+            if self.server {
+                let mut cards_with_players = HashMap::new();
+                let mut cards = Vec::new();
+                for (index, player) in self.players.iter().enumerate() {
+                    let card = draw_card(&mut self.position_cards)?.unwrap();
+                    player.get_enter("Press enter to draw your card");
+                    broadcast(
+                        &format!(
+                            "{} drew card {}",
+                            player.name,
+                            &card.color(AnsiColors::Green)
+                        ),
+                        &self.players,
+                    );
+                    self.board.place_hotel(&card)?;
+                    cards_with_players.insert(card, index);
+                    cards.push(card);
+                }
+                cards.sort();
+                // Determine turn order
+                for (index, card) in cards.iter().enumerate() {
+                    let player_index = cards_with_players.get(card).unwrap();
+                    let player_name = self.players.get(*player_index).unwrap().name.clone();
+                    self.players.get_mut(*player_index).unwrap().id = index as u32;
+                    broadcast(
+                        &format!("{} is the {}. player", player_name, index + 1),
+                        &self.players,
+                    );
+                }
+                self.players.sort();
+            } else {
+                let mut cards: Vec<Position> = Vec::new();
+                for _i in 1..=self.players.len() {
+                    let card = draw_card(&mut self.position_cards)?.unwrap();
+                    println!("Press enter to draw the card.");
+                    read_enter();
+                    println!("Drew card {}", &card.color(AnsiColors::Green));
+                    println!();
+                    cards.push(card);
+                }
+                println!("Press enter to place these hotels and start the first round!");
                 read_enter();
-                println!("Drew card {}", &card.color(AnsiColors::Green));
-                println!();
-                cards.push(card);
-            }
-            println!("Press enter to place these hotels and start the first round!");
-            read_enter();
-            for card in cards {
-                self.board.place_hotel(&card)?;
+                for card in cards {
+                    self.board.place_hotel(&card)?;
+                }
             }
             self.start_rounds()?;
             // Analyze the initial player cards
@@ -148,6 +207,54 @@ pub mod game {
             position_cards: &mut Vec<Position>,
         ) -> Result<Vec<Player>> {
             let mut players: Vec<Player> = Vec::new();
+            // Initialize new players and put them in the list
+            let mut player_id = 0;
+            let mut player_cards =
+                GameManager::init_player_cards(number_of_players, position_cards)?;
+            while !player_cards.is_empty() {
+                players.push(Player::new(player_cards.pop().unwrap(), player_id));
+                player_id += 1;
+            }
+            Ok(players)
+        }
+
+        /// Initializes the client players and one local player.
+        fn init_players_lan(
+            client_players: &mut Vec<ClientPlayer>,
+            position_cards: &mut Vec<Position>,
+        ) -> Result<Vec<Player>> {
+            let mut players: Vec<Player> = Vec::new();
+            // Initialize new players and put them in the list
+            let mut player_id = 0;
+            let mut player_cards =
+                GameManager::init_player_cards(client_players.len() as u32 + 1, position_cards)?;
+            let mut first_player = true;
+            while !player_cards.is_empty() {
+                if first_player {
+                    // Initialize local player
+                    players.push(Player::new(player_cards.pop().unwrap(), player_id));
+                    first_player = false;
+                } else {
+                    // Initialize client players
+                    let client_player = client_players.pop().unwrap();
+                    players.push(Player::new_client(
+                        player_cards.pop().unwrap(),
+                        player_id,
+                        client_player.name,
+                        client_player.tcp_stream,
+                    ));
+                }
+                player_id += 1;
+            }
+            Ok(players)
+        }
+
+        /// Initializes player cards for each player. The players cards are then put into the
+        /// vector. A position vector is returned for each player.
+        fn init_player_cards(
+            number_of_players: u32,
+            position_cards: &mut Vec<Position>,
+        ) -> Result<Vec<Vec<Position>>> {
             // Contains the position cards for each player.
             let mut player_cards: Vec<Vec<Position>> = Vec::new();
             // Put an empty vector in player_cards for each player
@@ -170,13 +277,7 @@ pub mod game {
                     }
                 }
             }
-            // Initialize new players and put them in the list
-            let mut player_id = 0;
-            while !player_cards.is_empty() {
-                players.push(Player::new(player_cards.pop().unwrap(), player_id));
-                player_id += 1;
-            }
-            Ok(players)
+            Ok(player_cards)
         }
     }
 
@@ -243,26 +344,35 @@ pub mod game {
         }
         player_money.sort();
         player_money.reverse();
+        let mut leader_board = String::new();
         for money in &player_money {
             let player_id = player_money_map.get(money).unwrap();
             let player = players.get(*player_id as usize).unwrap();
             // Should be sent do every player
             match player_id {
-                0 => println!(
-                    "{}",
-                    format!("1. Player {} - {}", player.id + 1, money).color(Rgb(225, 215, 0))
+                0 => leader_board.push_str(
+                    &format!("1. {} - {}", player.name, money)
+                        .color(Rgb(225, 215, 0))
+                        .to_string(),
                 ),
-                1 => println!(
-                    "{}",
-                    format!("2. Player {} - {}", player.id + 1, money).color(Rgb(192, 192, 192))
+                1 => leader_board.push_str(
+                    &format!("2. {} - {}", player.name, money)
+                        .color(Rgb(192, 192, 192))
+                        .to_string(),
                 ),
-                2 => println!(
-                    "{}",
-                    format!("3. Player {} - {}", player.id + 1, money).color(Rgb(191, 137, 112))
+                2 => leader_board.push_str(
+                    &format!("3. {} - {}", player.name, money)
+                        .color(Rgb(191, 137, 112))
+                        .to_string(),
                 ),
-                _ => println!("{}. Player {} - {}", player.id + 1, player.id, money),
+                _ => leader_board.push_str(
+                    &format!("{}. {} - {}", player.id + 1, player.name, money)
+                        .color(Rgb(191, 137, 112))
+                        .to_string(),
+                ),
             }
         }
+        broadcast(&leader_board, players);
         for i in 0..=players.len() - 1 {
             let money = player_money.get(i).unwrap();
             let player_id = player_money_map.get(money).unwrap();
@@ -270,15 +380,12 @@ pub mod game {
             // Should be sent do every player
             match i {
                 0 => player.print_text_ln(&format!(
-                    "Player {}, congratulations, you are the winner!",
-                    player.id + 1
+                    "{}, congratulations, you are the winner!",
+                    player.name
                 )),
-                1 => player
-                    .print_text_ln(&format!("Player {}, you are second place!", player.id + 1)),
-                2 => {
-                    player.print_text_ln(&format!("Player {}, you are third place!", player.id + 1))
-                }
-                _ => player.print_text_ln(&format!("Player {}, you have lost!", player.id + 1)),
+                1 => player.print_text_ln(&format!("{}, you are second place!", player.name)),
+                2 => player.print_text_ln(&format!("{}, you are third place!", player.name)),
+                _ => player.print_text_ln(&format!("{}, you have lost!", player.name)),
             }
         }
         Ok(())
@@ -571,7 +678,8 @@ pub mod game {
                 let hotel_chain_2 = &HotelChain::Continental;
                 setup_hotel(&mut game_manager, &mut player, &round, hotel_chain_1)?;
                 setup_hotel(&mut game_manager, &mut player, &round, hotel_chain_2)?;
-                ui::print_main_ui(
+                ui::print_main_ui_console(
+                    None,
                     None,
                     &game_manager.board,
                     &game_manager.settings,
@@ -646,6 +754,7 @@ pub mod game {
             },
             data_stream::read_enter,
             logic::{check_end_condition, place_hotel::place_hotel},
+            network::broadcast_others,
         };
 
         use super::{draw_card, hotel_chain_manager::HotelChainManager, GameManager};
@@ -712,11 +821,13 @@ pub mod game {
                 position_cards: &mut Vec<Position>,
             ) -> Result<bool> {
                 let player = players.get_mut(player_index).unwrap();
+                let current_player_name = player.name.clone();
                 // Update the players cards to new game state
                 player.analyze_cards(board, hotel_chain_manager);
                 player.sort_cards();
-                ui::print_main_ui(
-                    Some(player),
+                ui::print_main_ui_players(
+                    current_player_name.clone(),
+                    players,
                     board,
                     settings,
                     Some(self),
@@ -734,18 +845,20 @@ pub mod game {
                     bank,
                     hotel_chain_manager,
                 )?;
-                let player = players.get_mut(player_index).unwrap();
                 //2. Check if end game condition is met
                 //      If yes ask give user the option to end the game here
+                let player = players.get_mut(player_index).unwrap();
                 if let Some(condition) = check_end_condition(board, hotel_chain_manager) {
-                    ui::print_main_ui(
-                        Some(player),
+                    ui::print_main_ui_players(
+                        player.name.clone(),
+                        players,
                         board,
                         settings,
                         Some(self),
                         bank,
                         hotel_chain_manager,
                     );
+                    let player = players.get_mut(player_index).unwrap();
                     player.print_text_ln(&format!(
                         "The following game ending condition is met: {}",
                         condition.description().color(AnsiColors::Green)
@@ -761,21 +874,41 @@ pub mod game {
                 bank.update_largest_shareholders(players);
                 let player = players.get_mut(player_index).unwrap();
                 if !hotel_chain_manager.active_chains().is_empty() {
-                    ui::print_main_ui(
-                        Some(player),
+                    ui::print_main_ui_players(
+                        player.name.clone(),
+                        players,
                         board,
                         settings,
                         Some(self),
                         bank,
                         hotel_chain_manager,
                     );
-                    player.buy_stocks(bank, hotel_chain_manager);
+                    let player = players.get_mut(player_index).unwrap();
+                    match player.buy_stocks(bank, hotel_chain_manager) {
+                        None => broadcast_others(
+                            &format!("{} bought no stocks.", player.name),
+                            &current_player_name,
+                            players,
+                        ),
+                        Some(map) => {
+                            let mut out = String::new();
+                            out.push_str(&format!(
+                                "{} bought the following stocks:\n",
+                                player.name
+                            ));
+                            for (k, v) in map {
+                                out.push_str(&format!("{}: {}\n", k.name().color(k.color()), v));
+                            }
+                            broadcast_others(&out, &current_player_name, players);
+                        }
+                    }
                 }
                 // If game has ended no new card is drawn
                 if game_ended {
                     return Ok(true);
                 }
                 //4. Draw new card if the hotel has been placed
+                let player = players.get_mut(player_index).unwrap();
                 if !hotel_placed {
                     // Hotel was not placed
                     player.get_enter("Press enter to finish your turn");

@@ -157,7 +157,8 @@ pub mod place_hotel {
             round::Round,
             GameManager,
         },
-        utils::remove_content_from_vec,
+        network::{broadcast, broadcast_others},
+        utils::{chains_to_print, remove_content_from_vec},
     };
 
     /// Place a hotel on the board.
@@ -175,9 +176,8 @@ pub mod place_hotel {
         bank: &mut Bank,
         hotel_chain_manager: &mut HotelChainManager,
     ) -> Result<bool> {
-        let mut player = players.get_mut(player_index).unwrap();
+        let player = players.get_mut(player_index).unwrap();
         player.print_text_ln("Please choose what hotel card you would like to play.");
-        //TODO Add function that checkes what cards can be played
         // Check if player has at least one card that can be played
         if player.only_illegal_cards() {
             player.print_text_ln("You have no card that could be played.");
@@ -186,8 +186,10 @@ pub mod place_hotel {
         let played_position = player.read_card()?;
         // Place hotel
         board.place_hotel(&played_position.position)?;
-        ui::print_main_ui(
-            Some(player),
+        let player_name = player.name.clone();
+        ui::print_main_ui_players(
+            player.name.clone(),
+            players,
             board,
             settings,
             Some(round),
@@ -195,7 +197,15 @@ pub mod place_hotel {
             hotel_chain_manager,
         );
         match played_position.place_hotel_case {
-            PlaceHotelCase::SingleHotel => (),
+            PlaceHotelCase::SingleHotel => broadcast_others(
+                &format!(
+                    "{} has placed a hotel on {}",
+                    player_name,
+                    played_position.position.color(AnsiColors::Green)
+                ),
+                &player_name,
+                players,
+            ),
             PlaceHotelCase::NewChain(positions) => start_chain(
                 positions,
                 player_index,
@@ -205,7 +215,17 @@ pub mod place_hotel {
                 bank,
             )?,
             PlaceHotelCase::ExtendsChain(chain, positions) => {
-                extend_chain(chain, positions, hotel_chain_manager, board)?
+                let len = positions.len();
+                extend_chain(chain, positions, hotel_chain_manager, board)?;
+                broadcast(
+                    &format!(
+                        "{} has extended the chain {} by {} hotel(s)",
+                        player_name,
+                        chain.name().color(chain.color()),
+                        len,
+                    ),
+                    players,
+                );
             }
             PlaceHotelCase::Fusion(chains, origin) => fuse_chains(
                 chains,
@@ -220,14 +240,6 @@ pub mod place_hotel {
             )?,
             _ => (),
         }
-        // Handle cases
-        //TODO Add logic for the following cases:
-        //1. The board piece founds a new hotel chain
-        //2. The board piece extends a existing chain - Done
-        //  2.1 The board piece extends a existing chain by more than 1 piece - Done
-        //3. The board piece creates a fusion between chains
-        //  3.1 Add Logic that can handle fusions between two chains
-        //  3.2 Add Logic that can handle fusions between two ore more chains
         Ok(true)
     }
 
@@ -244,7 +256,6 @@ pub mod place_hotel {
         bank: &mut Bank,
     ) -> Result<()> {
         let player = players.get_mut(player_index).unwrap();
-        //TODO Add logic that makes the player select a new chain
         let mut available_chains = HashMap::new();
         let mut available_chains_identifier = Vec::new();
         for chain in HotelChain::iterator() {
@@ -277,7 +288,16 @@ pub mod place_hotel {
 
         let chain = available_chains.get(&input).unwrap();
         hotel_chain_manager.start_chain(*chain, positions, board, player, bank)?;
+        let player_name = player.name.clone();
         bank.update_largest_shareholders(players);
+        broadcast(
+            &format!(
+                "{} has stared the new chain {}",
+                player_name,
+                chain.name().color(chain.color())
+            ),
+            players,
+        );
         Ok(())
     }
 
@@ -310,17 +330,21 @@ pub mod place_hotel {
         round: &Round,
         settings: &Settings,
     ) -> Result<()> {
-        let player = players.get_mut(player_index).unwrap();
         // Contains the order in which the hotels are fused with the surviving chain.
         let mut fuse_order = Vec::new();
         let surviving_chain;
         //TODO This text should be broadcasted to each player
-        player.print_text_ln(&format!(
-            "Fusion between {} chains at {}!",
-            chains.len(),
-            &origin.color(AnsiColors::Green).to_string()
-        ));
+        broadcast(
+            &format!(
+                "Fusion between {} chains at {}!",
+                chains.len(),
+                &origin.color(AnsiColors::Green)
+            ),
+            players,
+        );
         // Determine the order in which the hotels are fused
+        let player = players.get_mut(player_index).unwrap();
+        let player_name = player.name.clone();
         match chains.len() {
             2 => {
                 let chain1 = chains.get(0).unwrap();
@@ -355,6 +379,8 @@ pub mod place_hotel {
                     }
                     None => {
                         // All three chains are equally long
+                        broadcast_others(&format!("{} is deciding the fusion order between {}", &player_name, chains_to_print(&chains)), &player_name, players);
+                        let player = players.get_mut(player_index).unwrap();
                         player.print_text_ln("All three chains are equally long.");
                         player.print_text_ln("Note: The chain that you pic first will be fused into the second and the second will be fused into the third.");
                         let resolved_order =
@@ -366,7 +392,8 @@ pub mod place_hotel {
                 }
             }
             4 => {
-                //TODO this should be broadcasted to every player
+                broadcast_others(&format!("{} is deciding the fusion order between {}", &player_name, chains_to_print(&chains)), &player_name, players);
+                let player = players.get_mut(player_index).unwrap();
                 player.print_text_ln("Concratulations, you are fusing 4 chains into one.");
                 player.print_text_ln("Because this scenario is so unlikely i did not code a way to automatically detect the fusion order.");
                 player
@@ -398,8 +425,9 @@ pub mod place_hotel {
         )?;
         if fuse_order.len() > 1 {
             let player = players.get_mut(player_index).unwrap();
-            ui::print_main_ui(
-                Some(player),
+            ui::print_main_ui_players(
+                player.name.clone(),
+                players,
                 board,
                 settings,
                 Some(round),
@@ -418,8 +446,9 @@ pub mod place_hotel {
             )?;
             if fuse_order.len() > 2 {
                 let player = players.get_mut(player_index).unwrap();
-                ui::print_main_ui(
-                    Some(player),
+                ui::print_main_ui_players(
+                    player.name.clone(),
+                    players,
                     board,
                     settings,
                     Some(round),
@@ -469,26 +498,37 @@ pub mod place_hotel {
             }
             Ordering::Equal => {
                 // Player decides which chain should fuse into which
-                let fusion_case = player.read_input(
-                    format!(
-                        "[1] = Fuse {} in {}\n[2] = Fuse {} in {}\nChoose a case: ",
+                loop {
+                    let message = format!(
+                        "[1] = Fuse {} in {}\n[2] = Fuse {} in {}",
                         chain1.name().color(chain1.color()),
                         chain2.name().color(chain2.color()),
                         chain2.name().color(chain2.color()),
                         chain1.name().color(chain1.color())
-                    ),
-                    vec![1, 2],
-                );
-                match fusion_case {
-                    1 => {
-                        fuse_order.push(chain1);
-                        fuse_order.push(chain2);
+                    );
+                    player.print_text_ln(&message);
+                    let fusion_case =
+                        player.read_input(String::from("Choose a case: "), vec![1, 2]);
+                    let mut confirm_message = String::new();
+                    match fusion_case {
+                        1 => confirm_message.push_str(&format!("{} in {}", chain1.name().color(chain1.color()), chain2.name().color(chain2.color()))),
+                        2 => confirm_message.push_str(&format!("{} in {}", chain2.name().color(chain2.color()), chain1.name().color(chain1.color()))),
+                        _ => (),
                     }
-                    2 => {
-                        fuse_order.push(chain2);
-                        fuse_order.push(chain1);
+                    if !player.get_correct() {
+                        continue;
                     }
-                    _ => (),
+                    match fusion_case {
+                        1 => {
+                            fuse_order.push(chain1);
+                            fuse_order.push(chain2);
+                        }
+                        2 => {
+                            fuse_order.push(chain2);
+                            fuse_order.push(chain1);
+                        }
+                        _ => (),
+                    }
                 }
             }
         }
@@ -705,6 +745,17 @@ pub mod place_hotel {
         bank: &mut Bank,
     ) -> Result<()> {
         let player = players.get_mut(player_index).unwrap();
+        let player_name = player.name.clone();
+        broadcast_others(
+            &format!(
+                "Chain {} is being fused into {}",
+                dead.name().color(dead.color()),
+                alive.name().color(alive.color())
+            ),
+            &player_name,
+            players,
+        );
+        let player = players.get_mut(player_index).unwrap();
         player.get_enter(&format!(
             "Press enter to fuse {} into {} ",
             dead.name().color(dead.color()).to_string(),
@@ -722,7 +773,9 @@ pub mod place_hotel {
             let player = players.get_mut(index).unwrap();
             // check if player has stocks if yes let them handle the fusion stocks
             if *player.owned_stocks.stocks_for_hotel(dead) > 0 {
-                player.handle_fusion_stocks(dead, alive, bank, hotel_chain_manager)?;
+                let stocks_status =
+                    player.handle_fusion_stocks(dead, alive, bank, hotel_chain_manager)?;
+                broadcast_others(&format!("{} did the following with their stocks:\nExchanged: {}\nSold: {}\nKeept: {}", player_name, stocks_status.0, stocks_status.1, stocks_status.2), &player_name, players);
             }
         }
         // 3. Fuse chains on board
@@ -1199,8 +1252,9 @@ mod tests {
                 &mut bank,
             )?;
         }
-        ui::print_main_ui(
+        ui::print_main_ui_console(
             Some(&player),
+            Some(&player.name),
             &board,
             &Settings::new(false, false, false),
             None,

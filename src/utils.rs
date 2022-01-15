@@ -1,6 +1,9 @@
 use std::ops::RangeInclusive;
 
 use miette::{miette, Result};
+use owo_colors::OwoColorize;
+
+use crate::base_game::hotel_chains::HotelChain;
 
 /// Transforms the range into a vector
 pub fn generate_number_vector(min: u32, max: u32) -> Vec<u32> {
@@ -51,4 +54,22 @@ pub fn get_content_from_vec<T: PartialEq>(to_find: T, vec: &Vec<T>) -> Result<&T
             "Unable to get value from vector: Value was not found."
         ))
     }
+}
+
+/// Writes the chains contained in the chain array into a nicely formatted string.
+///
+/// This output could look like this: `Oriental, Prestige, Festival` (The chain names will be
+/// colored)
+pub fn chains_to_print(chains: &Vec<HotelChain>) -> String {
+    let mut chains_to_print = String::new();
+    let mut first_chain = true;
+    for chain in chains {
+        if first_chain {
+            first_chain = false;
+        } else {
+            chains_to_print.push_str(", ");
+        }
+        chains_to_print.push_str(&chain.name().color(chain.color()).to_string());
+    }
+    chains_to_print
 }

@@ -7,11 +7,12 @@ pub mod board {
     };
 
     use self::letter::{next_letter, prev_letter, LETTERS};
+    use super::hotel_chains::HotelChain;
+    use core::borrow;
     use miette::{miette, Result};
     use owo_colors::{colors, AnsiColors, OwoColorize, Rgb};
+    use std::cmp::Ordering;
     use std::fmt::{self, Display, Formatter};
-
-    use super::hotel_chains::HotelChain;
 
     /// The board object that contains all information about the current state of the board.
     pub struct Board {
@@ -72,6 +73,48 @@ pub mod board {
                 }
             }
             println!("");
+        }
+
+        /// Returns a vector that contains strings that describe the current state of the board.
+        pub fn get_board_state(&self, large_board: bool) -> Vec<String> {
+            let mut board_state = Vec::new();
+            let mut letters = LETTERS.iter();
+            let mut first_line = true;
+            for x in &self.pieces {
+                if !first_line {
+                    if large_board {
+                        board_state.push(String::from(
+                            "--------------------------------------------------",
+                        ));
+                    }
+                } else {
+                    first_line = false;
+                }
+                let mut current_line = String::new();
+                current_line.push_str(&format!("{} ", letters.next().unwrap()));
+                for y in x {
+                    if large_board {
+                        current_line.push_str(&format!("| {} ", y.print_text(true)));
+                    } else {
+                        current_line.push_str(&format!("{}  ", y.print_text(true)));
+                    }
+                }
+                board_state.push(String::from(current_line));
+            }
+            let mut current_line = String::new();
+            if large_board {
+                current_line.push_str("   ");
+                for x in 1..=12 {
+                    current_line.push_str(&format!("{:2}  ", &x));
+                }
+            } else {
+                current_line.push_str(" ");
+                for x in 1..=12 {
+                    current_line.push_str(&format!("{:2} ", &x));
+                }
+            }
+            board_state.push(String::from(current_line));
+            board_state
         }
 
         /// Places a hotel at the designated coordinates. Does not check if this placement is valid acording to the game rules.
@@ -205,10 +248,24 @@ pub mod board {
     }
 
     /// Symbolizes a position on the board
-    #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Ord, Eq, Hash)]
+    #[derive(Clone, Copy, Debug, PartialEq, Ord, Eq, Hash)]
     pub struct Position {
         pub letter: char,
         pub number: u32,
+    }
+
+    impl PartialOrd for Position {
+        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+            match self.number.cmp(&other.number) {
+                Ordering::Less => Some(Ordering::Less),
+                Ordering::Greater => Some(Ordering::Greater),
+                Ordering::Equal => match self.letter.cmp(&other.letter) {
+                    Ordering::Less => Some(Ordering::Less),
+                    Ordering::Greater => Some(Ordering::Greater),
+                    Ordering::Equal => Some(Ordering::Equal),
+                },
+            }
+        }
     }
 
     impl Position {
@@ -1103,10 +1160,9 @@ pub mod bank {
                     largest_shareholder.add_money(largest_shareholder_bonus);
                     if inform_player {
                         largest_shareholder.get_enter(&format!(
-                        "Player {}, you recieved {}$ because you where the largest shareholder.",
-                        largest_shareholder.id + 1,
-                        largest_shareholder_bonus
-                    ));
+                            "{}, you recieved {}$ because you where the largest shareholder. (press enter to continue)",
+                            largest_shareholder.name, largest_shareholder_bonus
+                        ));
                     }
                     match second_largest_shareholders.len() {
                         1 => {
@@ -1115,7 +1171,7 @@ pub mod bank {
                                 .unwrap();
                             second_largest_shareholder.add_money(second_largest_shareholder_bonus);
                             if inform_player {
-                                second_largest_shareholder.get_enter(&format!("Player {}, you recieved {}$ because you where the second largest shareholder.", second_largest_shareholder.id+1, second_largest_shareholder_bonus));
+                                second_largest_shareholder.get_enter(&format!("{}, you recieved {}$ because you where the second largest shareholder. (press enter to continue)", second_largest_shareholder.name, second_largest_shareholder_bonus));
                             }
                         }
                         _ => {
@@ -1129,7 +1185,7 @@ pub mod bank {
                                 let player = players.get_mut(*i as usize).unwrap();
                                 player.add_money(bonus);
                                 if inform_player {
-                                    player.get_enter(&format!("Player {}, you recieved {}$ because you where one of the second largest shareholders.", player.id+1, bonus));
+                                    player.get_enter(&format!("{}, you recieved {}$ because you where one of the second largest shareholders. (press enter to continue)", player.name, bonus));
                                 }
                             }
                         }
@@ -1145,7 +1201,7 @@ pub mod bank {
                         let player = players.get_mut(*i as usize).unwrap();
                         player.add_money(bonus);
                         if inform_player {
-                            player.get_enter(&format!("Player {}, you recieved {}$ because you where one of the largest shareholders.", player.id+1, bonus));
+                            player.get_enter(&format!("{}, you recieved {}$ because you where one of the largest shareholders. (press enter to continue)", player.name, bonus));
                         }
                     }
                 }
@@ -1544,9 +1600,13 @@ pub mod bank {
 pub mod player {
     use std::{
         cmp::min,
+        cmp::Ordering,
         cmp::PartialEq,
         cmp::PartialOrd,
         collections::HashMap,
+        fmt::Debug,
+        io::{BufRead, BufReader, Write},
+        net::TcpStream,
         ops::RangeInclusive,
         slice::{IterMut, SliceIndex},
         str::FromStr,
@@ -1562,6 +1622,7 @@ pub mod player {
             GameManager,
         },
         logic::place_hotel::{IllegalPlacement, PlaceHotelCase},
+        network::send_string,
         utils::generate_number_vector,
     };
     use miette::{miette, Result};
@@ -1571,7 +1632,7 @@ pub mod player {
     use super::board::{self, AnalyzedPosition, Board};
 
     /// Stores all variables that belong to the player
-    #[derive(PartialEq)]
+    //#[derive(PartialEq)]
     pub struct Player {
         /// The money the player currently has
         pub money: u32,
@@ -1581,7 +1642,48 @@ pub mod player {
         pub analyzed_cards: Vec<AnalyzedPosition>,
         /// The id of the player (This should be the index at which this player is stored in the players vecor in the game manager).
         pub id: u32,
+        /// The name of the player
+        pub name: String,
+        /// The tcp stream that belongs to this player. Is used to communicate with the players client.
+        pub tcp_stream: Option<TcpStream>,
     }
+
+    impl PartialEq for Player {
+        fn eq(&self, other: &Player) -> bool {
+            self.id == other.id && self.name == other.name && self.money == other.money
+        }
+    }
+
+    /// Players will be sorted by id, if id is same than by name
+    impl PartialOrd for Player {
+        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+            match self.id.cmp(&other.id) {
+                Ordering::Less => Some(Ordering::Less),
+                Ordering::Greater => Some(Ordering::Greater),
+                Ordering::Equal => match self.name.cmp(&other.name) {
+                    Ordering::Less => Some(Ordering::Less),
+                    Ordering::Greater => Some(Ordering::Greater),
+                    Ordering::Equal => Some(Ordering::Equal),
+                },
+            }
+        }
+    }
+
+    impl Ord for Player {
+        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+            match self.id.cmp(&other.id) {
+                Ordering::Less => Ordering::Less,
+                Ordering::Greater => Ordering::Greater,
+                Ordering::Equal => match self.name.cmp(&other.name) {
+                    Ordering::Less => Ordering::Less,
+                    Ordering::Greater => Ordering::Greater,
+                    Ordering::Equal => Ordering::Equal,
+                },
+            }
+        }
+    }
+
+    impl Eq for Player {}
 
     impl Player {
         pub fn new(start_cards: Vec<Position>, id: u32) -> Self {
@@ -1595,6 +1697,28 @@ pub mod player {
                 analyzed_cards: cards,
                 /// The unique player id, should be the same as the position in the players vector
                 id,
+                name: format!("Player {}", id + 1),
+                tcp_stream: None,
+            }
+        }
+
+        pub fn new_client(
+            start_cards: Vec<Position>,
+            id: u32,
+            name: String,
+            tcp_stream: TcpStream,
+        ) -> Self {
+            let mut cards = Vec::new();
+            for position in start_cards {
+                cards.push(AnalyzedPosition::new_unchecked(position));
+            }
+            Self {
+                money: 6000,
+                owned_stocks: Stocks::new(),
+                analyzed_cards: cards,
+                id,
+                name,
+                tcp_stream: Some(tcp_stream),
             }
         }
 
@@ -1686,6 +1810,60 @@ pub mod player {
             }
         }
 
+        /// Returns the current state of the player
+        pub fn player_ui(&self) -> Vec<String> {
+            let mut ui = Vec::new();
+            // Print money
+            ui.push(format!(
+                "{} {}$",
+                String::from("Money:").bright_green(),
+                self.money
+            ));
+            // Print cards
+            let mut cards = String::new();
+            cards.push_str(&String::from("Cards: ").bright_green().to_string());
+            let mut first_card = true;
+            for analyzed_card in &self.analyzed_cards {
+                if first_card {
+                    first_card = false;
+                } else {
+                    cards.push_str(", ");
+                }
+                cards.push_str(&format!("{}", analyzed_card));
+            }
+            ui.push(cards);
+            // Print stocks
+            //TODO Add functionality that a * in gold is printed when the player is the largest
+            //shareholder or a silver * when the player is the second largest shareholder.
+            //The star is positioned here: Airport*:
+            let mut stocks = String::new();
+            stocks.push_str(&String::from("Stocks: ").bright_green().to_string());
+            first_card = true;
+            for chain in HotelChain::iterator() {
+                if first_card {
+                    first_card = false;
+                } else {
+                    stocks.push_str(", ");
+                }
+                stocks.push_str(&format!(
+                    "{}: {}",
+                    chain.name().color(chain.color()),
+                    self.owned_stocks.stocks_for_hotel(chain)
+                ));
+            }
+            ui.push(stocks);
+            ui
+            //TODO Maybe add fields:
+            //- "Current estimated wealth". That displayes the amount of
+            //  money the player would have now if all shares where sold and the rewards for the
+            //  largest shareholders where given now. (But is only enabled if special info flag is
+            //  given)
+            //- "Current stock value" - Value of alls stocks if sold now
+            //- "Total stocks" - Amount of all stocks the player has
+            //- Net profit: Stores all expenses the player made and calculate the net profit the
+            // would make if all stocks where sold now
+        }
+
         //TODO Make network compatible (Maybe return string that can then be printed)
         /// Prints the current player to the console
         pub fn print_player_ui(&self) {
@@ -1746,7 +1924,7 @@ pub mod player {
                 self.get_enter("Press enter to draw a new card");
             }
             if !skip_dialogues {
-                self.print_text(&format!(
+                self.print_text_ln(&format!(
                     "Card drawn: {}",
                     &card.to_string().color(AnsiColors::Green)
                 ));
@@ -1798,20 +1976,20 @@ pub mod player {
         /// The player is involved in a fusion.
         /// This function will ask the player what they would like to do with the stocks that they
         /// have of the chain that is being fused.
+        /// # Returns
+        /// *`Ok(u32, u32)` - Contains the amount of stocks the player traded, sold and keept.
         pub fn handle_fusion_stocks(
             &mut self,
             dead: &HotelChain,
             alive: &HotelChain,
             bank: &mut Bank,
             hotel_chain_manager: &HotelChainManager,
-        ) -> Result<()> {
+        ) -> Result<(u32, u32, u32)> {
             let number_of_stocks = *self.owned_stocks.stocks_for_hotel(dead);
             self.print_text_ln(&format!(
-                "Player {}, it's your turn to decide what you would like to do with your {} stock(s):",
-                self.id + 1,
-                number_of_stocks
+                "{}, it's your turn to decide what you would like to do with your {} stock(s):",
+                self.name, number_of_stocks
             ));
-            let stock_price = Bank::stock_price(hotel_chain_manager, dead);
             let mut stocks_unasigned;
             let mut stocks_to_exchange = 0;
             let mut stocks_to_sell;
@@ -1882,12 +2060,12 @@ pub mod player {
                         "- not stocks left to sell".color(Rgb(105, 105, 105))
                     ));
                 }
-                println!(
+                self.print_text_ln(&format!(
                     "The following will happen to your stocks:\nTotal {} stocks: {} - {} = {}\nTotal {} stocks: {} + {} = {}\nMoney: {}$ + {}$ = {}$",
                     dead.name().color(dead.color()), self.owned_stocks.stocks_for_hotel(dead), stocks_to_sell+&stocks_to_exchange, self.owned_stocks.stocks_for_hotel(dead)-(stocks_to_sell+stocks_to_exchange),
                     alive.name().color(alive.color()), self.owned_stocks.stocks_for_hotel(alive), new_alive_stocks_number, self.owned_stocks.stocks_for_hotel(alive)+new_alive_stocks_number,
                     self.money, Bank::stock_price(hotel_chain_manager, dead)*stocks_to_sell, self.money+Bank::stock_price(hotel_chain_manager, dead)*stocks_to_sell,
-                );
+                ));
                 match self.read_input(
                     String::from("Is this correct? [Y/n]: "),
                     vec!['Y', 'y', 'N', 'n'],
@@ -1907,15 +2085,22 @@ pub mod player {
             if stocks_to_sell > 0 {
                 bank.sell_stock(self, stocks_to_sell, dead, hotel_chain_manager)?;
             }
-            Ok(())
+            Ok((stocks_to_exchange, stocks_to_sell, stocks_unasigned))
         }
 
         /// If chains are active, the player is asked if they would like to buy a maximum of three
         /// stocks from available chains.
-        pub fn buy_stocks(&mut self, bank: &mut Bank, hotel_chain_manager: &HotelChainManager) {
+        /// # Returns
+        /// * `None` - The player did not buy any stocks
+        /// * `Some(HashMap(HotelChain, u32))` - The player bought stocks, what stocks and how many is stored in the hashmap
+        pub fn buy_stocks(
+            &mut self,
+            bank: &mut Bank,
+            hotel_chain_manager: &HotelChainManager,
+        ) -> Option<HashMap<HotelChain, u32>> {
             // Check if stocks are available to be bought
             if hotel_chain_manager.active_chains().len() == 0 {
-                return ();
+                return None;
             }
             // Check if player has enough money to buy the lowest costing stock
             // Stores the value of the stock that costs the least
@@ -1927,8 +2112,8 @@ pub mod player {
                 }
             }
             self.print_text_ln(&format!(
-                "Player {}, you can buy a maximum of three stocks now:",
-                self.id + 1
+                "{}, you can buy a maximum of three stocks now:",
+                self.name
             ));
             // Runs until the player confirms the stocks bought
             loop {
@@ -2007,7 +2192,7 @@ pub mod player {
                 if stocks_bought.is_empty() {
                     self.print_text_ln("You did not buy any stocks.");
                     if self.get_correct() {
-                        break;
+                        return None;
                     }
                     continue;
                 }
@@ -2039,34 +2224,71 @@ pub mod player {
                         bank.buy_stock(hotel_chain_manager, &k, self).unwrap();
                     }
                 }
-                break;
+                return Some(stocks_bought);
             }
         }
 
-        /// Promts the user to enter something
+        /// Promts the user to enter something.
+        ///
+        /// If the player is a client, only the text before the first `\n` is transmitted.
         /// # Arguments
         /// * `text` - The text that is displayed
         /// * `allowed_values` - The values that are allowed to be entered
         /// * `T` - The data type that should be read
-        /// # Note
-        /// The self parameter is not yet used
         pub fn read_input<T: 'static + FromStr + PartialEq>(
             &self,
             text: String, //TODO Change to &str
             allowed_values: Vec<T>,
         ) -> T {
-            print!("{}", text);
-            input::<T>().inside(allowed_values).get()
-            //TODO Add network functionality
+            if self.tcp_stream.is_none() {
+                // Player does not play fia lan
+                print!("{}", text);
+                input::<T>().inside(allowed_values).get()
+            } else {
+                // Player plays fia lan
+                let message = text.split("\n").nth(0).unwrap();
+                let mut br = BufReader::new(self.tcp_stream.as_ref().unwrap());
+                loop {
+                    send_string(self, message, "$Input");
+                    let mut buffer = String::new();
+                    if let Err(err) = br.read_line(&mut buffer) {
+                        println!("Unable to send data to player {}: {}", self.name, err);
+                    }
+                    let input = buffer.trim();
+                    match input.parse::<T>() {
+                        Ok(ok) => {
+                            if !allowed_values.contains(&ok) {
+                                self.print_text_ln("That value did not pass, please try again!");
+                                continue;
+                            }
+                            return ok;
+                        }
+                        Err(_err) => {
+                            self.print_text_ln("That value did not pass, please try again!");
+                        }
+                    };
+                }
+            }
         }
 
-        /// Prints a text to the player and waits until they pressed enter
-        /// # Note
-        /// The self parameter is not yet used
+        /// Prints a text to the player and waits until they pressed enter.
+        ///
+        /// If the player is a client, only the text before the first `\n` is transmitted.
         pub fn get_enter(&self, text: &str) {
-            print!("{}", &text);
-            read_enter();
-            //TODO Add network functionality
+            if self.tcp_stream.is_none() {
+                // Player does not play fia lan
+                print!("{}", &text);
+                read_enter();
+            } else {
+                // Player plays fia lan
+                let message = text.split("\n").nth(0).unwrap();
+                send_string(self, message, "$Input");
+                let mut br = BufReader::new(self.tcp_stream.as_ref().unwrap());
+                let mut buffer = String::new();
+                if let Err(err) = br.read_line(&mut buffer) {
+                    println!("Unable to send data to player {}: {}", self.name, err);
+                }
+            }
         }
 
         /// Displayes the message `Is this correct? [Y/n]: ` to the player and returns if they
@@ -2086,21 +2308,37 @@ pub mod player {
 
         /// Prints the text to the player.
         /// Linebreak is not written.
-        /// # Note
-        /// The self parameter is not yet used
         pub fn print_text(&self, text: &str) {
-            print!("{}", &text);
-            //TODO Add network functionality
+            if self.tcp_stream.is_none() {
+                // Player does not play fia lan
+                print!("{}", &text);
+            } else {
+                // Player plays fia lan
+                send_string(self, text, "$Print");
+            }
         }
 
         /// Prints the text to the player.
         /// A linebreak is written.
-        /// # Note
-        /// The self parameter is not yet used
         pub fn print_text_ln(&self, text: &str) {
-            println!("{}", &text);
-            //TODO Add network functionality
+            if self.tcp_stream.is_none() {
+                // Player does not play fia lan
+                println!("{}", &text);
+            } else {
+                // Player plays fia lan
+                send_string(self, text, "$Println");
+            }
         }
+    }
+
+    /// Returns the player with the name if they exist.
+    pub fn player_by_name<'a>(name: &str, players: &'a Vec<Player>) -> Option<&'a Player> {
+        for player in players {
+            if player.name == name {
+                return Some(&player);
+            }
+        }
+        None
     }
 }
 
@@ -2115,44 +2353,147 @@ pub mod ui {
     };
     use owo_colors::{AnsiColors, DynColors, OwoColorize, Rgb};
 
-    use super::player::Player;
+    use super::player::{player_by_name, Player};
 
-    /// Prints the main user interface.
-    /// # Arguments
-    /// * `player` - The current player
-    /// * `board` - The current game board
-    /// * `settings` - The games settings
-    /// * `round` - The current game round
-    /// * `bank` - The bank of the game
-    /// * `hotel_chain_manager` - The hotel chain manager of the game
-    pub fn print_main_ui(
-        player: Option<&Player>,
+    /// Prints the main ui for every player.
+    /// If all players are on the same machine the ui is only printed once.
+    pub fn print_main_ui_players(
+        current_player_name: String,
+        players: &Vec<Player>,
         board: &Board,
         settings: &Settings,
         round: Option<&Round>,
         bank: &Bank,
         hotel_chain_manager: &HotelChainManager,
     ) {
-        board.print(settings.large_board);
-        println!();
+        let mut written_to_console = false;
+        for player in players {
+            player.print_text_ln("");
+            if all_players_local(players) {
+                let current_player = player_by_name(&current_player_name, players).unwrap();
+                print_main_ui_console(
+                    Some(current_player),
+                    Some(&current_player_name),
+                    board,
+                    settings,
+                    round,
+                    bank,
+                    hotel_chain_manager,
+                );
+                written_to_console = true;
+            }
+            if player.tcp_stream.is_none() {
+                if !written_to_console {
+                    print_main_ui_console(
+                        Some(player),
+                        Some(&current_player_name),
+                        board,
+                        settings,
+                        round,
+                        bank,
+                        hotel_chain_manager,
+                    );
+                    written_to_console = true;
+                }
+            } else {
+                for line in main_ui(
+                    Some(player),
+                    Some(&current_player_name),
+                    board,
+                    settings,
+                    round,
+                    bank,
+                    hotel_chain_manager,
+                ) {
+                    player.print_text_ln(&line);
+                }
+            }
+        }
+    }
+
+    /// Checks if all playing players are playing on one pc
+    fn all_players_local(players: &Vec<Player>) -> bool {
+        for player in players {
+            if player.tcp_stream.is_some() {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Prints the main ui to the console
+    pub fn print_main_ui_console(
+        player: Option<&Player>,
+        current_player_name: Option<&String>,
+        board: &Board,
+        settings: &Settings,
+        round: Option<&Round>,
+        bank: &Bank,
+        hotel_chain_manager: &HotelChainManager,
+    ) {
+        let main_ui = main_ui(
+            player,
+            current_player_name,
+            board,
+            settings,
+            round,
+            bank,
+            hotel_chain_manager,
+        );
+        for line in main_ui {
+            println!("{}", line);
+        }
+    }
+
+    /// Returns the main user interface.
+    /// # Arguments
+    /// * `player` - The player for which the money, cards and stocks should be displayed
+    /// * `current_player_name` - The name of the player whos turn it is
+    /// * `board` - The current game board
+    /// * `settings` - The games settings
+    /// * `round` - The current game round
+    /// * `bank` - The bank of the game
+    /// * `hotel_chain_manager` - The hotel chain manager of the game
+    /// # Returns
+    /// * `Vec<String>` - This vector contains the contents of the main ui
+    pub fn main_ui(
+        player: Option<&Player>,
+        current_player_name: Option<&String>,
+        board: &Board,
+        settings: &Settings,
+        round: Option<&Round>,
+        bank: &Bank,
+        hotel_chain_manager: &HotelChainManager,
+    ) -> Vec<String> {
+        let mut main_ui = Vec::new();
+        for line in board.get_board_state(settings.large_board) {
+            main_ui.push(line);
+        }
+        main_ui.push(String::new());
         match round {
-            None => println!("Round 0 - Game has not been started yet"),
+            None => main_ui.push(String::from("Round 0 - Game has not been started yet")),
             Some(round) => {
-                println!("Round {}", round.number);
+                main_ui.push(format!("Round {}", round.number));
+                match current_player_name {
+                    None => main_ui.push(String::from("Current player: None")),
+                    Some(name) => main_ui.push(format!("Current player: {}", name)),
+                }
                 match player {
-                    None => println!("Player unavailable"),
+                    None => main_ui.push(String::from("Player unavailable")),
                     Some(player) => {
-                        println!("Player {}:", player.id + 1);
-                        player.print_player_ui();
+                        main_ui.push(format!("{}, your status:", player.name));
+                        for line in player.player_ui() {
+                            main_ui.push(line);
+                        }
                     }
                 };
             }
         };
-        println!();
-        println!("{}", String::from("Game stats:").bright_green());
-        println!("{:15}||      Hotels       ||        Stocks          ||      Bonuses for the majority shareholders", "");
-        println!("{:15}|| Number ||  Range  || Bank || Owned || Value || Largest shareholder || Second largest shareholder", "");
-        println!("==================================================================================================================");
+        main_ui.push(String::new());
+        main_ui.push(format!("{}", String::from("Game stats:").bright_green()));
+        main_ui.push(format!("{:15}||      Hotels       ||        Stocks          ||      Bonuses for the majority shareholders", ""));
+        main_ui.push(format!("{:15}|| Number ||  Range  || Bank || Owned || Value || Largest shareholder || Second largest shareholder", ""));
+        main_ui.push(format!("=================================================================================================================="));
         for chain in HotelChain::iterator() {
             // Set the color of the values
             let enable_color = hotel_chain_manager.chain_status(chain);
@@ -2191,14 +2532,15 @@ pub mod ui {
                     settings.extra_info,
                 ),
             };
-            println!(
+            main_ui.push(format!(
                 "{:15}{}{}{}",
                 chain.name().color(chain_color),
                 formatted_string1.color(color),
                 stock_status_symbol,
                 formatted_string2.color(color),
-            );
+            ));
         }
+        main_ui
     }
 
     /// Used to display a little star that indicates if the player is largest or second largest
