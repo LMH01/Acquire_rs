@@ -345,28 +345,26 @@ pub mod game {
         player_money.sort();
         player_money.reverse();
         let mut leader_board = String::new();
-        for money in &player_money {
-            let player_id = player_money_map.get(money).unwrap();
-            let player = players.get(*player_id as usize).unwrap();
-            // Should be sent do every player
-            match player_id {
+        for (index, (money, p_id)) in player_money_map.iter().enumerate() {
+            let player = players.get(*p_id as usize).unwrap();
+            match index {
                 0 => leader_board.push_str(
-                    &format!("1. {} - {}", player.name, money)
+                    &format!("1. {} - {}\n", player.name, money)
                         .color(Rgb(225, 215, 0))
                         .to_string(),
                 ),
                 1 => leader_board.push_str(
-                    &format!("2. {} - {}", player.name, money)
+                    &format!("2. {} - {}\n", player.name, money)
                         .color(Rgb(192, 192, 192))
                         .to_string(),
                 ),
                 2 => leader_board.push_str(
-                    &format!("3. {} - {}", player.name, money)
+                    &format!("3. {} - {}\n", player.name, money)
                         .color(Rgb(191, 137, 112))
                         .to_string(),
                 ),
                 _ => leader_board.push_str(
-                    &format!("{}. {} - {}", player.id + 1, player.name, money)
+                    &format!("{}. {} - {}\n", player.id + 1, player.name, money)
                         .color(Rgb(191, 137, 112))
                         .to_string(),
                 ),
