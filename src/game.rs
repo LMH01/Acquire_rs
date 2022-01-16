@@ -21,7 +21,6 @@ pub mod game {
 
     use self::{hotel_chain_manager::HotelChainManager, round::Round};
 
-    //TODO Check what field are required to be public, make private if not used
     /// Contains all variables required to play a game.\
     /// This is the main interface to access game functions. Everything that happens in the game
     /// will run through this object.\
@@ -185,7 +184,6 @@ pub mod game {
                 }
                 round_number += 1;
             }
-            //TODO Add final account (=Endabrechnung)
             final_account(&mut self.players, &mut self.bank, &self.hotel_chain_manager)?;
             Ok(())
         }
@@ -494,11 +492,6 @@ pub mod game {
                 player: &mut Player,
                 bank: &mut Bank,
             ) -> Result<()> {
-                //TODO Add check if each position is next to each other. If not return error.
-                //      Add check if no other chains are next to this chain.
-                //      Maybe these checks are overkill and not worth to implement as these
-                //      conditions are normally checked before this function is called.
-
                 if positions.len() < 2 {
                     return Err(miette!(
                         "Unable to start new chain of hotel {}: Not enough buildings!",
@@ -745,13 +738,16 @@ pub mod game {
         use crate::{
             base_game::{
                 bank::Bank,
-                board::{Board, Position},
+                board::{AnalyzedPosition, Board, Position},
                 player::Player,
                 settings::Settings,
                 ui,
             },
             data_stream::read_enter,
-            logic::{check_end_condition, place_hotel::place_hotel},
+            logic::{
+                check_end_condition,
+                place_hotel::{place_hotel, IllegalPlacement, PlaceHotelCase},
+            },
             network::broadcast_others,
         };
 
@@ -909,6 +905,54 @@ pub mod game {
                 let player = players.get_mut(player_index).unwrap();
                 if !hotel_placed {
                     // Hotel was not placed
+                    // Check if player has only illegal fusion cards
+                    let mut only_illegal_fusion = true;
+                    for position in &player.analyzed_cards {
+                        match &position.place_hotel_case {
+                            PlaceHotelCase::Illegal(reason) => match reason {
+                                IllegalPlacement::ChainStartIllegal => only_illegal_fusion = false,
+                                _ => (),
+                            },
+                            _ => (),
+                        }
+                    }
+                    if only_illegal_fusion {
+                        player.print_text_ln("You have only cards left that can not be played because the fusion would be illegal.");
+                        let redraw = match player.read_input(
+                            String::from("Would you like to redraw your hand cards? [Y/n]: "),
+                            vec!['Y', 'y', 'N', 'n'],
+                        ) {
+                            'Y' => true,
+                            'y' => true,
+                            'N' => false,
+                            'n' => false,
+                            _ => false,
+                        };
+                        if redraw {
+                            let drawn_position = super::draw_card(position_cards)?;
+                            // Cards have been reset
+                            player.analyzed_cards = Vec::new();
+                            match drawn_position {
+                                None => {
+                                    player.print_text_ln(
+                                        "No card can be drawn because no cards are left.",
+                                    );
+                                }
+                                Some(card) => {
+                                    let new_card =
+                                        AnalyzedPosition::new(card, board, &hotel_chain_manager);
+                                    player.analyzed_cards.push(new_card);
+                                }
+                            }
+                            for card in &player.analyzed_cards {
+                                player.print_text_ln(&format!("New card: {}", &card));
+                            }
+                            player.get_enter(&format!(
+                                "You have gotten {} new cards. Press enter to finish your turn.",
+                                player.analyzed_cards.len()
+                            ));
+                        }
+                    }
                     player.get_enter("Press enter to finish your turn");
                     return Ok(false);
                 }

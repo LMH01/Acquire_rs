@@ -128,9 +128,6 @@ pub mod board {
                         && y.position.letter == position.letter
                     {
                         if y.piece_set {
-                            //TODO Decide if i should remove this error from here or change that
-                            //error handling in place hotel function does not ? this result instead
-                            //analyzes it
                             return Err(miette!("Unable to set hotel at [{}{:2}] active: The hotel has already been placed!", position.letter, position.number));
                         } else {
                             y.piece_set = true;
@@ -269,8 +266,6 @@ pub mod board {
     }
 
     impl Position {
-        //TODO Change return type to Result<Self> and return error when number > 12 or char not A-I has been
-        //entered.
         /// Creates a new position
         pub fn new(letter: char, number: u32) -> Self {
             Self { letter, number }
@@ -438,7 +433,6 @@ pub mod board {
     }
 
     impl Piece {
-        //TODO Write new() method
         fn print_text(&self, compact: bool) -> String {
             if self.piece_set {
                 if self.chain.is_some() {
@@ -517,17 +511,25 @@ pub mod settings {
         /// Determines how the board should be printed.
         /// This behaviour can be set with the -l flag.
         /// If true the (empty) board is printed this way:
-        /// ``` none
-        /// A [A 1] [A 2] [A 3] [A 4] [A 5] [A 6] [A 7] [A 8] [A 9] [A10] [A11] [A12]
-        /// B [B 1] [B 2] [B 3] [B 4] [B 5] [B 6] [B 7] [B 8] [B 9] [B10] [B11] [B12]
-        /// C [C 1] [C 2] [C 3] [C 4] [C 5] [C 6] [C 7] [C 8] [C 9] [C10] [C11] [C12]
-        /// D [D 1] [D 2] [D 3] [D 4] [D 5] [D 6] [D 7] [D 8] [D 9] [D10] [D11] [D12]
-        /// E [E 1] [E 2] [E 3] [E 4] [E 5] [E 6] [E 7] [E 8] [E 9] [E10] [E11] [E12]
-        /// F [F 1] [F 2] [F 3] [F 4] [F 5] [F 6] [F 7] [F 8] [F 9] [F10] [F11] [F12]
-        /// G [G 1] [G 2] [G 3] [G 4] [G 5] [G 6] [G 7] [G 8] [G 9] [G10] [G11] [G12]
-        /// H [H 1] [H 2] [H 3] [H 4] [H 5] [H 6] [H 7] [H 8] [H 9] [H10] [H11] [H12]
-        /// I [I 1] [I 2] [I 3] [I 4] [I 5] [I 6] [I 7] [I 8] [I 9] [I10] [I11] [I12]
-        ///      1     2     3     4     5     6     7     8     9    10    11    12
+        /// ```None
+        /// A |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// B |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// C |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// D |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// E |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// F |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// G |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// H |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// I |   |   |   |   |   |   |   |   |   |   |   |
+        ///     1   2   3   4   5   6   7   8   9  10  11  12
         /// ```
         /// If false the (empty) board is printed this way:
         /// ```none
@@ -583,7 +585,6 @@ pub mod hotel_chains {
 
     use super::stock;
 
-    //TODO See if it would be a better idea to remove the clone, copy
     /// All different hotel types that exist in the game
     #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
     pub enum HotelChain {
@@ -819,12 +820,13 @@ pub mod stock {
 pub mod bank {
     use std::{cmp::Ordering, collections::HashMap, slice::SliceIndex};
 
-    use miette::{miette, Result};
+    use miette::{miette, Result, SpanContents};
     use owo_colors::OwoColorize;
 
     use crate::{
         base_game::stock::Stocks,
         game::game::{hotel_chain_manager::HotelChainManager, player_by_id},
+        network::broadcast_others,
     };
 
     use super::{hotel_chains::HotelChain, player::Player};
@@ -1154,24 +1156,44 @@ pub mod bank {
                 Bank::stock_price(hotel_chain_manager, chain) * 5;
             match largest_shareholders.len() {
                 1 => {
-                    let largest_shareholder = players
-                        .get_mut(*largest_shareholders.get(0).unwrap() as usize)
-                        .unwrap();
-                    largest_shareholder.add_money(largest_shareholder_bonus);
+                    let largest_shareholder_name =
+                        players[largest_shareholders[0] as usize].name.clone();
+                    players[largest_shareholders[0] as usize].add_money(largest_shareholder_bonus);
                     if inform_player {
-                        largest_shareholder.get_enter(&format!(
+                        broadcast_others(
+                            &format!(
+                                "{}, recieved {}$ because they where the largest shareholder.",
+                                largest_shareholder_name, largest_shareholder_bonus
+                            ),
+                            &largest_shareholder_name,
+                            players,
+                        );
+                        players[largest_shareholders[0] as usize].get_enter(&format!(
                             "{}, you recieved {}$ because you where the largest shareholder. (press enter to continue)",
-                            largest_shareholder.name, largest_shareholder_bonus
+                            &largest_shareholder_name, largest_shareholder_bonus
                         ));
                     }
                     match second_largest_shareholders.len() {
                         1 => {
-                            let second_largest_shareholder = players
-                                .get_mut(*second_largest_shareholders.get(0).unwrap() as usize)
-                                .unwrap();
-                            second_largest_shareholder.add_money(second_largest_shareholder_bonus);
+                            let second_largest_shareholder_name = players
+                                [second_largest_shareholders[0] as usize]
+                                .name
+                                .clone();
+                            players[second_largest_shareholders[0] as usize]
+                                .add_money(second_largest_shareholder_bonus);
                             if inform_player {
-                                second_largest_shareholder.get_enter(&format!("{}, you recieved {}$ because you where the second largest shareholder. (press enter to continue)", second_largest_shareholder.name, second_largest_shareholder_bonus));
+                                broadcast_others(
+                            &format!(
+                                "{}, recieved {}$ because they where the second largest shareholder.",
+                                second_largest_shareholder_name, second_largest_shareholder_bonus
+                            ),
+                            &second_largest_shareholder_name,
+                            players,
+                        );
+                                players[second_largest_shareholders[0] as usize].get_enter(&format!(
+                            "{}, you recieved {}$ because you where the seond largest shareholder. (press enter to continue)",
+                            &second_largest_shareholder_name, second_largest_shareholder_bonus
+                        ));
                             }
                         }
                         _ => {
@@ -1182,10 +1204,11 @@ pub mod bank {
                             // Round to next 100
                             let bonus = (bonus + 99) / 100 * 100;
                             for i in second_largest_shareholders {
-                                let player = players.get_mut(*i as usize).unwrap();
-                                player.add_money(bonus);
+                                let name = players[*i as usize].name.clone();
+                                players[*i as usize].add_money(bonus);
                                 if inform_player {
-                                    player.get_enter(&format!("{}, you recieved {}$ because you where one of the second largest shareholders. (press enter to continue)", player.name, bonus));
+                                    broadcast_others(&format!("{}, recieved {}$ because they where one of the second largest shareholders.", &name, bonus), &name, players);
+                                    players[*i as usize].get_enter(&format!("{}, you recieved {}$ because you where one of the second largest shareholders. (press enter to continue)", &name, bonus));
                                 }
                             }
                         }
@@ -1528,7 +1551,6 @@ pub mod bank {
             )?;
             bank.buy_stock(&hotel_chain_manager, &chain, player)?;
             player.money = 6000;
-            //TODO Coninue work here
             // Test cases:
             // 1. 1 Player largest and second largest
             bank.update_largest_shareholders(&players);
@@ -1742,8 +1764,6 @@ pub mod player {
             self.owned_stocks.decrease_stocks(chain, amount);
         }
 
-        //TODO Make network compatible (Maybe return complete string that can than be either sent
-        //to the client or printed in the console)
         /// Print the cards the player currently has
         pub fn print_cards(&self) {
             println!();
@@ -1833,7 +1853,6 @@ pub mod player {
             }
             ui.push(cards);
             // Print stocks
-            //TODO Add functionality that a * in gold is printed when the player is the largest
             //shareholder or a silver * when the player is the second largest shareholder.
             //The star is positioned here: Airport*:
             let mut stocks = String::new();
@@ -1864,7 +1883,6 @@ pub mod player {
             // would make if all stocks where sold now
         }
 
-        //TODO Make network compatible (Maybe return string that can then be printed)
         /// Prints the current player to the console
         pub fn print_player_ui(&self) {
             // Print money
@@ -1882,7 +1900,6 @@ pub mod player {
             }
             println!();
             // Print stocks
-            //TODO Add functionality that a * in gold is printed when the player is the largest
             //shareholder or a silver * when the player is the second largest shareholder.
             //The star is positioned here: Airport*:
             print!("{}", String::from("Stocks: ").bright_green());
@@ -2053,6 +2070,7 @@ pub mod player {
                         ),
                         generate_number_vector(0, stocks_unasigned),
                     );
+                    stocks_unasigned -= stocks_to_sell;
                 } else {
                     // No stocks left to sell
                     self.print_text_ln(&format!(
@@ -2237,7 +2255,7 @@ pub mod player {
         /// * `T` - The data type that should be read
         pub fn read_input<T: 'static + FromStr + PartialEq>(
             &self,
-            text: String, //TODO Change to &str
+            text: String,
             allowed_values: Vec<T>,
         ) -> T {
             if self.tcp_stream.is_none() {

@@ -180,7 +180,7 @@ pub mod place_hotel {
         player.print_text_ln("Please choose what hotel card you would like to play.");
         // Check if player has at least one card that can be played
         if player.only_illegal_cards() {
-            player.print_text_ln("You have no card that could be played.");
+            player.get_enter("You have no card that could be played. (Press enter to continue)");
             return Ok(false);
         }
         let played_position = player.read_card()?;
@@ -333,7 +333,6 @@ pub mod place_hotel {
         // Contains the order in which the hotels are fused with the surviving chain.
         let mut fuse_order = Vec::new();
         let surviving_chain;
-        //TODO This text should be broadcasted to each player
         broadcast(
             &format!(
                 "Fusion between {} chains at {}!",
@@ -467,8 +466,13 @@ pub mod place_hotel {
                 )?;
             }
         }
-        // Add the hotel that caused the fusion the the chain that survived
-        hotel_chain_manager.add_hotel_to_chain(surviving_chain, origin, board)?;
+        // Add the hotel that caused the fusion and surrounding_hotels to the chain
+        match AnalyzedPosition::new(origin, board, &hotel_chain_manager).place_hotel_case {
+            PlaceHotelCase::ExtendsChain(chain, positions) => {
+                extend_chain(chain, positions, hotel_chain_manager, board)?
+            }
+            _ => (),
+        }
         Ok(())
     }
 
@@ -511,8 +515,16 @@ pub mod place_hotel {
                         player.read_input(String::from("Choose a case: "), vec![1, 2]);
                     let mut confirm_message = String::new();
                     match fusion_case {
-                        1 => confirm_message.push_str(&format!("{} in {}", chain1.name().color(chain1.color()), chain2.name().color(chain2.color()))),
-                        2 => confirm_message.push_str(&format!("{} in {}", chain2.name().color(chain2.color()), chain1.name().color(chain1.color()))),
+                        1 => confirm_message.push_str(&format!(
+                            "{} in {}",
+                            chain1.name().color(chain1.color()),
+                            chain2.name().color(chain2.color())
+                        )),
+                        2 => confirm_message.push_str(&format!(
+                            "{} in {}",
+                            chain2.name().color(chain2.color()),
+                            chain1.name().color(chain1.color())
+                        )),
                         _ => (),
                     }
                     if !player.get_correct() {
@@ -529,6 +541,7 @@ pub mod place_hotel {
                         }
                         _ => (),
                     }
+                    break;
                 }
             }
         }
@@ -771,8 +784,18 @@ pub mod place_hotel {
                 index = 0;
             }
             let player = players.get_mut(index).unwrap();
+            let player_name = player.name.clone();
             // check if player has stocks if yes let them handle the fusion stocks
             if *player.owned_stocks.stocks_for_hotel(dead) > 0 {
+                broadcast_others(
+                    &format!(
+                        "{} is deciding what they are going to do with thair stocks...",
+                        player_name
+                    ),
+                    &player_name,
+                    players,
+                );
+                let player = players.get_mut(index).unwrap();
                 let stocks_status =
                     player.handle_fusion_stocks(dead, alive, bank, hotel_chain_manager)?;
                 broadcast_others(&format!("{} did the following with their stocks:\nExchanged: {}\nSold: {}\nKeept: {}", player_name, stocks_status.0, stocks_status.1, stocks_status.2), &player_name, players);
@@ -786,11 +809,21 @@ pub mod place_hotel {
     /// The different cases that can hapen when a hotel is placed
     #[derive(PartialEq, Debug, Eq)]
     pub enum PlaceHotelCase {
-        //TODO Add rustdoc for the enum variants that describes the arguments (link to functions)
+        /// The hotel is placed with nothing special happening
         SingleHotel,
+        /// The hotel starts a new chain
+        /// * The vector contains the positions that belong to the new chain
         NewChain(Vec<Position>),
+        /// The hotel extends an already existing chain
+        /// * The first parameter is the chain that is being extended
+        /// * The vector contains the pieces that extend the chain
         ExtendsChain(HotelChain, Vec<Position>),
+        /// The hotel fuses two or more chains
+        /// * The vector contains the hotel chains that are being fused
+        /// * The second parameter contains the position that causes the fusion
         Fusion(Vec<HotelChain>, Position),
+        /// The hotel can not be placed
+        /// * The parameter describes the reason why this hotel can not be placed
         Illegal(IllegalPlacement),
     }
 
@@ -935,9 +968,6 @@ pub mod place_hotel {
         }
         neighbours
     }
-
-    //TODO When fusion has been completed check if surrounding pieces (of piece that caused
-    //fusion) are correctly set to the hote chain
 
     #[cfg(test)]
     mod tests {

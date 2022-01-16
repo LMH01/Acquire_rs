@@ -60,6 +60,7 @@ pub fn start_client() -> Result<()> {
             let mut br = BufReader::new(tcp_stream.try_clone().into_diagnostic()?);
             // Player recieving loop
             loop {
+                let stdin = io::stdin();
                 let mut input_buffer = String::new();
                 br.read_line(&mut input_buffer).into_diagnostic()?;
                 if input_buffer.starts_with("$Println") {
@@ -151,7 +152,11 @@ pub fn start_server(opts: &Opts, settings: Settings) -> Result<()> {
     // game is over, stream will be closed
     for player in game_manager.players {
         if player.tcp_stream.is_some() {
-            player.tcp_stream.unwrap().shutdown(std::net::Shutdown::Both).into_diagnostic()?;
+            player
+                .tcp_stream
+                .unwrap()
+                .shutdown(std::net::Shutdown::Both)
+                .into_diagnostic()?;
         }
     }
     Ok(())
