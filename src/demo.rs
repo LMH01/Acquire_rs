@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use clap::{App, ArgMatches};
 use miette::Result;
 use owo_colors::{AnsiColors, OwoColorize};
 use rand::Rng;
@@ -31,8 +32,11 @@ fn place_test_hotels(board: &mut Board) -> Result<()> {
     Ok(())
 }
 
-pub fn test_things(opts: &Opts, settings: Settings) -> Result<()> {
-    let mut game_manager = GameManager::new(opts.players, settings)?;
+pub fn test_things(matches: &ArgMatches, settings: Settings) -> Result<()> {
+    let mut game_manager = GameManager::new(
+        matches.value_of("players").unwrap().parse().unwrap(),
+        settings,
+    )?;
     let mut active_chains: Vec<HotelChain> = Vec::new();
     let round = Round::new(1);
     let mut player_cards = Vec::new();
@@ -40,7 +44,7 @@ pub fn test_things(opts: &Opts, settings: Settings) -> Result<()> {
         player_cards.push(draw_card(&mut game_manager.position_cards));
     }
     let player = game_manager.players.get_mut(0).unwrap();
-    if opts.demo_type == 0 {
+    if matches.value_of("demo_type").unwrap() == "0" {
         set_hotel_chains_clever(
             &mut active_chains,
             player,
@@ -295,7 +299,7 @@ fn fuse_chains_works_with_three() -> Result<()> {
     let mut board = Board::new();
     let mut bank = Bank::new();
     let mut hotel_chain_manager = HotelChainManager::new();
-    let mut players = vec![Player::new(vec![], 0), Player::new(vec![], 1)];
+    let mut players = vec![Player::new(vec![], 0, false), Player::new(vec![], 1, false)];
     let round = Round::new(1);
     let settings = Settings::new(false, false, false);
     hotel_chain_manager.start_chain(

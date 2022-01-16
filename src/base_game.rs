@@ -39,13 +39,13 @@ pub mod board {
         }
 
         /// Prints the current stage of the board
-        pub fn print(&self, large_board: bool) {
+        pub fn print(&self, small_board: bool) {
             println!();
             let mut letters = LETTERS.iter();
             let mut first_line = true;
             for x in &self.pieces {
                 if !first_line {
-                    if large_board {
+                    if !small_board {
                         println!("--------------------------------------------------");
                     }
                 } else {
@@ -53,7 +53,7 @@ pub mod board {
                 }
                 print!("{} ", letters.next().unwrap());
                 for y in x {
-                    if large_board {
+                    if !small_board {
                         print!("| {} ", y.print_text(true));
                     } else {
                         print!("{}  ", y.print_text(true))
@@ -61,7 +61,7 @@ pub mod board {
                 }
                 println!();
             }
-            if large_board {
+            if !small_board {
                 print!("   ");
                 for x in 1..=12 {
                     print!("{:2}  ", &x);
@@ -76,13 +76,13 @@ pub mod board {
         }
 
         /// Returns a vector that contains strings that describe the current state of the board.
-        pub fn get_board_state(&self, large_board: bool) -> Vec<String> {
+        pub fn get_board_state(&self, small_board: bool) -> Vec<String> {
             let mut board_state = Vec::new();
             let mut letters = LETTERS.iter();
             let mut first_line = true;
             for x in &self.pieces {
                 if !first_line {
-                    if large_board {
+                    if !small_board {
                         board_state.push(String::from(
                             "--------------------------------------------------",
                         ));
@@ -93,7 +93,7 @@ pub mod board {
                 let mut current_line = String::new();
                 current_line.push_str(&format!("{} ", letters.next().unwrap()));
                 for y in x {
-                    if large_board {
+                    if !small_board {
                         current_line.push_str(&format!("| {} ", y.print_text(true)));
                     } else {
                         current_line.push_str(&format!("{}  ", y.print_text(true)));
@@ -102,7 +102,7 @@ pub mod board {
                 board_state.push(String::from(current_line));
             }
             let mut current_line = String::new();
-            if large_board {
+            if !small_board {
                 current_line.push_str("   ");
                 for x in 1..=12 {
                     current_line.push_str(&format!("{:2}  ", &x));
@@ -508,43 +508,7 @@ pub mod settings {
     //TODO Maybe add settings with which the board dimensions can be changed
     /// Stores the settings
     pub struct Settings {
-        /// Determines how the board should be printed.
-        /// This behaviour can be set with the -l flag.
-        /// If true the (empty) board is printed this way:
-        /// ```None
-        /// A |   |   |   |   |   |   |   |   |   |   |   |
-        /// --------------------------------------------------
-        /// B |   |   |   |   |   |   |   |   |   |   |   |
-        /// --------------------------------------------------
-        /// C |   |   |   |   |   |   |   |   |   |   |   |
-        /// --------------------------------------------------
-        /// D |   |   |   |   |   |   |   |   |   |   |   |
-        /// --------------------------------------------------
-        /// E |   |   |   |   |   |   |   |   |   |   |   |
-        /// --------------------------------------------------
-        /// F |   |   |   |   |   |   |   |   |   |   |   |
-        /// --------------------------------------------------
-        /// G |   |   |   |   |   |   |   |   |   |   |   |
-        /// --------------------------------------------------
-        /// H |   |   |   |   |   |   |   |   |   |   |   |
-        /// --------------------------------------------------
-        /// I |   |   |   |   |   |   |   |   |   |   |   |
-        ///     1   2   3   4   5   6   7   8   9  10  11  12
-        /// ```
-        /// If false the (empty) board is printed this way:
-        /// ```none
-        /// A
-        /// B
-        /// C
-        /// D
-        /// E
-        /// F
-        /// G
-        /// H
-        /// I
-        ///   1  2  3  4  5  6  7  8  9 10 11 12
-        /// ```
-        pub large_board: bool,
+        pub small_board: bool,
         /// Stores if some extra information should be shown to the player.
         ///
         /// E.g. If the player is the largest shareholder
@@ -556,7 +520,7 @@ pub mod settings {
     impl Settings {
         pub fn new(large_board: bool, extra_info: bool, skip_dialogues: bool) -> Self {
             Self {
-                large_board,
+                small_board: large_board,
                 extra_info,
                 skip_dialogues,
             }
@@ -565,7 +529,7 @@ pub mod settings {
         /// Returns a new Settings object with default settings
         pub fn new_default() -> Self {
             Self {
-                large_board: false,
+                small_board: false,
                 extra_info: false,
                 skip_dialogues: false,
             }
@@ -768,7 +732,8 @@ pub mod stock {
     }
 
     /// The base prices for a single stock
-    const STOCK_BASE_PRICE: [u32; 11] = [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200];
+    pub const STOCK_BASE_PRICE: [u32; 11] =
+        [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200];
 
     /// Calculates the current stock price for the hotel.
     /// # Arguments
@@ -1299,7 +1264,7 @@ pub mod bank {
                 HotelChain::Airport,
                 vec![Position::new('A', 1), Position::new('A', 2)],
                 &mut game_manager.board,
-                &mut Player::new(Vec::new(), 1),
+                &mut Player::new(Vec::new(), 1, false),
                 &mut game_manager.bank,
             )?;
             game_manager.hotel_chain_manager.start_chain(
@@ -1310,7 +1275,7 @@ pub mod bank {
                     Position::new('C', 4),
                 ],
                 &mut game_manager.board,
-                &mut Player::new(Vec::new(), 1),
+                &mut Player::new(Vec::new(), 1, false),
                 &mut game_manager.bank,
             )?;
             game_manager.hotel_chain_manager.start_chain(
@@ -1322,7 +1287,7 @@ pub mod bank {
                     Position::new('H', 4),
                 ],
                 &mut game_manager.board,
-                &mut Player::new(Vec::new(), 1),
+                &mut Player::new(Vec::new(), 1, false),
                 &mut game_manager.bank,
             )?;
             println!(
@@ -1382,7 +1347,7 @@ pub mod bank {
         #[test]
         fn exchange_stocks_works() -> Result<()> {
             let mut bank = Bank::new();
-            let mut player = Player::new(vec![], 0);
+            let mut player = Player::new(vec![], 0, false);
             let dead = HotelChain::Airport;
             let alive = HotelChain::Festival;
             player.owned_stocks.increase_stocks(&dead, 6);
@@ -1500,7 +1465,7 @@ pub mod bank {
             let mut bank = Bank::new();
             let mut board = Board::new();
             let mut hotel_chain_manager = HotelChainManager::new();
-            let player = Player::new(vec![], 0);
+            let player = Player::new(vec![], 0, false);
             let mut players = vec![player];
             let chain = HotelChain::Airport;
             // Test error
@@ -1536,9 +1501,9 @@ pub mod bank {
             let mut bank = Bank::new();
             let mut board = Board::new();
             let mut players = Vec::new();
-            players.push(Player::new(vec![], 0));
-            players.push(Player::new(vec![], 1));
-            players.push(Player::new(vec![], 2));
+            players.push(Player::new(vec![], 0, false));
+            players.push(Player::new(vec![], 1, false));
+            players.push(Player::new(vec![], 2, false));
             let mut hotel_chain_manager = HotelChainManager::new();
             let chain = HotelChain::Imperial;
             let player = players.get_mut(0).unwrap();
@@ -1668,6 +1633,44 @@ pub mod player {
         pub name: String,
         /// The tcp stream that belongs to this player. Is used to communicate with the players client.
         pub tcp_stream: Option<TcpStream>,
+        /// If the board should be printed small
+        /// Determines how the board should be printed.
+        /// This behaviour can be set with the -s flag.
+        /// If false or not set the (empty) board is printed this way:
+        /// ```None
+        /// A |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// B |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// C |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// D |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// E |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// F |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// G |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// H |   |   |   |   |   |   |   |   |   |   |   |
+        /// --------------------------------------------------
+        /// I |   |   |   |   |   |   |   |   |   |   |   |
+        ///     1   2   3   4   5   6   7   8   9  10  11  12
+        /// ```
+        /// If true the (empty) board is printed this way:
+        /// ```none
+        /// A
+        /// B
+        /// C
+        /// D
+        /// E
+        /// F
+        /// G
+        /// H
+        /// I
+        ///   1  2  3  4  5  6  7  8  9 10 11 12
+        /// ```
+        pub small_board: bool,
     }
 
     impl PartialEq for Player {
@@ -1708,7 +1711,18 @@ pub mod player {
     impl Eq for Player {}
 
     impl Player {
-        pub fn new(start_cards: Vec<Position>, id: u32) -> Self {
+        /// creates a new player
+        pub fn new(start_cards: Vec<Position>, id: u32, small_board: bool) -> Self {
+            Player::new_named(start_cards, id, small_board, format!("Player {}", id + 1))
+        }
+
+        /// Creates a new player with a custom name
+        pub fn new_named(
+            start_cards: Vec<Position>,
+            id: u32,
+            small_board: bool,
+            name: String,
+        ) -> Self {
             let mut cards = Vec::new();
             for position in start_cards {
                 cards.push(AnalyzedPosition::new_unchecked(position));
@@ -1717,18 +1731,20 @@ pub mod player {
                 money: 6000,
                 owned_stocks: Stocks::new(),
                 analyzed_cards: cards,
-                /// The unique player id, should be the same as the position in the players vector
                 id,
-                name: format!("Player {}", id + 1),
+                name,
                 tcp_stream: None,
+                small_board,
             }
         }
 
+        /// Creates a new client player
         pub fn new_client(
             start_cards: Vec<Position>,
             id: u32,
             name: String,
             tcp_stream: TcpStream,
+            small_board: bool,
         ) -> Self {
             let mut cards = Vec::new();
             for position in start_cards {
@@ -1741,6 +1757,7 @@ pub mod player {
                 id,
                 name,
                 tcp_stream: Some(tcp_stream),
+                small_board,
             }
         }
 
@@ -2484,7 +2501,13 @@ pub mod ui {
         hotel_chain_manager: &HotelChainManager,
     ) -> Vec<String> {
         let mut main_ui = Vec::new();
-        for line in board.get_board_state(settings.large_board) {
+        let small_board;
+        if player.is_some() {
+            small_board = player.unwrap().small_board;
+        } else {
+            small_board = settings.small_board;
+        }
+        for line in board.get_board_state(small_board) {
             main_ui.push(line);
         }
         main_ui.push(String::new());

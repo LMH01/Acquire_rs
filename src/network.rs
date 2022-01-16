@@ -1,10 +1,11 @@
 use std::{
-    io::{self, stdout, BufRead, BufReader, Read, Write},
+    io::{self, stdin, stdout, BufRead, BufReader, Read, Write},
     net::{IpAddr, Ipv4Addr, SocketAddrV4, TcpListener, TcpStream},
     process::exit,
     str, thread, time,
 };
 
+use clap::ArgMatches;
 use local_ip_address::local_ip;
 use miette::{miette, IntoDiagnostic, Result};
 
@@ -25,35 +26,42 @@ use crate::{
 ///
 /// Everything emidiadly after the command is printed to the player.
 /// A message always ends with `\n`.
-pub fn start_client() -> Result<()> {
-    let mut port = String::new();
+pub fn start_client(matches: &ArgMatches) -> Result<()> {
     let stdin = io::stdin();
-
-    //    print!("Enter port: ");
-    //    stdout().flush().into_diagnostic()?;
-    //    stdin.read_line(&mut port).into_diagnostic()?;
-    //    let mut ip = String::new();
-    //    ip.push_str("192.168.188.5:");
-    //    ip.push_str(&port.trim());
-    let ip = String::from("192.168.188.5:11511");
-
-    //TODO Add these lines back when i am no longer testing
-    //    print!("Enter ip: ");
-    //    stdout().flush().into_diagnostic()?;
-    //    stdin.read_line(&mut port).into_diagnostic()?;
-    //    let mut ip = String::new();
-    //    ip.push_str(&port.trim());
+    let ip;
+    if matches.is_present("ip") {
+        ip = String::from(matches.value_of("ip").unwrap());
+    } else {
+        // Ip was not privided fia command line
+        let mut buffer = String::new();
+        print!("Enter ip and port: ");
+        stdout().flush().into_diagnostic()?;
+        stdin.read_line(&mut buffer).into_diagnostic()?;
+        ip = String::from(buffer.trim());
+    }
+    println!("Connecting to {}...", &ip);
     match TcpStream::connect(ip) {
         Ok(mut tcp_stream) => {
             println!("Connection established!");
-            //TODO Player name should be transmitted fia cli argument
-            print!("Enter name: ");
-            stdout().flush().into_diagnostic()?;
-            let mut buffer = String::new();
-            stdin.read_line(&mut buffer).into_diagnostic()?;
-            buffer = buffer.trim().to_string();
+            let name;
+            if matches.is_present("name") {
+                name = String::from(matches.value_of("name").unwrap().trim());
+            } else {
+                print!("Enter name: ");
+                stdout().flush().into_diagnostic()?;
+                let mut buffer = String::new();
+                stdin.read_line(&mut buffer).into_diagnostic()?;
+                name = buffer.trim().to_string();
+            }
             tcp_stream
-                .write_all(format!("$PlayerName{}\n", buffer).as_bytes())
+                .write_all(
+                    format!(
+                        "$Init{}$Name{}\n",
+                        matches.is_present("small_board").to_string(),
+                        name
+                    )
+                    .as_bytes(),
+                )
                 .into_diagnostic()?;
             println!("Waiting for the game to start...");
 
@@ -96,16 +104,21 @@ pub fn start_client() -> Result<()> {
 pub struct ClientPlayer {
     pub name: String,
     pub tcp_stream: TcpStream,
+    pub small_board: bool,
 }
 
 impl ClientPlayer {
-    fn new(name: String, tcp_stream: TcpStream) -> Self {
-        Self { name, tcp_stream }
+    fn new(name: String, tcp_stream: TcpStream, small_board: bool) -> Self {
+        Self {
+            name,
+            tcp_stream,
+            small_board,
+        }
     }
 }
 
 /// Starts the server to play the game on multiplayer per lan.
-pub fn start_server(opts: &Opts, settings: Settings) -> Result<()> {
+pub fn start_server(matches: &ArgMatches, settings: Settings) -> Result<()> {
     let local_ip = local_ip().unwrap();
     let local_ip = match local_ip {
         IpAddr::V4(ip4) => ip4,
@@ -116,35 +129,61 @@ pub fn start_server(opts: &Opts, settings: Settings) -> Result<()> {
             ))
         }
     };
-    let socket = SocketAddrV4::new(local_ip, 11511);
+    let port = matches.value_of("port").unwrap();
+    let socket = SocketAddrV4::new(local_ip, port.parse().into_diagnostic()?);
     let listener = TcpListener::bind(socket).into_diagnostic()?;
     let port = listener.local_addr().into_diagnostic()?;
     println!("Game has been hosted on {}", port);
     println!(
         "The game can be stared when {} player(s) have connected.",
-        opts.players - 1
+        matches.value_of("players").unwrap().parse::<u32>().unwrap() - 1
     );
     let mut client_players = Vec::new();
     // Number of players determines how many clients can connect to the game.
     // When the last client has been connected the host player can start the game.
-    for i in 1..=opts.players - 1 {
+    for i in 1..=matches.value_of("players").unwrap().parse::<u32>().unwrap() - 1 {
         let (tcp_stream, addr) = listener.accept().into_diagnostic()?;
         let mut br = BufReader::new(tcp_stream.try_clone().into_diagnostic()?);
         let mut input_buffer = String::new();
         br.read_line(&mut input_buffer).into_diagnostic()?;
-        if input_buffer.starts_with("$PlayerName") {
-            let name = String::from(input_buffer.replacen("$PlayerName", "", 1).trim());
+        if input_buffer.starts_with("$Init") {
+            let input = String::from(input_buffer.replacen("$Init", "", 1));
+            println!("Input: {}", &input);
+            let mut splits = input.splitn(2, "$Name");
+            let small_board = match splits.next().unwrap() {
+                "true" => true,
+                _ => false,
+            };
+            let name = splits.next().unwrap().trim();
             println!("{} joined from {}!", name, addr);
-            client_players.push(ClientPlayer::new(name, tcp_stream));
+            client_players.push(ClientPlayer::new(
+                String::from(name),
+                tcp_stream,
+                small_board,
+            ));
         }
-        println!(
-            "The game can be stared when {} more player(s) have connected.",
-            opts.players - 1 - i
-        );
+        let remaining_players =
+            matches.value_of("players").unwrap().parse::<u32>().unwrap() - 1 - i;
+        if remaining_players > 0 {
+            println!(
+                "The game can be stared when {} more player(s) have connected.",
+                remaining_players
+            );
+        }
     }
     // All players have connected to the game, game will start
     println!("Setting up game...");
-    let mut game_manager = GameManager::new_server(client_players, settings)?;
+    let host_name;
+    if matches.is_present("name") {
+        host_name = String::from(matches.value_of("name").unwrap());
+    } else {
+        let mut buffer = String::new();
+        print!("Please enter your name: ");
+        stdout().flush().into_diagnostic()?;
+        stdin().read_line(&mut buffer).into_diagnostic()?;
+        host_name = String::from(buffer.trim());
+    }
+    let mut game_manager = GameManager::new_server(client_players, settings, host_name)?;
     println!("Game has been setup.");
     println!("Press enter to start the game!");
     read_enter();

@@ -1013,7 +1013,7 @@ pub mod place_hotel {
             let mut board = Board::new();
             let mut bank = Bank::new();
             let mut hotel_chain_manager = HotelChainManager::new();
-            let mut players = vec![Player::new(vec![], 0), Player::new(vec![], 1)];
+            let mut players = vec![Player::new(vec![], 0, false), Player::new(vec![], 1, false)];
             let chain1 = &HotelChain::Luxor;
             let chain2 = &HotelChain::Festival;
             let chain3 = &HotelChain::Imperial;
@@ -1092,14 +1092,14 @@ pub mod place_hotel {
                 HotelChain::Airport,
                 chain1,
                 &mut board,
-                &mut Player::new(vec![], 0),
+                &mut Player::new(vec![], 0, false),
                 &mut bank,
             )?;
             hotel_chain_manager.start_chain(
                 HotelChain::Continental,
                 chain2,
                 &mut board,
-                &mut Player::new(vec![], 0),
+                &mut Player::new(vec![], 0, false),
                 &mut bank,
             )?;
             board.print(false);
@@ -1135,7 +1135,8 @@ pub mod place_hotel {
             let mut board = Board::new();
             let mut bank = Bank::new();
             let mut hotel_chain_manager = HotelChainManager::new();
-            let mut player = Player::new(vec![Position::new('B', 3), Position::new('E', 6)], 0);
+            let mut player =
+                Player::new(vec![Position::new('B', 3), Position::new('E', 6)], 0, false);
             // Place some test hotels
             let mut positions1 = Vec::new();
             let mut positions2 = Vec::new();
@@ -1241,7 +1242,7 @@ mod tests {
         let mut board = Board::new();
         let mut hotel_chain_manager = HotelChainManager::new();
         let mut bank = Bank::new();
-        let mut player = Player::new(vec![], 0);
+        let mut player = Player::new(vec![], 0, false);
         let mut positions = Vec::new();
         // Check no end condition is met
         assert!(check_end_condition(&board, &hotel_chain_manager).is_none());

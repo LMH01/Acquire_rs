@@ -1,6 +1,10 @@
 /// Contains all functionalities that are required to play the game.
 pub mod game {
-    use std::{collections::HashMap, slice::SliceIndex};
+    use std::{
+        collections::HashMap,
+        io::{stdin, stdout, Write},
+        slice::SliceIndex,
+    };
 
     use miette::{miette, IntoDiagnostic, Result};
     use owo_colors::{AnsiColors, OwoColorize, Rgb};
@@ -13,10 +17,11 @@ pub mod game {
             hotel_chains::HotelChain,
             player::Player,
             settings::Settings,
+            stock::STOCK_BASE_PRICE,
             ui,
         },
         data_stream::{self, read_enter},
-        network::{broadcast, ClientPlayer},
+        network::{broadcast, broadcast_others, ClientPlayer},
     };
 
     use self::{hotel_chain_manager::HotelChainManager, round::Round};
@@ -62,7 +67,11 @@ pub mod game {
             }
 
             let mut position_cards = GameManager::init_position_cards();
-            let players = GameManager::init_players(number_of_players, &mut position_cards)?;
+            let players = GameManager::init_players(
+                number_of_players,
+                &mut position_cards,
+                settings.small_board,
+            )?;
             Ok(Self {
                 board: Board::new(),
                 position_cards,
@@ -80,9 +89,15 @@ pub mod game {
         pub fn new_server(
             mut client_players: Vec<ClientPlayer>,
             settings: Settings,
+            host_name: String,
         ) -> Result<Self> {
             let mut position_cards = GameManager::init_position_cards();
-            let players = GameManager::init_players_lan(&mut client_players, &mut position_cards)?;
+            let players = GameManager::init_players_lan(
+                &mut client_players,
+                &mut position_cards,
+                &settings,
+                host_name,
+            )?;
             Ok(Self {
                 board: Board::new(),
                 position_cards,
@@ -110,52 +125,41 @@ pub mod game {
                 "Each player draws a card now, the player with the lowest card starts.",
                 &self.players,
             );
-            if self.server {
-                let mut cards_with_players = HashMap::new();
-                let mut cards = Vec::new();
-                for (index, player) in self.players.iter().enumerate() {
-                    let card = draw_card(&mut self.position_cards)?.unwrap();
-                    player.get_enter("Press enter to draw your card");
-                    broadcast(
-                        &format!(
-                            "{} drew card {}",
-                            player.name,
-                            &card.color(AnsiColors::Green)
-                        ),
-                        &self.players,
-                    );
-                    self.board.place_hotel(&card)?;
-                    cards_with_players.insert(card, index);
-                    cards.push(card);
-                }
-                cards.sort();
-                // Determine turn order
-                for (index, card) in cards.iter().enumerate() {
-                    let player_index = cards_with_players.get(card).unwrap();
-                    let player_name = self.players.get(*player_index).unwrap().name.clone();
-                    self.players.get_mut(*player_index).unwrap().id = index as u32;
-                    broadcast(
-                        &format!("{} is the {}. player", player_name, index + 1),
-                        &self.players,
-                    );
-                }
-                self.players.sort();
-            } else {
-                let mut cards: Vec<Position> = Vec::new();
-                for _i in 1..=self.players.len() {
-                    let card = draw_card(&mut self.position_cards)?.unwrap();
-                    println!("Press enter to draw the card.");
-                    read_enter();
-                    println!("Drew card {}", &card.color(AnsiColors::Green));
-                    println!();
-                    cards.push(card);
-                }
-                println!("Press enter to place these hotels and start the first round!");
-                read_enter();
-                for card in cards {
-                    self.board.place_hotel(&card)?;
-                }
+            let mut cards_with_players = HashMap::new();
+            let mut cards = Vec::new();
+            for (index, player) in self.players.iter().enumerate() {
+                let card = draw_card(&mut self.position_cards)?.unwrap();
+                player.get_enter("Press enter to draw your card");
+                broadcast(
+                    &format!(
+                        "{} drew card {}",
+                        player.name,
+                        &card.color(AnsiColors::Green)
+                    ),
+                    &self.players,
+                );
+                self.board.place_hotel(&card)?;
+                cards_with_players.insert(card, index);
+                cards.push(card);
             }
+            cards.sort();
+            // Determine turn order
+            for (index, card) in cards.iter().enumerate() {
+                let player_index = cards_with_players.get(card).unwrap();
+                let player_name = self.players.get(*player_index).unwrap().name.clone();
+                self.players.get_mut(*player_index).unwrap().id = index as u32;
+                broadcast(
+                    &format!("{} is the {}. player", player_name, index + 1),
+                    &self.players,
+                );
+            }
+            self.players.sort();
+            broadcast_others(
+                &format!("Waiting for {} to start the first round...", &self.players[0].name),
+                &self.players[0].name,
+                &self.players,
+            );
+            self.players[0].get_enter("Press enter to start the first round!");
             self.start_rounds()?;
             // Analyze the initial player cards
             for player in &mut self.players {
@@ -203,6 +207,7 @@ pub mod game {
         fn init_players(
             number_of_players: u32,
             position_cards: &mut Vec<Position>,
+            small_board: bool,
         ) -> Result<Vec<Player>> {
             let mut players: Vec<Player> = Vec::new();
             // Initialize new players and put them in the list
@@ -210,7 +215,16 @@ pub mod game {
             let mut player_cards =
                 GameManager::init_player_cards(number_of_players, position_cards)?;
             while !player_cards.is_empty() {
-                players.push(Player::new(player_cards.pop().unwrap(), player_id));
+                let mut buffer = String::new();
+                print!("Player {}, please enter your name: ", player_id + 1);
+                stdout().flush().into_diagnostic()?;
+                stdin().read_line(&mut buffer).into_diagnostic()?;
+                players.push(Player::new_named(
+                    player_cards.pop().unwrap(),
+                    player_id,
+                    small_board,
+                    String::from(buffer.trim()),
+                ));
                 player_id += 1;
             }
             Ok(players)
@@ -220,6 +234,8 @@ pub mod game {
         fn init_players_lan(
             client_players: &mut Vec<ClientPlayer>,
             position_cards: &mut Vec<Position>,
+            settings: &Settings,
+            host_name: String,
         ) -> Result<Vec<Player>> {
             let mut players: Vec<Player> = Vec::new();
             // Initialize new players and put them in the list
@@ -230,7 +246,12 @@ pub mod game {
             while !player_cards.is_empty() {
                 if first_player {
                     // Initialize local player
-                    players.push(Player::new(player_cards.pop().unwrap(), player_id));
+                    players.push(Player::new_named(
+                        player_cards.pop().unwrap(),
+                        player_id,
+                        settings.small_board,
+                        host_name.clone(),
+                    ));
                     first_player = false;
                 } else {
                     // Initialize client players
@@ -240,6 +261,7 @@ pub mod game {
                         player_id,
                         client_player.name,
                         client_player.tcp_stream,
+                        client_player.small_board,
                     ));
                 }
                 player_id += 1;
@@ -619,7 +641,8 @@ pub mod game {
             #[test]
             fn final_account_correct() -> Result<()> {
                 let mut bank = Bank::new();
-                let mut players = vec![Player::new(vec![], 0), Player::new(vec![], 1)];
+                let mut players =
+                    vec![Player::new(vec![], 0, false), Player::new(vec![], 1, false)];
                 let mut hotel_chain_manager = HotelChainManager::new();
                 let mut board = Board::new();
                 let chain = HotelChain::Continental;
@@ -644,7 +667,7 @@ pub mod game {
                 for hotel_chain in HotelChain::iterator() {
                     setup_hotel(
                         &mut game_manager,
-                        &mut Player::new(vec![], 1),
+                        &mut Player::new(vec![], 1, false),
                         &round,
                         hotel_chain,
                     )?;
@@ -664,7 +687,7 @@ pub mod game {
             fn fusion_correct() -> Result<()> {
                 let mut game_manager = GameManager::new(2, Settings::new_default()).unwrap();
                 let round = Round::new(1);
-                let mut player = Player::new(vec![Position::new('A', 1)], 0);
+                let mut player = Player::new(vec![Position::new('A', 1)], 0, false);
                 let hotel_chain_1 = &HotelChain::Airport;
                 let hotel_chain_2 = &HotelChain::Continental;
                 setup_hotel(&mut game_manager, &mut player, &round, hotel_chain_1)?;
@@ -724,6 +747,47 @@ pub mod game {
                 )?;
                 Ok(())
             }
+        }
+    }
+
+    /// Prints information about the stock values into the console
+    pub fn print_info_card() {
+        const HOTEL_LEVELS: [&str; 9] = [
+            "  2  ", "  3  ", "  4  ", "  5  ", " 6-10", "11-20", "21-30", "31-40", "41++ ",
+        ];
+        println!("      Number of hotels per chain        ||");
+        println!("          ||  Imperial  ||              ||");
+        println!(" Airport  ||  Luxor     ||   Prestige   || stock value ||      Bonuses for the majority shareholders");
+        println!(" Festival ||  Oriental  || Continental  ||   buy/sell  || Largest shareholder || Second largest shareholder");
+        println!("==================================================================================================================");
+        for (index, i) in STOCK_BASE_PRICE.iter().enumerate() {
+            let low;
+            if index > 8 {
+                low = "  -  ";
+            } else {
+                low = HOTEL_LEVELS[index];
+            }
+            let medium;
+            if index > 9 || index < 1 {
+                medium = "  -  ";
+            } else {
+                medium = HOTEL_LEVELS[index - 1];
+            }
+            let high;
+            if index > 10 || index < 2 {
+                high = "  -  ";
+            } else {
+                high = HOTEL_LEVELS[index - 2];
+            }
+            println!(
+                "   {}  ||    {}   ||     {}    ||     {:4}    ||              {:5}  || {:5}",
+                low,
+                medium,
+                high,
+                &i,
+                i * 10,
+                i * 5
+            );
         }
     }
 

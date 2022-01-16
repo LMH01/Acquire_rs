@@ -17,57 +17,40 @@ mod network;
 mod utils;
 
 use base_game::settings::Settings;
-use clap::Parser;
+use clap::{App, Arg, Parser};
 use demo::test_things;
-use game::game::GameManager;
+use game::game::{print_info_card, GameManager};
 use network::{start_client, start_server};
 
 //TODO Add flag with which the help card can be enabled. This will cause to print a copy of the
 //info card from the real game to the console
 //TODO Change $ to €
 
-#[derive(Parser)]
-#[clap(about = "The board game Acquire fia command line in Rust")]
 pub struct Opts {
-    #[clap(short, long, help = "The number of players", possible_values = ["2", "3", "4", "5", "6"], value_name = "NUMBER")]
-    players: u32,
-    #[clap(
-        short,
-        long,
-        help = "Use to make the board larger and to write the coordinates into the field"
-    )]
-    large_board: bool,
-    #[clap(
-        short,
-        long,
-        help = "Use to show additional information to the player.",
-        long_help = "Use to show additional information to the player. This will show information that the player would normally not have. The following is shown:\n - If the player is largest or second largest shareholder"
-    )]
-    extra_info: bool,
-    #[clap(
-        long,
-        help = "Use to run some demo on how the game looks like instead of the main game"
-    )]
-    demo: bool,
-    #[clap(long, help = "Set what demo type to run", default_value = "0")]
-    demo_type: u32,
-    #[clap(
-        short,
-        long,
-        help = "Use to always skip some dialogues",
-        long_help = "Use to always skip some dialogues. Dialogues that are skipped include: The confirmation what card the player drew."
-    )]
-    skip_dialogues: bool,
-    //    #[clap(long, help = "Use to play the game on multiplayer per lan and join a server", value_name = "IP", required = false, conflicts_with_all = &["demo", "demo-type", "extra-info", "lan-server", "large-board", "skip-dialogues"])]
-    //    lan_client: String,
-    //    #[clap(long, help = "Use to play the game on multiplayer per lan and host the server", conflicts_with_all = &["demo", "demo-type", "lan-client", "skip-dialogues"])]
-    //    lan_server: bool,
-    //    #[clap(subcommand)]
-    //    lan: Lan,
-    #[clap(long)]
-    lan_client: bool,
-    #[clap(long)]
-    lan_server: bool,
+    //    #[clap(
+//        short,
+//        long,
+//        help = "Use to show additional information to the player.",
+//        long_help = "Use to show additional information to the player. This will show information that the player would normally not have. The following is shown:\n - If the player is largest or second largest shareholder"
+//    )]
+//    extra_info: bool,
+//    #[clap(
+//        long,
+//        help = "Use to run some demo on how the game looks like instead of the main game"
+//    )]
+//    demo: bool,
+//    #[clap(long, help = "Set what demo type to run", default_value = "0")]
+//    demo_type: u32,
+//    //    #[clap(long, help = "Use to play the game on multiplayer per lan and join a server", value_name = "IP", required = false, conflicts_with_all = &["demo", "demo-type", "extra-info", "lan-server", "large-board", "skip-dialogues"])]
+//    //    lan_client: String,
+//    //    #[clap(long, help = "Use to play the game on multiplayer per lan and host the server", conflicts_with_all = &["demo", "demo-type", "lan-client", "skip-dialogues"])]
+//    //    lan_server: bool,
+//    //    #[clap(subcommand)]
+//    //    lan: Lan,
+//    #[clap(long)]
+//    lan_client: bool,
+//    #[clap(long)]
+//    lan_server: bool,
 }
 
 //#[derive(Parser)]
@@ -77,25 +60,96 @@ pub struct Opts {
 //}
 
 fn main() -> miette::Result<()> {
-    let opts = Opts::parse();
+    let matches = App::new("Acquire_rs")
+        .version("0.1.0")
+        .author("LMH01")
+        .about("The board game Acquire fia command line in Rust")
+        .arg(Arg::new("players")
+            .short('p')
+            .long("players")
+            .help("The number of players")
+            .value_name("NUMBER")
+            .possible_values(["2", "3", "4", "5", "6"])
+            .required_unless_present_any(&["lan_client", "demo", "demo_type", "info_card"])
+            .default_value_if("demo", None, Some("2")))
+        .arg(Arg::new("extra_info")
+            .short('e')
+            .long("extra-info")
+            .help("Use to show additional information to the player")
+            .long_help("Use to show additional information to the player. This will show information that the player would normally not have. The following is shown:\n - If the player is largest or second largest shareholder"))
+        .arg(Arg::new("lan_client")
+            .long("lan-client")
+            .help("Use to play the game on multiplayer per lan and join a server")
+            .conflicts_with_all(&["extra_info", "players", "skip_dialogues", "lan_server"]))
+        .arg(Arg::new("lan_server")
+            .long("lan-server")
+            .help("Start the game as server")
+            .conflicts_with_all(&["lan_client"]))
+        .arg(Arg::new("name")
+            .short('n')
+            .long("name")
+            .help("The name of the player")
+            .long_help("The name of the player. This can also be used to set the player name of the player that hosts the game.")
+            .takes_value(true)
+            .requires("lan_server"))
+        .arg(Arg::new("ip")
+            .long("ip")
+            .help("The ip and port to which to connect")
+            .long_help("The ip and port to wich to connect. Example: 192.168.178.10:11511")
+            .requires("lan_client")
+            .takes_value(true)
+            .value_name("IP")
+            .conflicts_with("lan_server"))
+        .arg(Arg::new("port")
+            .long("port")
+            .help("Overwrite the port at wich the game should be hosted")
+            .long_help("Overwrite the port at wich the game should be hosted\nDefault is 11511")
+            .default_value_if("lan_server", None, Some("11511"))
+            .requires("lan_server")
+            )
+        .arg(Arg::new("info_card")
+            .long("info-card")
+            .help("Print the stock info card")
+            .long_help("Print the stocks info card. This card displayes information on how much a stock is worth depending on the length of the hotel chain")
+            .exclusive(true))
+        .arg(Arg::new("small_board")
+            .short('s')
+            .long("small-board")
+            .help("Use to make the board smaller"))
+        .arg(Arg::new("skip_dialogues")
+            .long("skip-dialogues")
+            .help("Use to always skip some dialogues")
+            .long_help("Use to always skip some dialogues. Dialogues that are skipped include: The confirmation what card the player drew."))
+        .arg(Arg::new("demo")
+            .long("demo")
+            .help("Use to run some demo on how the game looks like instead of the main game")
+            .conflicts_with_all(&["lan_client", "lan_server"]))
+        .arg(Arg::new("demo_type")
+            .long("demo-type")
+            .help("Set what demo type to run")
+            .default_value_if("demo", None, Some("0"))
+            .requires("demo"))
+        .get_matches();
     set_terminal_output();
-    //        let mut board = Board::new();
-    //        board.print();
-    //        board.place_hotel(Position::new(Letter::E, 6))?;
-    //        board.print();
-    //        board.place_hotel_debug(Position::new(Letter::D, 2), Hotel::Airport)?;
-    //        place_test_hotels(&mut board)?;
-    //        board.print();
     print_welcome();
-    let settings = Settings::new(opts.large_board, opts.extra_info, opts.skip_dialogues);
-    if opts.demo {
-        test_things(&opts, settings)?;
-    } else if opts.lan_server {
-        start_server(&opts, settings)?;
-    } else if opts.lan_client {
-        start_client();
+    let settings = Settings::new(
+        matches.is_present("small_board"),
+        matches.is_present("extra_info"),
+        matches.is_present("skip_dialogues"),
+    );
+    if matches.is_present("demo") {
+        test_things(&matches, settings)?;
+    } else if matches.is_present("lan_server") {
+        start_server(&matches, settings)?;
+    } else if matches.is_present("lan_client") {
+        start_client(&matches)?;
+    } else if matches.is_present("info_card") {
+        print_info_card();
     } else {
-        let mut game_manager = GameManager::new(opts.players, settings)?;
+        let mut game_manager = GameManager::new(
+            matches.value_of("players").unwrap().parse().unwrap(),
+            settings,
+        )?;
         game_manager.start_game()?;
     }
     Ok(())
