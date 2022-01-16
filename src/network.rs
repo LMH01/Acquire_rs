@@ -88,6 +88,16 @@ pub fn start_client(matches: &ArgMatches) -> Result<()> {
                     stdin.read_line(&mut output_buffer).into_diagnostic()?;
                     let output = output_buffer;
                     tcp_stream.write_all(output.as_bytes()).into_diagnostic()?;
+                } else if input_buffer.starts_with("$Ping") {
+                    let _buffer = String::from(input_buffer.replacen("$Ping", "", 0));
+                    tcp_stream.write_all("$Here\n".as_bytes()).into_diagnostic()?;
+                } else if input_buffer.starts_with("$TERMINATE") {
+                    let reason = String::from(input_buffer.replacen("$TERMINATE", "", 1));
+                    println!("Game has been canceled!");
+                    println!("Reason: {}", reason);
+                    break;
+                } else if input_buffer.starts_with("$GameEnded") {
+                    break;
                 } else {
                     // This is for now a work around until i can figgure out, how i can make the
                     // process sleep until new date is comming in.
@@ -135,7 +145,7 @@ pub fn start_server(matches: &ArgMatches, settings: Settings) -> Result<()> {
     let port = listener.local_addr().into_diagnostic()?;
     println!("Game has been hosted on {}", port);
     println!(
-        "The game can be stared when {} player(s) have connected.",
+        "The game can be stared when {} more player(s) have connected.",
         matches.value_of("players").unwrap().parse::<u32>().unwrap() - 1
     );
     let mut client_players = Vec::new();
@@ -148,7 +158,6 @@ pub fn start_server(matches: &ArgMatches, settings: Settings) -> Result<()> {
         br.read_line(&mut input_buffer).into_diagnostic()?;
         if input_buffer.starts_with("$Init") {
             let input = String::from(input_buffer.replacen("$Init", "", 1));
-            println!("Input: {}", &input);
             let mut splits = input.splitn(2, "$Name");
             let small_board = match splits.next().unwrap() {
                 "true" => true,
@@ -229,7 +238,7 @@ pub fn broadcast_others(message: &str, current_player_name: &String, players: &V
 
 /// Sends a string to the client.
 /// The text is split at `\n`. These slices are send individually.
-pub fn send_string(player: &Player, text: &str, command: &str) {
+pub fn send_string(player: &Player, text: &str, command: &str) -> Result<()> {
     let mut stream = player.tcp_stream.as_ref().unwrap();
     let text = String::from(text);
     let text = text.split("\n");
@@ -240,6 +249,42 @@ pub fn send_string(player: &Player, text: &str, command: &str) {
         out.push_str("\n");
         if let Err(err) = stream.write_all(out.as_bytes()) {
             println!("Unable to send data to player {}: {}", player.name, err);
+            return Err(miette!("Unable to send data to player {}: {}", player.name, err));
         }
     }
+    Ok(())
+}
+
+/// Send each player a short message to see if they are still listening.
+/// If a player does not answer the game is canceled and each player will be notified.
+pub fn ping(players: &Vec<Player>) -> Result<()> {
+    let mut error = Ok(());
+    for player in players {
+        if player.tcp_stream.is_some() {
+            if let Err(e) = send_string(player, "", "$Ping") {
+                error = Err(e);
+            } else {
+                // Wait for response
+                let mut br = BufReader::new(player.tcp_stream.as_ref().unwrap());
+                let mut buffer = String::new();
+                if let Err(err) = br.read_line(&mut buffer) {
+                    println!("Player {} did not respond to ping. Reason: {}", player.name, err);
+                    error = Err(miette!("Player {} did not respond to ping. Reason: {}", player.name, err));
+                }
+            }
+        }
+    }
+    if error.is_err() {
+        // Message players and terminate game
+        for player in players {
+            if player.tcp_stream.is_some() {
+                match send_string(player, &format!("Game has been canceled!\nReason: A player has lost connection."), "$TERMINATE") {
+                    Err(e) => println!("Error sending terminate command to player {}! Reason: {}", player.name, e),
+                    _ => (),
+                }
+            }
+        }
+        return error;
+    }
+    Ok(())
 }

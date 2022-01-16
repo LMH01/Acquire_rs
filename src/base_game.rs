@@ -1596,7 +1596,7 @@ pub mod player {
         net::TcpStream,
         ops::RangeInclusive,
         slice::{IterMut, SliceIndex},
-        str::FromStr,
+        str::FromStr, process::exit,
     };
 
     use crate::{
@@ -1609,7 +1609,7 @@ pub mod player {
             GameManager,
         },
         logic::place_hotel::{IllegalPlacement, PlaceHotelCase},
-        network::send_string,
+        network::{send_string, broadcast},
         utils::generate_number_vector,
     };
     use miette::{miette, Result};
@@ -2288,6 +2288,7 @@ pub mod player {
                     let mut buffer = String::new();
                     if let Err(err) = br.read_line(&mut buffer) {
                         println!("Unable to send data to player {}: {}", self.name, err);
+                        exit(1);
                     }
                     let input = buffer.trim();
                     match input.parse::<T>() {
@@ -2322,6 +2323,7 @@ pub mod player {
                 let mut buffer = String::new();
                 if let Err(err) = br.read_line(&mut buffer) {
                     println!("Unable to send data to player {}: {}", self.name, err);
+                    exit(1);
                 }
             }
         }

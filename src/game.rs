@@ -153,18 +153,18 @@ pub mod game {
                     &self.players,
                 );
             }
-            self.players.sort();
             broadcast_others(
                 &format!("Waiting for {} to start the first round...", &self.players[0].name),
                 &self.players[0].name,
                 &self.players,
             );
             self.players[0].get_enter("Press enter to start the first round!");
-            self.start_rounds()?;
+            self.players.sort();
             // Analyze the initial player cards
             for player in &mut self.players {
                 player.analyze_cards(&self.board, &self.hotel_chain_manager);
             }
+            self.start_rounds()?;
             Ok(())
         }
 
@@ -404,6 +404,9 @@ pub mod game {
                 1 => player.print_text_ln(&format!("{}, you are second place!", player.name)),
                 2 => player.print_text_ln(&format!("{}, you are third place!", player.name)),
                 _ => player.print_text_ln(&format!("{}, you have lost!", player.name)),
+            }
+            if player.tcp_stream.is_some() {
+                player.tcp_stream.as_ref().unwrap().write_all("$GameEnded\n".as_bytes()).into_diagnostic()?;
             }
         }
         Ok(())
@@ -812,10 +815,10 @@ pub mod game {
                 check_end_condition,
                 place_hotel::{place_hotel, IllegalPlacement, PlaceHotelCase},
             },
-            network::broadcast_others,
+            network::{broadcast_others, ping},
         };
 
-        use super::{draw_card, hotel_chain_manager::HotelChainManager, GameManager};
+        use super::{draw_card, hotel_chain_manager::HotelChainManager, GameManager, final_account};
 
         pub struct Round {
             pub started: bool,
@@ -878,6 +881,8 @@ pub mod game {
                 hotel_chain_manager: &mut HotelChainManager,
                 position_cards: &mut Vec<Position>,
             ) -> Result<bool> {
+                // Check if players are still listening
+                ping(players)?;
                 let player = players.get_mut(player_index).unwrap();
                 let current_player_name = player.name.clone();
                 // Update the players cards to new game state
