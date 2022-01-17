@@ -22,7 +22,6 @@ use crate::{
         GameManager,
     },
     logic::place_hotel::fuse_chains,
-    Opts,
 };
 
 fn place_test_hotels(board: &mut Board) -> Result<()> {

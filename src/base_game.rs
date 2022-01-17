@@ -591,12 +591,12 @@ pub mod hotel_chains {
         pub fn iterator() -> Iter<'static, HotelChain> {
             const HOTELS: [HotelChain; 7] = [
                 HotelChain::Airport,
-                HotelChain::Continental,
                 HotelChain::Festival,
                 HotelChain::Imperial,
                 HotelChain::Luxor,
                 HotelChain::Oriental,
                 HotelChain::Prestige,
+                HotelChain::Continental,
             ];
             HOTELS.iter()
         }
@@ -967,17 +967,15 @@ pub mod bank {
         /// # Arguments
         /// * `players` - The list of players playing the game. Used to update largest
         /// shareholders.
-        pub fn give_bonus_stock(&mut self, chain: &HotelChain, player: &mut Player) -> Result<()> {
+        pub fn give_bonus_stock(&mut self, chain: &HotelChain, player: &mut Player) {
             // Check if stocks are left
             if *self.stocks_for_sale.stocks.get(&chain).unwrap() == 0 {
-                return Err(miette!(
-                    "Free stock could not be given to the player: No stocks available!"
-                ));
+                player
+                    .print_text_ln("You did not recieve a bonus stock because no stocks are left!");
             }
             *self.stocks_for_sale.stocks.get_mut(&chain).unwrap() -= 1;
             // Give stock to player
             *player.owned_stocks.stocks.get_mut(&chain).unwrap() += 1;
-            Ok(())
         }
 
         /// Updates who the largest and second largest shareholders are.
@@ -1595,8 +1593,9 @@ pub mod player {
         io::{BufRead, BufReader, Write},
         net::TcpStream,
         ops::RangeInclusive,
+        process::exit,
         slice::{IterMut, SliceIndex},
-        str::FromStr, process::exit,
+        str::FromStr,
     };
 
     use crate::{
@@ -1609,7 +1608,7 @@ pub mod player {
             GameManager,
         },
         logic::place_hotel::{IllegalPlacement, PlaceHotelCase},
-        network::{send_string, broadcast},
+        network::{broadcast, send_string},
         utils::generate_number_vector,
     };
     use miette::{miette, Result};
@@ -2575,9 +2574,31 @@ pub mod ui {
                     settings.extra_info,
                 ),
             };
+            let hotel_price_color;
+            if !enable_color {
+                hotel_price_color = color;
+            } else {
+                hotel_price_color = match chain.price_level() {
+                    super::hotel_chains::PriceLevel::Low => DynColors::Ansi(AnsiColors::Red),
+                    super::hotel_chains::PriceLevel::Medium => DynColors::Ansi(AnsiColors::Yellow),
+                    super::hotel_chains::PriceLevel::High => DynColors::Ansi(AnsiColors::Green),
+                }
+            };
+            let hotel_price = match chain.price_level() {
+                super::hotel_chains::PriceLevel::Low => {
+                    format!("[{}]", "L".color(hotel_price_color))
+                }
+                super::hotel_chains::PriceLevel::Medium => {
+                    format!("[{}]", "M".color(hotel_price_color))
+                }
+                super::hotel_chains::PriceLevel::High => {
+                    format!("[{}]", "H".color(hotel_price_color))
+                }
+            };
             main_ui.push(format!(
-                "{:15}{}{}{}",
+                "{:12}{}{}{}{}",
                 chain.name().color(chain_color),
+                hotel_price,
                 formatted_string1.color(color),
                 stock_status_symbol,
                 formatted_string2.color(color),

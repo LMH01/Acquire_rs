@@ -13,7 +13,6 @@ use crate::{
     base_game::{player::Player, settings::Settings},
     data_stream::read_enter,
     game::game::GameManager,
-    Opts,
 };
 
 /// Starts a client of the game.
@@ -90,7 +89,9 @@ pub fn start_client(matches: &ArgMatches) -> Result<()> {
                     tcp_stream.write_all(output.as_bytes()).into_diagnostic()?;
                 } else if input_buffer.starts_with("$Ping") {
                     let _buffer = String::from(input_buffer.replacen("$Ping", "", 0));
-                    tcp_stream.write_all("$Here\n".as_bytes()).into_diagnostic()?;
+                    tcp_stream
+                        .write_all("$Here\n".as_bytes())
+                        .into_diagnostic()?;
                 } else if input_buffer.starts_with("$TERMINATE") {
                     let reason = String::from(input_buffer.replacen("$TERMINATE", "", 1));
                     println!("Game has been canceled!");
@@ -249,7 +250,11 @@ pub fn send_string(player: &Player, text: &str, command: &str) -> Result<()> {
         out.push_str("\n");
         if let Err(err) = stream.write_all(out.as_bytes()) {
             println!("Unable to send data to player {}: {}", player.name, err);
-            return Err(miette!("Unable to send data to player {}: {}", player.name, err));
+            return Err(miette!(
+                "Unable to send data to player {}: {}",
+                player.name,
+                err
+            ));
         }
     }
     Ok(())
@@ -268,8 +273,15 @@ pub fn ping(players: &Vec<Player>) -> Result<()> {
                 let mut br = BufReader::new(player.tcp_stream.as_ref().unwrap());
                 let mut buffer = String::new();
                 if let Err(err) = br.read_line(&mut buffer) {
-                    println!("Player {} did not respond to ping. Reason: {}", player.name, err);
-                    error = Err(miette!("Player {} did not respond to ping. Reason: {}", player.name, err));
+                    println!(
+                        "Player {} did not respond to ping. Reason: {}",
+                        player.name, err
+                    );
+                    error = Err(miette!(
+                        "Player {} did not respond to ping. Reason: {}",
+                        player.name,
+                        err
+                    ));
                 }
             }
         }
@@ -278,8 +290,15 @@ pub fn ping(players: &Vec<Player>) -> Result<()> {
         // Message players and terminate game
         for player in players {
             if player.tcp_stream.is_some() {
-                match send_string(player, &format!("Game has been canceled!\nReason: A player has lost connection."), "$TERMINATE") {
-                    Err(e) => println!("Error sending terminate command to player {}! Reason: {}", player.name, e),
+                match send_string(
+                    player,
+                    &format!("Game has been canceled!\nReason: A player has lost connection."),
+                    "$TERMINATE",
+                ) {
+                    Err(e) => println!(
+                        "Error sending terminate command to player {}! Reason: {}",
+                        player.name, e
+                    ),
                     _ => (),
                 }
             }

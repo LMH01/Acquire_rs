@@ -26,39 +26,6 @@ use network::{start_client, start_server};
 //info card from the real game to the console
 //TODO Change $ to €
 
-pub struct Opts {
-    //    #[clap(
-//        short,
-//        long,
-//        help = "Use to show additional information to the player.",
-//        long_help = "Use to show additional information to the player. This will show information that the player would normally not have. The following is shown:\n - If the player is largest or second largest shareholder"
-//    )]
-//    extra_info: bool,
-//    #[clap(
-//        long,
-//        help = "Use to run some demo on how the game looks like instead of the main game"
-//    )]
-//    demo: bool,
-//    #[clap(long, help = "Set what demo type to run", default_value = "0")]
-//    demo_type: u32,
-//    //    #[clap(long, help = "Use to play the game on multiplayer per lan and join a server", value_name = "IP", required = false, conflicts_with_all = &["demo", "demo-type", "extra-info", "lan-server", "large-board", "skip-dialogues"])]
-//    //    lan_client: String,
-//    //    #[clap(long, help = "Use to play the game on multiplayer per lan and host the server", conflicts_with_all = &["demo", "demo-type", "lan-client", "skip-dialogues"])]
-//    //    lan_server: bool,
-//    //    #[clap(subcommand)]
-//    //    lan: Lan,
-//    #[clap(long)]
-//    lan_client: bool,
-//    #[clap(long)]
-//    lan_server: bool,
-}
-
-//#[derive(Parser)]
-//enum Lan {
-//    Client,
-//    Server,
-//}
-
 fn main() -> miette::Result<()> {
     let matches = App::new("Acquire_rs")
         .version("0.1.0")

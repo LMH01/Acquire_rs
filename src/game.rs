@@ -154,7 +154,10 @@ pub mod game {
                 );
             }
             broadcast_others(
-                &format!("Waiting for {} to start the first round...", &self.players[0].name),
+                &format!(
+                    "Waiting for {} to start the first round...",
+                    &self.players[0].name
+                ),
                 &self.players[0].name,
                 &self.players,
             );
@@ -164,6 +167,8 @@ pub mod game {
             for player in &mut self.players {
                 player.analyze_cards(&self.board, &self.hotel_chain_manager);
             }
+            self.board.place_hotel(&Position::new('G', 5))?;
+            self.board.place_hotel(&Position::new('G', 6))?;
             self.start_rounds()?;
             Ok(())
         }
@@ -406,7 +411,12 @@ pub mod game {
                 _ => player.print_text_ln(&format!("{}, you have lost!", player.name)),
             }
             if player.tcp_stream.is_some() {
-                player.tcp_stream.as_ref().unwrap().write_all("$GameEnded\n".as_bytes()).into_diagnostic()?;
+                player
+                    .tcp_stream
+                    .as_ref()
+                    .unwrap()
+                    .write_all("$GameEnded\n".as_bytes())
+                    .into_diagnostic()?;
             }
         }
         Ok(())
@@ -418,11 +428,14 @@ pub mod game {
 
         use miette::{miette, Result};
 
-        use crate::base_game::{
-            bank::Bank,
-            board::{Board, Position},
-            hotel_chains::HotelChain,
-            player::Player,
+        use crate::{
+            base_game::{
+                bank::Bank,
+                board::{AnalyzedPosition, Board, Position},
+                hotel_chains::HotelChain,
+                player::Player,
+            },
+            logic::place_hotel::PlaceHotelCase,
         };
 
         /// Store the currently active hotel chains
@@ -525,7 +538,7 @@ pub mod game {
                 }
 
                 if self.active_chains.contains_key(&hotel_chain) {
-                    return Err(miette!("Unable to start new chain of hotel {}: The chain has already been founded!", &hotel_chain));
+                    return Err(miette!("Unable to start new chain of hotel {}: The chain has already been started!", &hotel_chain));
                 }
                 self.active_chains.insert(hotel_chain, positions.clone());
                 // Update hotels on board
@@ -534,10 +547,20 @@ pub mod game {
                         board.place_hotel(&position)?;
                         eprintln!("Warning: Hotel at {} was not placed but has been placed to start the chain {}. Please place the hotel before the chain is stared!", &position, &hotel_chain);
                     }
+                    // Update single hotels that surround the placed hotel
+                    let analyzed_position = AnalyzedPosition::new(position, board, self);
+                    match analyzed_position.place_hotel_case {
+                        PlaceHotelCase::NewChain(positions_ext) => {
+                            for p in positions_ext {
+                                board.update_hotel(hotel_chain, &p)?
+                            }
+                        }
+                        _ => (),
+                    };
                     board.update_hotel(hotel_chain, &position)?;
                 }
                 // Update player stocks
-                bank.give_bonus_stock(&hotel_chain, player)?;
+                bank.give_bonus_stock(&hotel_chain, player);
                 Ok(())
             }
 
@@ -818,7 +841,9 @@ pub mod game {
             network::{broadcast_others, ping},
         };
 
-        use super::{draw_card, hotel_chain_manager::HotelChainManager, GameManager, final_account};
+        use super::{
+            draw_card, final_account, hotel_chain_manager::HotelChainManager, GameManager,
+        };
 
         pub struct Round {
             pub started: bool,
