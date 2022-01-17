@@ -1125,14 +1125,14 @@ pub mod bank {
                     if inform_player {
                         broadcast_others(
                             &format!(
-                                "{}, recieved {}$ because they where the largest shareholder.",
+                                "{}, recieved {}€ because they where the largest shareholder.",
                                 largest_shareholder_name, largest_shareholder_bonus
                             ),
                             &largest_shareholder_name,
                             players,
                         );
                         players[largest_shareholders[0] as usize].get_enter(&format!(
-                            "{}, you recieved {}$ because you where the largest shareholder. (press enter to continue)",
+                            "{}, you recieved {}€ because you where the largest shareholder. (press enter to continue)",
                             &largest_shareholder_name, largest_shareholder_bonus
                         ));
                     }
@@ -1147,14 +1147,14 @@ pub mod bank {
                             if inform_player {
                                 broadcast_others(
                             &format!(
-                                "{}, recieved {}$ because they where the second largest shareholder.",
+                                "{}, recieved {}€ because they where the second largest shareholder.",
                                 second_largest_shareholder_name, second_largest_shareholder_bonus
                             ),
                             &second_largest_shareholder_name,
                             players,
                         );
                                 players[second_largest_shareholders[0] as usize].get_enter(&format!(
-                            "{}, you recieved {}$ because you where the seond largest shareholder. (press enter to continue)",
+                            "{}, you recieved {}€ because you where the seond largest shareholder. (press enter to continue)",
                             &second_largest_shareholder_name, second_largest_shareholder_bonus
                         ));
                             }
@@ -1170,8 +1170,8 @@ pub mod bank {
                                 let name = players[*i as usize].name.clone();
                                 players[*i as usize].add_money(bonus);
                                 if inform_player {
-                                    broadcast_others(&format!("{}, recieved {}$ because they where one of the second largest shareholders.", &name, bonus), &name, players);
-                                    players[*i as usize].get_enter(&format!("{}, you recieved {}$ because you where one of the second largest shareholders. (press enter to continue)", &name, bonus));
+                                    broadcast_others(&format!("{}, recieved {}€ because they where one of the second largest shareholders.", &name, bonus), &name, players);
+                                    players[*i as usize].get_enter(&format!("{}, you recieved {}€ because you where one of the second largest shareholders. (press enter to continue)", &name, bonus));
                                 }
                             }
                         }
@@ -1187,7 +1187,7 @@ pub mod bank {
                         let player = players.get_mut(*i as usize).unwrap();
                         player.add_money(bonus);
                         if inform_player {
-                            player.get_enter(&format!("{}, you recieved {}$ because you where one of the largest shareholders. (press enter to continue)", player.name, bonus));
+                            player.get_enter(&format!("{}, you recieved {}€ because you where one of the largest shareholders. (press enter to continue)", player.name, bonus));
                         }
                     }
                 }
@@ -1851,7 +1851,7 @@ pub mod player {
             let mut ui = Vec::new();
             // Print money
             ui.push(format!(
-                "{} {}$",
+                "{} {}€",
                 String::from("Money:").bright_green(),
                 self.money
             ));
@@ -1914,7 +1914,7 @@ pub mod player {
         /// Prints the current player to the console
         pub fn print_player_ui(&self) {
             // Print money
-            println!("{} {}$", String::from("Money:").bright_green(), self.money);
+            println!("{} {}€", String::from("Money:").bright_green(), self.money);
             // Print cards
             print!("{}", String::from("Cards: ").bright_green());
             let mut first_card = true;
@@ -2107,7 +2107,7 @@ pub mod player {
                     ));
                 }
                 self.print_text_ln(&format!(
-                    "The following will happen to your stocks:\nTotal {} stocks: {} - {} = {}\nTotal {} stocks: {} + {} = {}\nMoney: {}$ + {}$ = {}$",
+                    "The following will happen to your stocks:\nTotal {} stocks: {} - {} = {}\nTotal {} stocks: {} + {} = {}\nMoney: {}€ + {}€ = {}€",
                     dead.name().color(dead.color()), self.owned_stocks.stocks_for_hotel(dead), stocks_to_sell+&stocks_to_exchange, self.owned_stocks.stocks_for_hotel(dead)-(stocks_to_sell+stocks_to_exchange),
                     alive.name().color(alive.color()), self.owned_stocks.stocks_for_hotel(alive), new_alive_stocks_number, self.owned_stocks.stocks_for_hotel(alive)+new_alive_stocks_number,
                     self.money, Bank::stock_price(hotel_chain_manager, dead)*stocks_to_sell, self.money+Bank::stock_price(hotel_chain_manager, dead)*stocks_to_sell,
@@ -2256,7 +2256,7 @@ pub mod player {
                     expanses += Bank::stock_price(hotel_chain_manager, &k) * v;
                 }
                 self.print_text_ln(&format!(
-                    "Money: {} - {} = {}",
+                    "Money: {}€ - {}€ = {}€",
                     self.money,
                     expanses,
                     self.money - expanses
@@ -2571,7 +2571,7 @@ pub mod ui {
                 player_stocks,
             );
             let formatted_string2 = format!(
-                " || {:4}$ ||        {:5}$       ||        {:5}$",
+                " || {:4}€ ||        {:5}€       ||        {:5}€",
                 Bank::stock_price(&hotel_chain_manager, &chain),
                 Bank::stock_price(&hotel_chain_manager, &chain) * 10,
                 Bank::stock_price(&hotel_chain_manager, &chain) * 5,

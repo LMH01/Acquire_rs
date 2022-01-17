@@ -390,22 +390,22 @@ pub mod game {
             let player = &players[*player_money_map.get(&money).unwrap() as usize];
             match index {
                 0 => leader_board.push_str(
-                    &format!("1. {} - {}$\n", player.name, money)
+                    &format!("1. {} - {}€\n", player.name, money)
                         .color(Rgb(225, 215, 0))
                         .to_string(),
                 ),
                 1 => leader_board.push_str(
-                    &format!("2. {} - {}$\n", player.name, money)
+                    &format!("2. {} - {}€\n", player.name, money)
                         .color(Rgb(192, 192, 192))
                         .to_string(),
                 ),
                 2 => leader_board.push_str(
-                    &format!("3. {} - {}$\n", player.name, money)
+                    &format!("3. {} - {}€\n", player.name, money)
                         .color(Rgb(191, 137, 112))
                         .to_string(),
                 ),
                 _ => leader_board.push_str(
-                    &format!("{}. {} - {}$\n", player.id + 1, player.name, money)
+                    &format!("{}. {} - {}€\n", player.id + 1, player.name, money)
                         .color(Rgb(191, 137, 112))
                         .to_string(),
                 ),
@@ -431,7 +431,7 @@ pub mod game {
                     .tcp_stream
                     .as_ref()
                     .unwrap()
-                    .write_all("$GameEnded\n".as_bytes())
+                    .write_all("€GameEnded\n".as_bytes())
                     .into_diagnostic()?;
             }
         }
