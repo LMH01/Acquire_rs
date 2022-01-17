@@ -1007,6 +1007,7 @@ pub mod game {
                         }
                     }
                 }
+                bank.update_largest_shareholders(players);
                 // If game has ended no new card is drawn
                 if game_ended {
                     return Ok(true);

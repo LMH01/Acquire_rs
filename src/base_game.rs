@@ -512,16 +512,16 @@ pub mod settings {
         /// Stores if some extra information should be shown to the player.
         ///
         /// E.g. If the player is the largest shareholder
-        pub extra_info: bool,
+        pub hide_extra_info: bool,
         /// Stores if some dialogues should be skipped
         pub skip_dialogues: bool,
     }
 
     impl Settings {
-        pub fn new(large_board: bool, extra_info: bool, skip_dialogues: bool) -> Self {
+        pub fn new(large_board: bool, hide_extra_info: bool, skip_dialogues: bool) -> Self {
             Self {
                 small_board: large_board,
-                extra_info,
+                hide_extra_info,
                 skip_dialogues,
             }
         }
@@ -530,7 +530,7 @@ pub mod settings {
         pub fn new_default() -> Self {
             Self {
                 small_board: false,
-                extra_info: false,
+                hide_extra_info: false,
                 skip_dialogues: false,
             }
         }
@@ -2583,7 +2583,7 @@ pub mod ui {
                     &hotel_chain_manager,
                     &chain,
                     player.id,
-                    settings.extra_info,
+                    !settings.hide_extra_info,
                 ),
             };
             let hotel_price_color;

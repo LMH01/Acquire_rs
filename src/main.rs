@@ -39,15 +39,15 @@ fn main() -> miette::Result<()> {
             .possible_values(["2", "3", "4", "5", "6"])
             .required_unless_present_any(&["lan_client", "demo", "demo_type", "info_card"])
             .default_value_if("demo", None, Some("2")))
-        .arg(Arg::new("extra_info")
-            .short('e')
-            .long("extra-info")
-            .help("Use to show additional information to the player")
-            .long_help("Use to show additional information to the player. This will show information that the player would normally not have. The following is shown:\n - If the player is largest or second largest shareholder"))
+        .arg(Arg::new("hide_extra_info")
+            .short('h')
+            .long("hide-extra-info")
+            .help("Use to hide additional information to the player")
+            .long_help("Use to hide additional information to the player. This will hide information that the player would normally have to give the game more variation. The following is hidden:\n - Who the largest or second largest shareholders are\nWhen this flag is not set a little star next to your bought stocks displayes if you are the largest (golden star) or second largest shareholder for that chain (silver star)."))
         .arg(Arg::new("lan_client")
             .long("lan-client")
             .help("Use to play the game on multiplayer per lan and join a server")
-            .conflicts_with_all(&["extra_info", "players", "skip_dialogues", "lan_server"]))
+            .conflicts_with_all(&["hide_extra_info", "players", "skip_dialogues", "lan_server"]))
         .arg(Arg::new("lan_server")
             .long("lan-server")
             .help("Start the game as server")
@@ -101,7 +101,7 @@ fn main() -> miette::Result<()> {
     print_welcome();
     let settings = Settings::new(
         matches.is_present("small_board"),
-        matches.is_present("extra_info"),
+        matches.is_present("hide_extra_info"),
         matches.is_present("skip_dialogues"),
     );
     if matches.is_present("demo") {
