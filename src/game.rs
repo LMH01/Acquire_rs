@@ -365,8 +365,8 @@ pub mod game {
         player_money.sort();
         player_money.reverse();
         let mut leader_board = String::new();
-        for (index, (money, p_id)) in player_money_map.iter().enumerate() {
-            let player = players.get(*p_id as usize).unwrap();
+        for (index, money) in player_money.iter().enumerate() {
+            let player = &players[*player_money_map.get(&money).unwrap() as usize];
             match index {
                 0 => leader_board.push_str(
                     &format!("1. {} - {}\n", player.name, money)
