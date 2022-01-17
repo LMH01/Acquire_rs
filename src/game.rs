@@ -167,8 +167,6 @@ pub mod game {
             for player in &mut self.players {
                 player.analyze_cards(&self.board, &self.hotel_chain_manager);
             }
-            self.board.place_hotel(&Position::new('G', 5))?;
-            self.board.place_hotel(&Position::new('G', 6))?;
             self.start_rounds()?;
             Ok(())
         }
@@ -220,17 +218,35 @@ pub mod game {
             let mut player_cards =
                 GameManager::init_player_cards(number_of_players, position_cards)?;
             while !player_cards.is_empty() {
-                let mut buffer = String::new();
-                print!("Player {}, please enter your name: ", player_id + 1);
-                stdout().flush().into_diagnostic()?;
-                stdin().read_line(&mut buffer).into_diagnostic()?;
-                players.push(Player::new_named(
-                    player_cards.pop().unwrap(),
-                    player_id,
-                    small_board,
-                    String::from(buffer.trim()),
-                ));
-                player_id += 1;
+                // Runs until player entered a name that is not yet taken
+                // If nothing is entered the player name will be `Player i`
+                'inner: loop {
+                    let mut buffer = String::new();
+                    print!("Player {}, please enter your name: ", player_id + 1);
+                    stdout().flush().into_diagnostic()?;
+                    stdin().read_line(&mut buffer).into_diagnostic()?;
+                    buffer = buffer.trim().to_string();
+                    let player_name;
+                    if buffer.is_empty() {
+                        player_name = format!("Player {}", player_id + 1);
+                    } else {
+                        for player in &players {
+                            if player.name == buffer {
+                                println!("This name already exists, please enter another name!");
+                                continue 'inner;
+                            }
+                        }
+                        player_name = buffer.clone();
+                    }
+                    players.push(Player::new_named(
+                        player_cards.pop().unwrap(),
+                        player_id,
+                        small_board,
+                        player_name,
+                    ));
+                    player_id += 1;
+                    break;
+                }
             }
             Ok(players)
         }
@@ -374,22 +390,22 @@ pub mod game {
             let player = &players[*player_money_map.get(&money).unwrap() as usize];
             match index {
                 0 => leader_board.push_str(
-                    &format!("1. {} - {}\n", player.name, money)
+                    &format!("1. {} - {}$\n", player.name, money)
                         .color(Rgb(225, 215, 0))
                         .to_string(),
                 ),
                 1 => leader_board.push_str(
-                    &format!("2. {} - {}\n", player.name, money)
+                    &format!("2. {} - {}$\n", player.name, money)
                         .color(Rgb(192, 192, 192))
                         .to_string(),
                 ),
                 2 => leader_board.push_str(
-                    &format!("3. {} - {}\n", player.name, money)
+                    &format!("3. {} - {}$\n", player.name, money)
                         .color(Rgb(191, 137, 112))
                         .to_string(),
                 ),
                 _ => leader_board.push_str(
-                    &format!("{}. {} - {}\n", player.id + 1, player.name, money)
+                    &format!("{}. {} - {}$\n", player.id + 1, player.name, money)
                         .color(Rgb(191, 137, 112))
                         .to_string(),
                 ),

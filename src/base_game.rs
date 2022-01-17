@@ -926,7 +926,7 @@ pub mod bank {
             let stock_price = Bank::stock_price(hotel_chain_manager, chain);
             // Move stocks from players inventory to the bank
             player.owned_stocks.set_stocks(chain, 0);
-            self.stocks_for_sale.set_stocks(chain, player_stocks);
+            self.stocks_for_sale.increase_stocks(chain, player_stocks);
             // Give money to player
             player.add_money(stock_price * player_stocks);
             Ok(())
@@ -1859,13 +1859,25 @@ pub mod player {
             let mut cards = String::new();
             cards.push_str(&String::from("Cards: ").bright_green().to_string());
             let mut first_card = true;
-            for analyzed_card in &self.analyzed_cards {
+            for (index, analyzed_card) in self.analyzed_cards.iter().enumerate() {
                 if first_card {
                     first_card = false;
                 } else {
                     cards.push_str(", ");
                 }
-                cards.push_str(&format!("{}", analyzed_card));
+                if analyzed_card.is_illegal() {
+                    cards.push_str(&format!(
+                        "{} {}",
+                        format!("({})", index + 1).color(Rgb(105, 105, 105)),
+                        analyzed_card
+                    ));
+                } else {
+                    cards.push_str(&format!(
+                        "({}) {}",
+                        format!("{}", index + 1).color(AnsiColors::BrightBlue),
+                        analyzed_card
+                    ));
+                }
             }
             ui.push(cards);
             // Print stocks
@@ -2586,13 +2598,25 @@ pub mod ui {
             };
             let hotel_price = match chain.price_level() {
                 super::hotel_chains::PriceLevel::Low => {
-                    format!("[{}]", "L".color(hotel_price_color))
+                    if enable_color {
+                        format!("[{}]", "L".color(hotel_price_color))
+                    } else {
+                        format!("[{}]", "L").color(color).to_string()
+                    }
                 }
                 super::hotel_chains::PriceLevel::Medium => {
-                    format!("[{}]", "M".color(hotel_price_color))
+                    if enable_color {
+                        format!("[{}]", "M".color(hotel_price_color))
+                    } else {
+                        format!("[{}]", "M").color(color).to_string()
+                    }
                 }
                 super::hotel_chains::PriceLevel::High => {
-                    format!("[{}]", "H".color(hotel_price_color))
+                    if enable_color {
+                        format!("[{}]", "H".color(hotel_price_color))
+                    } else {
+                        format!("[{}]", "H").color(color).to_string()
+                    }
                 }
             };
             main_ui.push(format!(
