@@ -732,8 +732,8 @@ pub mod place_hotel {
         let player = players.get_mut(player_index).unwrap();
         player.get_enter(&format!(
             "Press enter to fuse {} into {} ",
-            dead.name().color(dead.color()).to_string(),
-            alive.name().color(alive.color()).to_string()
+            dead.name().color(dead.color()),
+            alive.name().color(alive.color())
         ));
         // 1. Payout the majority shareholder bonuses
         bank.update_largest_shareholders(players);

@@ -55,7 +55,7 @@ pub fn start_client(matches: &ArgMatches) -> Result<()> {
                 .write_all(
                     format!(
                         "$Init{}$Name{}\n",
-                        matches.is_present("small_board").to_string(),
+                        matches.is_present("small_board"),
                         name
                     )
                     .as_bytes(),

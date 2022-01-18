@@ -1816,9 +1816,8 @@ pub mod player {
                         "This position is illegal [{}]: {}",
                         analyzed_position
                             .position
-                            .color(Rgb(105, 105, 105))
-                            .to_string(),
-                        reason.color(AnsiColors::Red).to_string()
+                            .color(Rgb(105, 105, 105)),
+                        reason.color(AnsiColors::Red)
                     ));
                     self.print_text_ln("Please select another card!");
                     continue;
