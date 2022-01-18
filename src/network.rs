@@ -7,7 +7,7 @@ use std::{
 use clap::ArgMatches;
 use local_ip_address::local_ip;
 use miette::{miette, IntoDiagnostic, Result};
-use owo_colors::{OwoColorize, AnsiColors};
+use owo_colors::{AnsiColors, OwoColorize};
 
 use crate::{
     base_game::{player::Player, settings::Settings},
@@ -191,7 +191,10 @@ pub fn start_server(matches: &ArgMatches, settings: Settings) -> Result<()> {
     read_enter();
     if let Err(err) = game_manager.start_game() {
         // Some error occured because of which the game is canceled
-        println!("{}", "An unrecoverable error occured, the game is canceled!".color(AnsiColors::Red));
+        println!(
+            "{}",
+            "An unrecoverable error occured, the game is canceled!".color(AnsiColors::Red)
+        );
         abort_game(&game_manager.players, err.to_string());
         println!("Reason the game had to be canceled:");
         return Err(err);
@@ -199,6 +202,13 @@ pub fn start_server(matches: &ArgMatches, settings: Settings) -> Result<()> {
     // game is over, stream will be closed
     for player in game_manager.players {
         if player.tcp_stream.is_some() {
+            if let Err(err) = send_string(&player, "", "$GameEnded") {
+                println!(
+                    "Error: Could not send game ended signal to player {}. Reason: {}",
+                    player.name.clone(),
+                    err
+                );
+            }
             player
                 .tcp_stream
                 .unwrap()

@@ -739,18 +739,24 @@ pub mod place_hotel {
         bank.update_largest_shareholders(players);
         bank.give_majority_shareholder_bonuses(players, dead, hotel_chain_manager, true)?;
         // 2. Trade stocks
-        for i in 0..=players.len() - 1 {
-            let mut index = player_index + i;
+        let mut index = player_index;
+        for _i in 0..=players.len() - 1 {
             if index > players.len() - 1 {
                 index = 0;
             }
             let player = players.get_mut(index).unwrap();
             let player_name = player.name.clone();
-            // check if player has stocks if yes let them handle the fusion stocks
+            // check if player has stocks. If yes let them decide what they would like to do with them
+            println!(
+                "Player {} has {} stocks of hotel {}",
+                player.name,
+                player.owned_stocks.stocks_for_hotel(dead),
+                dead
+            );
             if *player.owned_stocks.stocks_for_hotel(dead) > 0 {
                 broadcast_others(
                     &format!(
-                        "{} is deciding what they are going to do with thair stocks...",
+                        "{} is deciding what they are going to do with their stocks...",
                         player_name
                     ),
                     &player_name,
@@ -761,6 +767,7 @@ pub mod place_hotel {
                     player.handle_fusion_stocks(dead, alive, bank, hotel_chain_manager)?;
                 broadcast_others(&format!("{} did the following with their stocks:\nExchanged: {}\nSold: {}\nKeept: {}", player_name, stocks_status.0, stocks_status.1, stocks_status.2), &player_name, players)?;
             }
+            index += 1;
         }
         // 3. Fuse chains on board
         hotel_chain_manager.fuse_chains(alive, dead, board)?;

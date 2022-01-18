@@ -399,7 +399,7 @@ pub fn final_account(
             ),
             _ => leader_board.push_str(
                 &format!("{}. {} - {}€\n", player.id + 1, player.name, money)
-                    .color(Rgb(191, 137, 112))
+                    .color(Rgb(105, 105, 105))
                     .to_string(),
             ),
         }
