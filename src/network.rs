@@ -1,7 +1,6 @@
 use std::{
-    io::{self, stdin, stdout, BufRead, BufReader, Read, Write},
-    net::{IpAddr, Ipv4Addr, SocketAddrV4, TcpListener, TcpStream},
-    process::exit,
+    io::{self, stdin, stdout, BufRead, BufReader, Write},
+    net::{IpAddr, SocketAddrV4, TcpListener, TcpStream},
     str, thread, time,
 };
 
@@ -12,7 +11,7 @@ use miette::{miette, IntoDiagnostic, Result};
 use crate::{
     base_game::{player::Player, settings::Settings},
     data_stream::read_enter,
-    game::game::GameManager,
+    game::GameManager,
 };
 
 /// Starts a client of the game.
@@ -71,15 +70,15 @@ pub fn start_client(matches: &ArgMatches) -> Result<()> {
                 let mut input_buffer = String::new();
                 br.read_line(&mut input_buffer).into_diagnostic()?;
                 if input_buffer.starts_with("$Println") {
-                    let mut to_print = String::from(input_buffer.replacen("$Println", "", 1));
+                    let mut to_print = input_buffer.replacen("$Println", "", 1);
                     to_print.pop();
                     println!("{}", to_print);
                 } else if input_buffer.starts_with("$Print") {
-                    let mut to_print = String::from(input_buffer.replacen("$Print", "", 1));
+                    let mut to_print = input_buffer.replacen("$Print", "", 1);
                     to_print.pop();
                     print!("{}", to_print);
                 } else if input_buffer.starts_with("$Input") {
-                    let mut to_print = String::from(input_buffer.replacen("$Input", "", 1));
+                    let mut to_print = input_buffer.replacen("$Input", "", 1);
                     to_print.pop();
                     print!("{}", to_print);
                     stdout().flush().into_diagnostic()?;
@@ -88,12 +87,12 @@ pub fn start_client(matches: &ArgMatches) -> Result<()> {
                     let output = output_buffer;
                     tcp_stream.write_all(output.as_bytes()).into_diagnostic()?;
                 } else if input_buffer.starts_with("$Ping") {
-                    let _buffer = String::from(input_buffer.replacen("$Ping", "", 0));
+                    let _buffer = input_buffer.replacen("$Ping", "", 0);
                     tcp_stream
                         .write_all("$Here\n".as_bytes())
                         .into_diagnostic()?;
                 } else if input_buffer.starts_with("$TERMINATE") {
-                    let reason = String::from(input_buffer.replacen("$TERMINATE", "", 1));
+                    let reason = input_buffer.replacen("$TERMINATE", "", 1);
                     println!("Game has been canceled!");
                     println!("Reason: {}", reason);
                     break;
@@ -158,12 +157,9 @@ pub fn start_server(matches: &ArgMatches, settings: Settings) -> Result<()> {
         let mut input_buffer = String::new();
         br.read_line(&mut input_buffer).into_diagnostic()?;
         if input_buffer.starts_with("$Init") {
-            let input = String::from(input_buffer.replacen("$Init", "", 1));
+            let input = input_buffer.replacen("$Init", "", 1);
             let mut splits = input.splitn(2, "$Name");
-            let small_board = match splits.next().unwrap() {
-                "true" => true,
-                _ => false,
-            };
+            let small_board = matches!(splits.next().unwrap(), "true");
             let name = splits.next().unwrap().trim();
             println!("{} joined from {}!", name, addr);
             client_players.push(ClientPlayer::new(
@@ -213,7 +209,7 @@ pub fn start_server(matches: &ArgMatches, settings: Settings) -> Result<()> {
 
 /// Send a message to every player (including the local player).
 /// If the game is only played local the message is only written once to the console.
-pub fn broadcast(message: &str, players: &Vec<Player>) {
+pub fn broadcast(message: &str, players: &[Player]) {
     let mut written_to_console = false;
     for player in players {
         if player.tcp_stream.is_none() {
@@ -229,7 +225,7 @@ pub fn broadcast(message: &str, players: &Vec<Player>) {
 
 /// Send a message to every player except for the player that currently has their turn.
 /// If the game is only played local the message is only written once to the console.
-pub fn broadcast_others(message: &str, current_player_name: &String, players: &Vec<Player>) {
+pub fn broadcast_others(message: &str, current_player_name: &str, players: &[Player]) {
     for player in players {
         if player.name != *current_player_name {
             player.print_text_ln(message);
@@ -242,12 +238,12 @@ pub fn broadcast_others(message: &str, current_player_name: &String, players: &V
 pub fn send_string(player: &Player, text: &str, command: &str) -> Result<()> {
     let mut stream = player.tcp_stream.as_ref().unwrap();
     let text = String::from(text);
-    let text = text.split("\n");
+    let text = text.split('\n');
     for split in text {
         let mut out = String::new();
         out.push_str(command);
         out.push_str(split);
-        out.push_str("\n");
+        out.push('\n');
         if let Err(err) = stream.write_all(out.as_bytes()) {
             println!("Unable to send data to player {}: {}", player.name, err);
             return Err(miette!(
@@ -262,7 +258,7 @@ pub fn send_string(player: &Player, text: &str, command: &str) -> Result<()> {
 
 /// Send each player a short message to see if they are still listening.
 /// If a player does not answer the game is canceled and each player will be notified.
-pub fn ping(players: &Vec<Player>) -> Result<()> {
+pub fn ping(players: &[Player]) -> Result<()> {
     let mut error = Ok(());
     for player in players {
         if player.tcp_stream.is_some() {
@@ -290,16 +286,15 @@ pub fn ping(players: &Vec<Player>) -> Result<()> {
         // Message players and terminate game
         for player in players {
             if player.tcp_stream.is_some() {
-                match send_string(
+                if let Err(e) = send_string(
                     player,
-                    &format!("Game has been canceled!\nReason: A player has lost connection."),
+                    &"Game has been canceled!\nReason: A player has lost connection.".to_string(),
                     "$TERMINATE",
                 ) {
-                    Err(e) => println!(
+                    println!(
                         "Error sending terminate command to player {}! Reason: {}",
                         player.name, e
-                    ),
-                    _ => (),
+                    )
                 }
             }
         }

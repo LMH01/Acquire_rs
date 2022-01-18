@@ -2,15 +2,15 @@
 /// board and the board itself.
 pub mod board {
     use crate::{
-        game::game::hotel_chain_manager::HotelChainManager,
+        game::hotel_chain_manager::HotelChainManager,
         logic::place_hotel::{analyze_position, PlaceHotelCase},
     };
 
     use self::letter::{next_letter, prev_letter, LETTERS};
     use super::hotel_chains::HotelChain;
-    use core::borrow;
+
     use miette::{miette, Result};
-    use owo_colors::{colors, AnsiColors, OwoColorize, Rgb};
+    use owo_colors::{AnsiColors, OwoColorize, Rgb};
     use std::cmp::Ordering;
     use std::fmt::{self, Display, Formatter};
 
@@ -38,43 +38,6 @@ pub mod board {
             Self { pieces }
         }
 
-        /// Prints the current stage of the board
-        pub fn print(&self, small_board: bool) {
-            println!();
-            let mut letters = LETTERS.iter();
-            let mut first_line = true;
-            for x in &self.pieces {
-                if !first_line {
-                    if !small_board {
-                        println!("--------------------------------------------------");
-                    }
-                } else {
-                    first_line = false;
-                }
-                print!("{} ", letters.next().unwrap());
-                for y in x {
-                    if !small_board {
-                        print!("| {} ", y.print_text(true));
-                    } else {
-                        print!("{}  ", y.print_text(true))
-                    }
-                }
-                println!();
-            }
-            if !small_board {
-                print!("   ");
-                for x in 1..=12 {
-                    print!("{:2}  ", &x);
-                }
-            } else {
-                print!(" ");
-                for x in 1..=12 {
-                    print!("{:2} ", &x);
-                }
-            }
-            println!("");
-        }
-
         /// Returns a vector that contains strings that describe the current state of the board.
         pub fn get_board_state(&self, small_board: bool) -> Vec<String> {
             let mut board_state = Vec::new();
@@ -99,7 +62,7 @@ pub mod board {
                         current_line.push_str(&format!("{}  ", y.print_text(true)));
                     }
                 }
-                board_state.push(String::from(current_line));
+                board_state.push(current_line);
             }
             let mut current_line = String::new();
             if !small_board {
@@ -108,12 +71,12 @@ pub mod board {
                     current_line.push_str(&format!("{:2}  ", &x));
                 }
             } else {
-                current_line.push_str(" ");
+                current_line.push(' ');
                 for x in 1..=12 {
                     current_line.push_str(&format!("{:2} ", &x));
                 }
             }
-            board_state.push(String::from(current_line));
+            board_state.push(current_line);
             board_state
         }
 
@@ -138,26 +101,6 @@ pub mod board {
             Ok(())
         }
 
-        /// Place a hotel on the board without abiding by the game rules
-        pub fn place_hotel_debug(&mut self, position: Position, chain: HotelChain) -> Result<()> {
-            'outer: for x in self.pieces.iter_mut() {
-                for y in x.iter_mut() {
-                    if y.position.number.eq(&position.number)
-                        && y.position.letter == position.letter
-                    {
-                        if y.piece_set {
-                            return Err(miette!("Unable to set hotel at [{}{:2}] active: The hotel has already been placed!", position.letter, position.number));
-                        } else {
-                            y.piece_set = true;
-                            y.chain = Some(chain);
-                            break 'outer;
-                        }
-                    }
-                }
-            }
-            Ok(())
-        }
-
         /// Updates the hotel of the piece at the specified position.
         /// Will overwrite any chain that stands there.
         /// # Arguments
@@ -170,7 +113,7 @@ pub mod board {
         pub fn update_hotel(&mut self, hotel_chain: HotelChain, position: &Position) -> Result<()> {
             for line in self.pieces.iter_mut() {
                 for piece in line {
-                    if piece.position.eq(&position) && piece.piece_set {
+                    if piece.position.eq(position) && piece.piece_set {
                         piece.chain = Some(hotel_chain);
                         return Ok(());
                     }
@@ -191,7 +134,7 @@ pub mod board {
         pub fn is_hotel_placed(&self, position: &Position) -> Option<Option<HotelChain>> {
             for line in &self.pieces {
                 for piece in line {
-                    if piece.position.eq(&position) {
+                    if piece.position.eq(position) {
                         if !piece.piece_set {
                             return None;
                         }
@@ -214,16 +157,14 @@ pub mod board {
                     return Some(index);
                 }
             }
-            return None;
+            None
         }
 
         /// Returns the next letter if there is one.
         /// B would return C
         pub fn next_letter(letter: char) -> Option<char> {
             let index = letter_to_index(letter);
-            if index.is_none() {
-                return None;
-            }
+            index?;
             if index.unwrap() == 8 {
                 return None;
             }
@@ -234,9 +175,7 @@ pub mod board {
         /// B would return A
         pub fn prev_letter(letter: char) -> Option<char> {
             let index = letter_to_index(letter);
-            if index.is_none() {
-                return None;
-            }
+            index?;
             if index.unwrap() == 0 {
                 return None;
             }
@@ -245,10 +184,24 @@ pub mod board {
     }
 
     /// Symbolizes a position on the board
-    #[derive(Clone, Copy, Debug, PartialEq, Ord, Eq, Hash)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct Position {
         pub letter: char,
         pub number: u32,
+    }
+
+    impl Ord for Position {
+        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+            match self.number.cmp(&other.number) {
+                Ordering::Less => Ordering::Less,
+                Ordering::Greater => Ordering::Greater,
+                Ordering::Equal => match self.letter.cmp(&other.letter) {
+                    Ordering::Less => Ordering::Less,
+                    Ordering::Greater => Ordering::Greater,
+                    Ordering::Equal => Ordering::Equal,
+                },
+            }
+        }
     }
 
     impl PartialOrd for Position {
@@ -278,7 +231,7 @@ pub mod board {
             if self.number > 12 {
                 return None;
             }
-            return Some(Position::new(self.letter, self.number + 1));
+            Some(Position::new(self.letter, self.number + 1))
         }
 
         /// Returns the previous position.
@@ -288,25 +241,19 @@ pub mod board {
             if self.number < 1 {
                 return None;
             }
-            return Some(Position::new(self.letter, self.number - 1));
+            Some(Position::new(self.letter, self.number - 1))
         }
 
         /// Returns the position that is above this position.
         /// Input B3 would return A3.
         pub fn up(&self) -> Option<Position> {
-            match prev_letter(self.letter) {
-                Some(letter) => Some(Position::new(letter, self.number)),
-                None => None,
-            }
+            prev_letter(self.letter).map(|letter| Position::new(letter, self.number))
         }
 
         /// Returns the position that is below this position.
         /// Input B3 would return C3.
         pub fn down(&self) -> Option<Position> {
-            match next_letter(self.letter) {
-                Some(letter) => Some(Position::new(letter, self.number)),
-                None => None,
-            }
+            next_letter(self.letter).map(|letter| Position::new(letter, self.number))
         }
 
         /// Returns the neighbouring positions
@@ -364,7 +311,7 @@ pub mod board {
                     chain.name().color(chain.color()),
                     positions.len(),
                 ),
-                PlaceHotelCase::Fusion(_chains, origin) => String::from("Fuse chains")
+                PlaceHotelCase::Fusion(_chains, _origin) => String::from("Fuse chains")
                     .color(AnsiColors::Green)
                     .to_string(),
                 PlaceHotelCase::Illegal(reason) => format!("Illegal: {}", reason.reason()),
@@ -415,10 +362,7 @@ pub mod board {
 
         /// Checks if this position is illegal
         pub fn is_illegal(&self) -> bool {
-            match &self.place_hotel_case {
-                PlaceHotelCase::Illegal(_reason) => true,
-                _ => false,
-            }
+            matches!(&self.place_hotel_case, PlaceHotelCase::Illegal(_reason))
         }
     }
 
@@ -441,35 +385,31 @@ pub mod board {
                             .as_ref()
                             .unwrap()
                             .identifier()
-                            .color(HotelChain::color(&self.chain.as_ref().unwrap()))
+                            .color(HotelChain::color(self.chain.as_ref().unwrap()))
                             .to_string()
                     } else {
                         format!(" {} ", self.chain.as_ref().unwrap().identifier())
-                            .color(HotelChain::color(&self.chain.as_ref().unwrap()))
+                            .color(HotelChain::color(self.chain.as_ref().unwrap()))
                             .to_string()
                     }
+                } else if compact {
+                    "X".bright_white().to_string()
                 } else {
-                    if compact {
-                        "X".bright_white().to_string()
-                    } else {
-                        "XXX".bright_white().to_string()
-                    }
+                    "XXX".bright_white().to_string()
                 }
+            } else if compact {
+                ' '.white().to_string()
             } else {
-                if compact {
-                    ' '.white().to_string()
-                } else {
-                    format!("{}{:2}", self.position.letter, self.position.number)
-                        .white()
-                        .to_string()
-                }
+                format!("{}{:2}", self.position.letter, self.position.number)
+                    .white()
+                    .to_string()
             }
         }
     }
 
     #[cfg(test)]
     mod tests {
-        use miette::Result;
+        use miette::{miette, Result};
 
         use crate::base_game::hotel_chains::HotelChain;
 
@@ -495,9 +435,33 @@ pub mod board {
             board.place_hotel(&position)?;
             assert!(board.is_hotel_placed(&position).is_some());
             let position2 = Position::new('G', 3);
-            board.place_hotel_debug(position2, HotelChain::Luxor)?;
+            place_hotel_debug(&mut board, position2, HotelChain::Luxor)?;
             assert!(board.is_hotel_placed(&position2).unwrap().is_some());
             assert!(board.is_hotel_placed(&Position::new('F', 4)).is_none());
+            Ok(())
+        }
+
+        /// Place a hotel on the board without abiding by the game rules
+        pub fn place_hotel_debug(
+            board: &mut Board,
+            position: Position,
+            chain: HotelChain,
+        ) -> Result<()> {
+            'outer: for x in board.pieces.iter_mut() {
+                for y in x.iter_mut() {
+                    if y.position.number.eq(&position.number)
+                        && y.position.letter == position.letter
+                    {
+                        if y.piece_set {
+                            return Err(miette!("Unable to set hotel at [{}{:2}] active: The hotel has already been placed!", position.letter, position.number));
+                        } else {
+                            y.piece_set = true;
+                            y.chain = Some(chain);
+                            break 'outer;
+                        }
+                    }
+                }
+            }
             Ok(())
         }
     }
@@ -523,15 +487,6 @@ pub mod settings {
                 small_board: large_board,
                 hide_extra_info,
                 skip_dialogues,
-            }
-        }
-
-        /// Returns a new Settings object with default settings
-        pub fn new_default() -> Self {
-            Self {
-                small_board: false,
-                hide_extra_info: false,
-                skip_dialogues: false,
             }
         }
     }
@@ -643,14 +598,6 @@ pub mod hotel_chains {
         High,
     }
 
-    impl PriceLevel {
-        pub fn iterator() -> Iter<'static, PriceLevel> {
-            const PRICE_LEVELS: [PriceLevel; 3] =
-                [PriceLevel::Low, PriceLevel::Medium, PriceLevel::High];
-            PRICE_LEVELS.iter()
-        }
-    }
-
     impl Display for HotelChain {
         fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
             write!(f, "{:?}", self)
@@ -676,7 +623,7 @@ pub mod hotel_chains {
 
 /// Contains all functions for the stocks.
 pub mod stock {
-    use std::{collections::HashMap, hash::Hasher};
+    use std::collections::HashMap;
 
     use super::hotel_chains::{HotelChain, PriceLevel};
 
@@ -783,14 +730,14 @@ pub mod stock {
 
 /// Manages the currently available stocks and the money.
 pub mod bank {
-    use std::{cmp::Ordering, collections::HashMap, slice::SliceIndex};
+    use std::{cmp::Ordering, collections::HashMap};
 
-    use miette::{miette, Result, SpanContents};
+    use miette::{miette, Result};
     use owo_colors::OwoColorize;
 
     use crate::{
         base_game::stock::Stocks,
-        game::game::{hotel_chain_manager::HotelChainManager, player_by_id},
+        game::{hotel_chain_manager::HotelChainManager, player_by_id},
         network::broadcast_others,
     };
 
@@ -826,12 +773,7 @@ pub mod bank {
 
         /// Returns the current price for a stock of the given chain
         pub fn stock_price(hotel_chain_manager: &HotelChainManager, chain: &HotelChain) -> u32 {
-            chain.stock_value(hotel_chain_manager.chain_length(&chain))
-        }
-
-        /// Set the stocks of the given chain that the bank has left to sell
-        pub fn set_stocks(&mut self, chain: &HotelChain, value: u32) {
-            *self.stocks_for_sale.stocks.get_mut(chain).unwrap() = value;
+            chain.stock_value(hotel_chain_manager.chain_length(chain))
         }
 
         /// Prints the current largest shareholders
@@ -882,7 +824,7 @@ pub mod bank {
             player: &mut Player,
         ) -> Result<()> {
             // The currently available stocks for the given hotel that can still be bought
-            let stock_available = self.stocks_available(hotel, &hotel_chain_manager);
+            let stock_available = self.stocks_available(hotel, hotel_chain_manager);
             // Check if the desired stock can still be bought
             if *stock_available == 0 {
                 return Err(miette!(
@@ -890,7 +832,7 @@ pub mod bank {
                     &hotel
                 ));
             }
-            let stock_price = Bank::stock_price(&hotel_chain_manager, &hotel);
+            let stock_price = Bank::stock_price(hotel_chain_manager, hotel);
             // Check if player has enough money to buy the stock
             if player.money < stock_price {
                 return Err(miette!(
@@ -945,7 +887,7 @@ pub mod bank {
             dead: &HotelChain,
             alive: &HotelChain,
         ) -> Result<()> {
-            let available_to_exchange = self.stocks_for_sale.stocks_for_hotel(&alive);
+            let available_to_exchange = self.stocks_for_sale.stocks_for_hotel(alive);
             if to_exchange % 2 != 0 {
                 return Err(miette!("Unable to echange stocks: {} is odd", to_exchange));
             }
@@ -969,18 +911,18 @@ pub mod bank {
         /// shareholders.
         pub fn give_bonus_stock(&mut self, chain: &HotelChain, player: &mut Player) {
             // Check if stocks are left
-            if *self.stocks_for_sale.stocks.get(&chain).unwrap() == 0 {
+            if *self.stocks_for_sale.stocks.get(chain).unwrap() == 0 {
                 player
                     .print_text_ln("You did not recieve a bonus stock because no stocks are left!");
             }
-            *self.stocks_for_sale.stocks.get_mut(&chain).unwrap() -= 1;
+            *self.stocks_for_sale.stocks.get_mut(chain).unwrap() -= 1;
             // Give stock to player
-            *player.owned_stocks.stocks.get_mut(&chain).unwrap() += 1;
+            *player.owned_stocks.stocks.get_mut(chain).unwrap() += 1;
         }
 
         /// Updates who the largest and second largest shareholders are.
         /// For that the stocks of earch player are compared to one another.
-        pub fn update_largest_shareholders(&mut self, players: &Vec<Player>) {
+        pub fn update_largest_shareholders(&mut self, players: &[Player]) {
             // Clear currently largest shareholder vectors and initialize new
             self.largest_shareholders = LargestShareholders::new();
             for chain in HotelChain::iterator() {
@@ -988,7 +930,7 @@ pub mod bank {
                 let mut second_largest_shareholder: Vec<u32> = Vec::new();
                 for player in players {
                     // Check if player owns stocks for that chain
-                    if *player.owned_stocks.stocks.get(&chain).unwrap() == 0 {
+                    if *player.owned_stocks.stocks.get(chain).unwrap() == 0 {
                         continue;
                     }
                     // Set first player to largest and second largest shareholder
@@ -1005,7 +947,7 @@ pub mod bank {
                         .unwrap()
                         .owned_stocks
                         .stocks
-                        .get(&chain)
+                        .get(chain)
                         .unwrap();
                     let second_largest_shareholder_id = *second_largest_shareholder.get(0).unwrap();
                     let second_largest_shareholder_stocks =
@@ -1013,50 +955,54 @@ pub mod bank {
                             .unwrap()
                             .owned_stocks
                             .stocks
-                            .get(&chain)
+                            .get(chain)
                             .unwrap();
-                    let current_player_stocks = *player.owned_stocks.stocks.get(&chain).unwrap();
-                    if largest_shareholder.len() == 1 {
-                        // Currently only one player is largest shareholder
-                        match current_player_stocks.cmp(&largest_shareholder_stocks) {
-                            // The player will be set second largest shareholder if the
-                            // currently second largest shareholder has less stocks then them
-                            Ordering::Less => (),
-                            // Player has equal stocks => booth players will be set to largest
-                            // and second largest shareholder
-                            Ordering::Equal => {
-                                largest_shareholder.push(player.id);
-                                second_largest_shareholder.push(player.id);
-                                continue;
-                            }
-                            // Player has more stocks => The player will be set largest
-                            // shareholder and the previously largest shareholder will become
-                            // second largest shareholder
-                            Ordering::Greater => {
-                                largest_shareholder.remove(0);
-                                largest_shareholder.push(player.id);
-                            }
-                        }
-                    } else if largest_shareholder.len() > 1 {
-                        // Currently more than one players are largest shareholders
-                        match current_player_stocks.cmp(&second_largest_shareholder_stocks) {
-                            Ordering::Less => (),
-                            // Player has equal stocks => current player will be added to the largest
-                            // and second largest shareholder vector
-                            Ordering::Equal => {
-                                largest_shareholder.push(player.id);
-                                second_largest_shareholder.push(player.id);
-                                continue;
-                            }
-                            // The players that where stored as largest and second largest
-                            // shareholder will now only be second largest shareholder. The
-                            // current player will be set largest shareholder
-                            Ordering::Greater => {
-                                largest_shareholder.clear();
-                                largest_shareholder.push(player.id);
-                                continue;
+                    let current_player_stocks = *player.owned_stocks.stocks.get(chain).unwrap();
+                    match largest_shareholder.len().cmp(&1) {
+                        Ordering::Equal => {
+                            // Currently only one player is largest shareholder
+                            match current_player_stocks.cmp(largest_shareholder_stocks) {
+                                // The player will be set second largest shareholder if the
+                                // currently second largest shareholder has less stocks then them
+                                Ordering::Less => (),
+                                // Player has equal stocks => booth players will be set to largest
+                                // and second largest shareholder
+                                Ordering::Equal => {
+                                    largest_shareholder.push(player.id);
+                                    second_largest_shareholder.push(player.id);
+                                    continue;
+                                }
+                                // Player has more stocks => The player will be set largest
+                                // shareholder and the previously largest shareholder will become
+                                // second largest shareholder
+                                Ordering::Greater => {
+                                    largest_shareholder.remove(0);
+                                    largest_shareholder.push(player.id);
+                                }
                             }
                         }
+                        Ordering::Greater => {
+                            // Currently more than one players are largest shareholders
+                            match current_player_stocks.cmp(second_largest_shareholder_stocks) {
+                                Ordering::Less => (),
+                                // Player has equal stocks => current player will be added to the largest
+                                // and second largest shareholder vector
+                                Ordering::Equal => {
+                                    largest_shareholder.push(player.id);
+                                    second_largest_shareholder.push(player.id);
+                                    continue;
+                                }
+                                // The players that where stored as largest and second largest
+                                // shareholder will now only be second largest shareholder. The
+                                // current player will be set largest shareholder
+                                Ordering::Greater => {
+                                    largest_shareholder.clear();
+                                    largest_shareholder.push(player.id);
+                                    continue;
+                                }
+                            }
+                        }
+                        _ => (),
                     }
                     // Determine the currently second largest shareholder
                     match second_largest_shareholder_stocks.cmp(&current_player_stocks) {
@@ -1111,7 +1057,7 @@ pub mod bank {
                 .get(chain)
                 .unwrap();
             // Check if largest shareholders are set.
-            if largest_shareholders.len() == 0 && second_largest_shareholders.len() == 0 {
+            if largest_shareholders.is_empty() && second_largest_shareholders.is_empty() {
                 return Err(miette!("Unable to give majority shareholder bonuses: The largest shareholders are not set for chain {}", chain));
             }
             let largest_shareholder_bonus = Bank::stock_price(hotel_chain_manager, chain) * 10;
@@ -1247,36 +1193,35 @@ pub mod bank {
                 board::{Board, Position},
                 hotel_chains::HotelChain,
                 player::Player,
-                settings::Settings,
             },
-            game::game::{
-                hotel_chain_manager::{self, HotelChainManager},
-                GameManager,
-            },
+            game::hotel_chain_manager::HotelChainManager,
         };
 
         #[test]
         fn stock_price_correct() -> Result<()> {
-            let mut game_manager = GameManager::new(2, Settings::new_default()).unwrap();
-            game_manager.hotel_chain_manager.start_chain(
+            let mut bank = Bank::new();
+            let mut player = Player::new(vec![], 0, false, String::from("Player 1"));
+            let mut hotel_chain_manager = HotelChainManager::new();
+            let mut board = Board::new();
+            hotel_chain_manager.start_chain(
                 HotelChain::Airport,
                 vec![Position::new('A', 1), Position::new('A', 2)],
-                &mut game_manager.board,
-                &mut Player::new(Vec::new(), 1, false),
-                &mut game_manager.bank,
+                &mut board,
+                &mut player,
+                &mut bank,
             )?;
-            game_manager.hotel_chain_manager.start_chain(
+            hotel_chain_manager.start_chain(
                 HotelChain::Imperial,
                 vec![
                     Position::new('B', 3),
                     Position::new('C', 3),
                     Position::new('C', 4),
                 ],
-                &mut game_manager.board,
-                &mut Player::new(Vec::new(), 1, false),
-                &mut game_manager.bank,
+                &mut board,
+                &mut player,
+                &mut bank,
             )?;
-            game_manager.hotel_chain_manager.start_chain(
+            hotel_chain_manager.start_chain(
                 HotelChain::Continental,
                 vec![
                     Position::new('H', 1),
@@ -1284,26 +1229,24 @@ pub mod bank {
                     Position::new('H', 3),
                     Position::new('H', 4),
                 ],
-                &mut game_manager.board,
-                &mut Player::new(Vec::new(), 1, false),
-                &mut game_manager.bank,
+                &mut board,
+                &mut player,
+                &mut bank,
             )?;
             println!(
                 "Number of hotels: {}",
-                game_manager
-                    .hotel_chain_manager
-                    .chain_length(&HotelChain::Airport)
+                hotel_chain_manager.chain_length(&HotelChain::Airport)
             );
             assert_eq!(
-                Bank::stock_price(&game_manager.hotel_chain_manager, &HotelChain::Airport),
+                Bank::stock_price(&hotel_chain_manager, &HotelChain::Airport),
                 200
             );
             assert_eq!(
-                Bank::stock_price(&game_manager.hotel_chain_manager, &HotelChain::Imperial),
+                Bank::stock_price(&hotel_chain_manager, &HotelChain::Imperial),
                 400
             );
             assert_eq!(
-                Bank::stock_price(&game_manager.hotel_chain_manager, &HotelChain::Continental),
+                Bank::stock_price(&hotel_chain_manager, &HotelChain::Continental),
                 600
             );
             Ok(())
@@ -1311,41 +1254,31 @@ pub mod bank {
 
         #[test]
         fn buy_stock_errors_work() {
-            let mut game = GameManager::new(2, Settings::new_default()).unwrap();
+            let mut bank = Bank::new();
+            let hotel_chain_manager = HotelChainManager::new();
+            let mut players = vec![
+                Player::new(vec![], 0, false, String::from("Player 1")),
+                Player::new(vec![], 1, false, String::from("Player 2")),
+            ];
             // Test if Hotel is not active error works
-            let mut input = game.bank.buy_stock(
-                &game.hotel_chain_manager,
-                &HotelChain::Airport,
-                game.players.get_mut(0).unwrap(),
-            );
+            let mut input =
+                bank.buy_stock(&hotel_chain_manager, &HotelChain::Airport, &mut players[0]);
             assert!(is_error(input));
             // Test if no stocks left error works
-            game.bank
-                .stocks_for_sale
-                .set_stocks(&HotelChain::Airport, 0);
-            input = game.bank.buy_stock(
-                &game.hotel_chain_manager,
-                &HotelChain::Airport,
-                game.players.get_mut(0).unwrap(),
-            );
+            bank.stocks_for_sale.set_stocks(&HotelChain::Airport, 0);
+            input = bank.buy_stock(&hotel_chain_manager, &HotelChain::Airport, &mut players[0]);
             assert!(is_error(input));
             // Test if not enough money error works
-            game.bank
-                .stocks_for_sale
-                .set_stocks(&HotelChain::Airport, 5);
-            game.players.get_mut(0).unwrap().money = 0;
-            input = game.bank.buy_stock(
-                &game.hotel_chain_manager,
-                &HotelChain::Airport,
-                game.players.get_mut(0).unwrap(),
-            );
+            bank.stocks_for_sale.set_stocks(&HotelChain::Airport, 5);
+            players[0].money = 0;
+            input = bank.buy_stock(&hotel_chain_manager, &HotelChain::Airport, &mut players[0]);
             assert!(is_error(input));
         }
 
         #[test]
         fn exchange_stocks_works() -> Result<()> {
             let mut bank = Bank::new();
-            let mut player = Player::new(vec![], 0, false);
+            let mut player = Player::new(vec![], 0, false, String::from("Player 1"));
             let dead = HotelChain::Airport;
             let alive = HotelChain::Festival;
             player.owned_stocks.increase_stocks(&dead, 6);
@@ -1356,11 +1289,16 @@ pub mod bank {
 
         #[test]
         fn largest_shareholders_correct() {
-            let mut game_manager = GameManager::new(4, Settings::new_default()).unwrap();
-
+            let mut players = vec![
+                Player::new(vec![], 0, false, String::from("Player 1")),
+                Player::new(vec![], 1, false, String::from("Player 2")),
+                Player::new(vec![], 2, false, String::from("Player 3")),
+                Player::new(vec![], 3, false, String::from("Player 4")),
+            ];
+            let mut bank = Bank::new();
             let mut index = 0;
             while index < 4 {
-                let mut player = game_manager.players.get_mut(index).unwrap();
+                let player = &mut players[index];
                 match index {
                     0 => {
                         player.owned_stocks.set_stocks(&HotelChain::Airport, 7);
@@ -1384,78 +1322,28 @@ pub mod bank {
                 }
                 index += 1;
             }
-            game_manager
-                .bank
-                .update_largest_shareholders(&game_manager.players);
-            game_manager.bank.print_largest_shareholders();
-            // Test case 1: one largest and one second largest shareholder (Continental)
-            assert!(game_manager.bank.is_largest_shareholder(
-                game_manager.players.get(0).unwrap().id,
-                &HotelChain::Airport
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(1).unwrap().id,
-                &HotelChain::Airport
-            ));
-            // Test case 2: multiple largest shareholerds (Airport)
-            assert!(game_manager.bank.is_largest_shareholder(
-                game_manager.players.get(0).unwrap().id,
-                &HotelChain::Continental
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(0).unwrap().id,
-                &HotelChain::Continental
-            ));
-            assert!(game_manager.bank.is_largest_shareholder(
-                game_manager.players.get(1).unwrap().id,
-                &HotelChain::Continental
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(1).unwrap().id,
-                &HotelChain::Continental
-            ));
-            assert!(game_manager.bank.is_largest_shareholder(
-                game_manager.players.get(2).unwrap().id,
-                &HotelChain::Continental
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(2).unwrap().id,
-                &HotelChain::Continental
-            ));
-            // Test case 3: one largest and multiple second largest shareholders (Prestige)
-            assert!(game_manager.bank.is_largest_shareholder(
-                game_manager.players.get(0).unwrap().id,
-                &HotelChain::Festival
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(1).unwrap().id,
-                &HotelChain::Festival
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(2).unwrap().id,
-                &HotelChain::Festival
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(3).unwrap().id,
-                &HotelChain::Festival
-            ));
-            // Test case 4: one player is largest and second largest shareholder (Luxor)
-            assert!(game_manager.bank.is_largest_shareholder(
-                game_manager.players.get(0).unwrap().id,
-                &HotelChain::Imperial
-            ));
-            assert!(game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(0).unwrap().id,
-                &HotelChain::Imperial
-            ));
-            assert!(!game_manager.bank.is_largest_shareholder(
-                game_manager.players.get(1).unwrap().id,
-                &HotelChain::Imperial
-            ));
-            assert!(!game_manager.bank.is_second_largest_shareholder(
-                game_manager.players.get(1).unwrap().id,
-                &HotelChain::Imperial
-            ));
+            bank.update_largest_shareholders(&players);
+            bank.print_largest_shareholders();
+            // Test case 1: one largest and one second largest shareholder (Airport)
+            assert!(bank.is_largest_shareholder(players[0].id, &HotelChain::Airport));
+            assert!(bank.is_second_largest_shareholder(players[1].id, &HotelChain::Airport));
+            // Test case 2: multiple largest shareholerds (Continental)
+            assert!(bank.is_largest_shareholder(players[0].id, &HotelChain::Continental));
+            assert!(bank.is_second_largest_shareholder(players[0].id, &HotelChain::Continental));
+            assert!(bank.is_largest_shareholder(players[1].id, &HotelChain::Continental));
+            assert!(bank.is_second_largest_shareholder(players[1].id, &HotelChain::Continental));
+            assert!(bank.is_largest_shareholder(players[2].id, &HotelChain::Continental));
+            assert!(bank.is_second_largest_shareholder(players[2].id, &HotelChain::Continental));
+            // Test case 3: one largest and multiple second largest shareholders (Festival)
+            assert!(bank.is_largest_shareholder(players[0].id, &HotelChain::Festival));
+            assert!(bank.is_second_largest_shareholder(players[1].id, &HotelChain::Festival));
+            assert!(bank.is_second_largest_shareholder(players[2].id, &HotelChain::Festival));
+            assert!(bank.is_second_largest_shareholder(players[3].id, &HotelChain::Festival));
+            // Test case 4: one player is largest and second largest shareholder (Imperial)
+            assert!(bank.is_largest_shareholder(players[0].id, &HotelChain::Imperial));
+            assert!(bank.is_second_largest_shareholder(players[0].id, &HotelChain::Imperial));
+            assert!(!bank.is_largest_shareholder(players[1].id, &HotelChain::Imperial));
+            assert!(!bank.is_second_largest_shareholder(players[1].id, &HotelChain::Imperial));
         }
 
         #[test]
@@ -1463,7 +1351,7 @@ pub mod bank {
             let mut bank = Bank::new();
             let mut board = Board::new();
             let mut hotel_chain_manager = HotelChainManager::new();
-            let player = Player::new(vec![], 0, false);
+            let player = Player::new(vec![], 0, false, String::from("Player 1"));
             let mut players = vec![player];
             let chain = HotelChain::Airport;
             // Test error
@@ -1490,18 +1378,15 @@ pub mod bank {
 
         #[test]
         fn give_majority_shareholder_bonuses_works() -> Result<()> {
-            use crate::{
-                base_game::board::Board,
-                game::game::hotel_chain_manager::{self, HotelChainManager},
-            };
+            use crate::{base_game::board::Board, game::hotel_chain_manager::HotelChainManager};
 
             // Basic scenario setup
             let mut bank = Bank::new();
             let mut board = Board::new();
             let mut players = Vec::new();
-            players.push(Player::new(vec![], 0, false));
-            players.push(Player::new(vec![], 1, false));
-            players.push(Player::new(vec![], 2, false));
+            players.push(Player::new(vec![], 0, false, String::from("Player 1")));
+            players.push(Player::new(vec![], 1, false, String::from("Player 2")));
+            players.push(Player::new(vec![], 2, false, String::from("Player 3")));
             let mut hotel_chain_manager = HotelChainManager::new();
             let chain = HotelChain::Imperial;
             let player = players.get_mut(0).unwrap();
@@ -1589,12 +1474,9 @@ pub mod player {
         cmp::PartialEq,
         cmp::PartialOrd,
         collections::HashMap,
-        fmt::Debug,
-        io::{BufRead, BufReader, Write},
+        io::{BufRead, BufReader},
         net::TcpStream,
-        ops::RangeInclusive,
         process::exit,
-        slice::{IterMut, SliceIndex},
         str::FromStr,
     };
 
@@ -1603,19 +1485,16 @@ pub mod player {
         base_game::board::Position,
         base_game::{hotel_chains::HotelChain, stock::Stocks},
         data_stream::read_enter,
-        game::game::{
-            hotel_chain_manager::{self, HotelChainManager},
-            GameManager,
-        },
+        game::hotel_chain_manager::HotelChainManager,
         logic::place_hotel::{IllegalPlacement, PlaceHotelCase},
-        network::{broadcast, send_string},
+        network::send_string,
         utils::generate_number_vector,
     };
     use miette::{miette, Result};
     use owo_colors::{AnsiColors, OwoColorize, Rgb};
     use read_input::{prelude::input, InputBuild};
 
-    use super::board::{self, AnalyzedPosition, Board};
+    use super::board::{AnalyzedPosition, Board};
 
     /// Stores all variables that belong to the player
     //#[derive(PartialEq)]
@@ -1710,18 +1589,8 @@ pub mod player {
     impl Eq for Player {}
 
     impl Player {
-        /// creates a new player
-        pub fn new(start_cards: Vec<Position>, id: u32, small_board: bool) -> Self {
-            Player::new_named(start_cards, id, small_board, format!("Player {}", id + 1))
-        }
-
         /// Creates a new player with a custom name
-        pub fn new_named(
-            start_cards: Vec<Position>,
-            id: u32,
-            small_board: bool,
-            name: String,
-        ) -> Self {
+        pub fn new(start_cards: Vec<Position>, id: u32, small_board: bool, name: String) -> Self {
             let mut cards = Vec::new();
             for position in start_cards {
                 cards.push(AnalyzedPosition::new_unchecked(position));
@@ -1780,19 +1649,6 @@ pub mod player {
             self.owned_stocks.decrease_stocks(chain, amount);
         }
 
-        /// Print the cards the player currently has
-        pub fn print_cards(&self) {
-            println!();
-            print!("Your current cards: ");
-            for analyzed_card in &self.analyzed_cards {
-                print!(
-                    "[{}{:2}]",
-                    analyzed_card.position.letter, analyzed_card.position.number
-                );
-            }
-            println!();
-        }
-
         /// Returns true if the player has no cards that can be played
         pub fn only_illegal_cards(&self) -> bool {
             for card in &self.analyzed_cards {
@@ -1814,10 +1670,10 @@ pub mod player {
         pub fn remove_card(&mut self, position: &Position) -> Result<AnalyzedPosition> {
             self.sort_cards();
             for (index, analyzed_card) in self.analyzed_cards.iter().enumerate() {
-                if analyzed_card.position.letter.eq(&position.letter) {
-                    if analyzed_card.position.number.eq(&position.number) {
-                        return Ok(self.analyzed_cards.remove(index));
-                    }
+                if analyzed_card.position.letter.eq(&position.letter)
+                    && analyzed_card.position.number.eq(&position.number)
+                {
+                    return Ok(self.analyzed_cards.remove(index));
                 }
             }
             Err(miette!(
@@ -1911,51 +1767,6 @@ pub mod player {
             // would make if all stocks where sold now
         }
 
-        /// Prints the current player to the console
-        pub fn print_player_ui(&self) {
-            // Print money
-            println!("{} {}€", String::from("Money:").bright_green(), self.money);
-            // Print cards
-            print!("{}", String::from("Cards: ").bright_green());
-            let mut first_card = true;
-            for analyzed_card in &self.analyzed_cards {
-                if first_card {
-                    first_card = false;
-                } else {
-                    print!(", ");
-                }
-                print!("{}", analyzed_card);
-            }
-            println!();
-            // Print stocks
-            //shareholder or a silver * when the player is the second largest shareholder.
-            //The star is positioned here: Airport*:
-            print!("{}", String::from("Stocks: ").bright_green());
-            first_card = true;
-            for chain in HotelChain::iterator() {
-                if first_card {
-                    first_card = false;
-                } else {
-                    print!(", ")
-                }
-                print!(
-                    "{}: {}",
-                    chain.name().color(chain.color()),
-                    self.owned_stocks.stocks_for_hotel(chain)
-                );
-            }
-            println!();
-            //TODO Maybe add fields:
-            //- "Current estimated wealth". That displayes the amount of
-            //  money the player would have now if all shares where sold and the rewards for the
-            //  largest shareholders where given now. (But is only enabled if special info flag is
-            //  given)
-            //- "Current stock value" - Value of alls stocks if sold now
-            //- "Total stocks" - Amount of all stocks the player has
-            //- Net profit: Stores all expenses the player made and calculate the net profit the
-            // would make if all stocks where sold now
-        }
-
         /// Promts the user to press enter to draw a new card.
         /// The card is drawn beforehand.
         pub fn draw_card(
@@ -1974,7 +1785,7 @@ pub mod player {
                     &card.to_string().color(AnsiColors::Green)
                 ));
             }
-            self.add_card(&card, &board, &hotel_chain_manager);
+            self.add_card(&card, board, hotel_chain_manager);
             if !skip_dialogues {
                 self.get_enter("Press enter to finish your turn");
             }
@@ -2012,9 +1823,9 @@ pub mod player {
                     self.print_text_ln("Please select another card!");
                     continue;
                 }
-                let position = analyzed_position.position.clone();
+                let position = analyzed_position.position;
                 //Remove the played card from the players hand cards
-                return Ok(self.remove_card(&position)?);
+                return self.remove_card(&position);
             }
         }
 
@@ -2108,7 +1919,7 @@ pub mod player {
                 }
                 self.print_text_ln(&format!(
                     "The following will happen to your stocks:\nTotal {} stocks: {} - {} = {}\nTotal {} stocks: {} + {} = {}\nMoney: {}€ + {}€ = {}€",
-                    dead.name().color(dead.color()), self.owned_stocks.stocks_for_hotel(dead), stocks_to_sell+&stocks_to_exchange, self.owned_stocks.stocks_for_hotel(dead)-(stocks_to_sell+stocks_to_exchange),
+                    dead.name().color(dead.color()), self.owned_stocks.stocks_for_hotel(dead), stocks_to_sell+stocks_to_exchange, self.owned_stocks.stocks_for_hotel(dead)-(stocks_to_sell+stocks_to_exchange),
                     alive.name().color(alive.color()), self.owned_stocks.stocks_for_hotel(alive), new_alive_stocks_number, self.owned_stocks.stocks_for_hotel(alive)+new_alive_stocks_number,
                     self.money, Bank::stock_price(hotel_chain_manager, dead)*stocks_to_sell, self.money+Bank::stock_price(hotel_chain_manager, dead)*stocks_to_sell,
                 ));
@@ -2145,7 +1956,7 @@ pub mod player {
             hotel_chain_manager: &HotelChainManager,
         ) -> Option<HashMap<HotelChain, u32>> {
             // Check if stocks are available to be bought
-            if hotel_chain_manager.active_chains().len() == 0 {
+            if hotel_chain_manager.active_chains().is_empty() {
                 return None;
             }
             // Check if player has enough money to buy the lowest costing stock
@@ -2245,7 +2056,7 @@ pub mod player {
                 self.print_text_ln("The following will happen to your stocks:");
                 let mut expanses = 0;
                 for (k, v) in &stocks_bought {
-                    let current_stocks = self.owned_stocks.stocks_for_hotel(&k);
+                    let current_stocks = self.owned_stocks.stocks_for_hotel(k);
                     self.print_text_ln(&format!(
                         "Total {} stocks: {} + {} = {}",
                         k.name().color(k.color()),
@@ -2253,7 +2064,7 @@ pub mod player {
                         v,
                         current_stocks + v
                     ));
-                    expanses += Bank::stock_price(hotel_chain_manager, &k) * v;
+                    expanses += Bank::stock_price(hotel_chain_manager, k) * v;
                 }
                 self.print_text_ln(&format!(
                     "Money: {}€ - {}€ = {}€",
@@ -2267,7 +2078,7 @@ pub mod player {
                 // Player confirmed transaction
                 for (k, v) in &stocks_bought {
                     for _i in 1..=*v {
-                        bank.buy_stock(hotel_chain_manager, &k, self).unwrap();
+                        bank.buy_stock(hotel_chain_manager, k, self).unwrap();
                     }
                 }
                 return Some(stocks_bought);
@@ -2292,13 +2103,20 @@ pub mod player {
                 input::<T>().inside(allowed_values).get()
             } else {
                 // Player plays fia lan
-                let message = text.split("\n").nth(0).unwrap();
+                let message = text.split('\n').next().unwrap();
                 let mut br = BufReader::new(self.tcp_stream.as_ref().unwrap());
                 loop {
-                    send_string(self, message, "$Input");
+                    let result = send_string(self, message, "$Input");
                     let mut buffer = String::new();
                     if let Err(err) = br.read_line(&mut buffer) {
                         println!("Unable to send data to player {}: {}", self.name, err);
+                        exit(1);
+                    } else if result.is_err() {
+                        println!(
+                            "Unable to send data to player {}: {}",
+                            self.name,
+                            result.unwrap_err()
+                        );
                         exit(1);
                     }
                     let input = buffer.trim();
@@ -2328,12 +2146,19 @@ pub mod player {
                 read_enter();
             } else {
                 // Player plays fia lan
-                let message = text.split("\n").nth(0).unwrap();
-                send_string(self, message, "$Input");
+                let message = text.split('\n').next().unwrap();
+                let result = send_string(self, message, "$Input");
                 let mut br = BufReader::new(self.tcp_stream.as_ref().unwrap());
                 let mut buffer = String::new();
                 if let Err(err) = br.read_line(&mut buffer) {
                     println!("Unable to send data to player {}: {}", self.name, err);
+                    exit(1);
+                } else if result.is_err() {
+                    println!(
+                        "Unable to send data to player {}: {}",
+                        self.name,
+                        result.unwrap_err()
+                    );
                     exit(1);
                 }
             }
@@ -2346,23 +2171,11 @@ pub mod player {
                 String::from("Is this correct? [Y/n]: "),
                 vec!['Y', 'y', 'N', 'n'],
             ) {
-                'Y' => return true,
-                'y' => return true,
-                'N' => return false,
-                'n' => return false,
+                'Y' => true,
+                'y' => true,
+                'N' => false,
+                'n' => false,
                 _ => false,
-            }
-        }
-
-        /// Prints the text to the player.
-        /// Linebreak is not written.
-        pub fn print_text(&self, text: &str) {
-            if self.tcp_stream.is_none() {
-                // Player does not play fia lan
-                print!("{}", &text);
-            } else {
-                // Player plays fia lan
-                send_string(self, text, "$Print");
             }
         }
 
@@ -2374,16 +2187,19 @@ pub mod player {
                 println!("{}", &text);
             } else {
                 // Player plays fia lan
-                send_string(self, text, "$Println");
+                if let Err(err) = send_string(self, text, "$Println") {
+                    println!("Unable to send data to player {}: {}", self.name, err);
+                    exit(1);
+                }
             }
         }
     }
 
     /// Returns the player with the name if they exist.
-    pub fn player_by_name<'a>(name: &str, players: &'a Vec<Player>) -> Option<&'a Player> {
+    pub fn player_by_name<'a>(name: &str, players: &'a [Player]) -> Option<&'a Player> {
         for player in players {
             if player.name == name {
-                return Some(&player);
+                return Some(player);
             }
         }
         None
@@ -2394,10 +2210,7 @@ pub mod player {
 pub mod ui {
     use crate::{
         base_game::{bank::Bank, board::Board, hotel_chains::HotelChain, settings::Settings},
-        game::game::{
-            hotel_chain_manager::{self, HotelChainManager},
-            round::Round,
-        },
+        game::{hotel_chain_manager::HotelChainManager, round::Round},
     };
     use owo_colors::{AnsiColors, DynColors, OwoColorize, Rgb};
 
@@ -2407,7 +2220,7 @@ pub mod ui {
     /// If all players are on the same machine the ui is only printed once.
     pub fn print_main_ui_players(
         current_player_name: String,
-        players: &Vec<Player>,
+        players: &[Player],
         board: &Board,
         settings: &Settings,
         round: Option<&Round>,
@@ -2460,7 +2273,7 @@ pub mod ui {
     }
 
     /// Checks if all playing players are playing on one pc
-    fn all_players_local(players: &Vec<Player>) -> bool {
+    fn all_players_local(players: &[Player]) -> bool {
         for player in players {
             if player.tcp_stream.is_some() {
                 return false;
@@ -2515,8 +2328,8 @@ pub mod ui {
     ) -> Vec<String> {
         let mut main_ui = Vec::new();
         let small_board;
-        if player.is_some() {
-            small_board = player.unwrap().small_board;
+        if let Some(player) = player {
+            small_board = player.small_board;
         } else {
             small_board = settings.small_board;
         }
@@ -2547,7 +2360,7 @@ pub mod ui {
         main_ui.push(format!("{}", String::from("Game stats:").bright_green()));
         main_ui.push(format!("{:15}||      Hotels       ||        Stocks          ||      Bonuses for the majority shareholders", ""));
         main_ui.push(format!("{:15}|| Number ||  Range  || Bank || Owned || Value || Largest shareholder || Second largest shareholder", ""));
-        main_ui.push(format!("=================================================================================================================="));
+        main_ui.push("==================================================================================================================".to_string());
         for chain in HotelChain::iterator() {
             // Set the color of the values
             let enable_color = hotel_chain_manager.chain_status(chain);
@@ -2560,28 +2373,28 @@ pub mod ui {
                 false => Rgb(105, 105, 105),
             };
             let player_stocks = match player {
-                None => 0 as u32,
+                None => 0_u32,
                 Some(player) => *player.owned_stocks.stocks_for_hotel(chain),
             };
             let formatted_string1 = format!(
                 "||   {:2}   || {:7} ||  {:2}  ||   {:2}",
                 hotel_chain_manager.chain_length(chain),
                 hotel_chain_manager.price_range(chain),
-                bank.stocks_available(&chain, hotel_chain_manager),
+                bank.stocks_available(chain, hotel_chain_manager),
                 player_stocks,
             );
             let formatted_string2 = format!(
                 " || {:4}€ ||        {:5}€       ||        {:5}€",
-                Bank::stock_price(&hotel_chain_manager, &chain),
-                Bank::stock_price(&hotel_chain_manager, &chain) * 10,
-                Bank::stock_price(&hotel_chain_manager, &chain) * 5,
+                Bank::stock_price(hotel_chain_manager, chain),
+                Bank::stock_price(hotel_chain_manager, chain) * 10,
+                Bank::stock_price(hotel_chain_manager, chain) * 5,
             );
             let stock_status_symbol = match player {
                 None => String::from(" "),
                 Some(player) => stock_status_symbol(
-                    &bank,
-                    &hotel_chain_manager,
-                    &chain,
+                    bank,
+                    hotel_chain_manager,
+                    chain,
                     player.id,
                     !settings.hide_extra_info,
                 ),
@@ -2640,7 +2453,7 @@ pub mod ui {
         player_id: u32,
         show_symbol: bool,
     ) -> String {
-        if !hotel_manager.chain_status(&chain) || !show_symbol {
+        if !hotel_manager.chain_status(chain) || !show_symbol {
             return String::from(" ");
         }
         if bank.is_largest_shareholder(player_id, chain) {

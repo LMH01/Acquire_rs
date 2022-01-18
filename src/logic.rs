@@ -1,25 +1,9 @@
-use std::{cmp::Ordering, collections::HashMap, iter::Map, slice::Iter};
-
-use miette::{miette, Result};
-use owo_colors::{AnsiColors, OwoColorize};
-use read_input::{prelude::input, InputBuild};
-
 use crate::{
-    base_game::{
-        bank::{Bank, LargestShareholders},
-        board::{AnalyzedPosition, Board, Position},
-        hotel_chains::HotelChain,
-        player::Player,
-    },
-    data_stream::read_enter,
-    game::game::{
-        hotel_chain_manager::{self, HotelChainManager},
-        GameManager,
-    },
+    base_game::{board::Board, hotel_chains::HotelChain},
+    game::hotel_chain_manager::HotelChainManager,
     logic::place_hotel::{analyze_position, PlaceHotelCase},
 };
-
-use self::place_hotel::IllegalPlacement;
+use std::slice::Iter;
 
 /// The different ways the game can end.
 #[derive(Clone, Copy)]
@@ -37,10 +21,10 @@ impl EndCondition {
             Self::AllChainsMoreThan10HotelsAndNoSpaceForNewChain => {
                 let mut all_chains_safe = true;
                 for chain in HotelChain::iterator() {
-                    if hotel_chain_manager.chain_status(chain) {
-                        if hotel_chain_manager.chain_length(chain) <= 10 {
-                            all_chains_safe = false;
-                        }
+                    if hotel_chain_manager.chain_status(chain)
+                        && hotel_chain_manager.chain_length(chain) <= 10
+                    {
+                        all_chains_safe = false;
                     }
                 }
                 if !all_chains_safe {
@@ -66,7 +50,7 @@ impl EndCondition {
                         }
                     }
                 }
-                return true;
+                true
             }
             Self::OneChain41OrMoreHotels => {
                 for chain in HotelChain::iterator() {
@@ -116,47 +100,23 @@ pub fn check_end_condition(
     None
 }
 
-/// Checks if there are still positions on the board left that could be played.
-/// If there are none true is returned.
-/// Used to determine if the game will finish definitly.
-pub fn can_game_continue(board: &Board, hotel_chain_manager: &HotelChainManager) -> bool {
-    for line in &board.pieces {
-        for piece in line {
-            if piece.chain.is_none() {
-                match analyze_position(&piece.position, board, hotel_chain_manager) {
-                    PlaceHotelCase::Illegal(_reason) => continue,
-                    _ => {
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-    false
-}
-
 /// All functions related to placing a hotel
 pub mod place_hotel {
-    use std::{cmp::Ordering, collections::HashMap, slice::SliceIndex};
+    use std::{cmp::Ordering, collections::HashMap};
 
     use miette::{miette, Result};
     use owo_colors::{AnsiColors, OwoColorize};
-    use rand::seq::index;
 
     use crate::{
         base_game::{
-            bank::{self, Bank},
-            board::{AnalyzedPosition, Board, Piece, Position},
-            hotel_chains::{self, HotelChain},
+            bank::Bank,
+            board::{AnalyzedPosition, Board, Position},
+            hotel_chains::HotelChain,
             player::Player,
             settings::Settings,
             ui,
         },
-        game::game::{
-            hotel_chain_manager::{self, HotelChainManager},
-            round::Round,
-            GameManager,
-        },
+        game::{hotel_chain_manager::HotelChainManager, round::Round},
         network::{broadcast, broadcast_others},
         utils::{chains_to_print, remove_content_from_vec},
     };
@@ -276,7 +236,7 @@ pub mod place_hotel {
             } else {
                 available_chains_help.push_str(", ");
             }
-            available_chains_help.push_str(&format!("{}", k.color(v.color()).to_string()));
+            available_chains_help.push_str(&k.color(v.color()).to_string());
         }
         let input = player.read_input(
             format!(
@@ -319,6 +279,7 @@ pub mod place_hotel {
 
     /// Analyses the length of input chains. When some chains are equally long the player that
     /// started the fusion is asked which chain should survive.
+    #[allow(clippy::too_many_arguments)]
     pub fn fuse_chains(
         chains: Vec<HotelChain>,
         origin: Position,
@@ -467,11 +428,10 @@ pub mod place_hotel {
             }
         }
         // Add the hotel that caused the fusion and surrounding_hotels to the chain
-        match AnalyzedPosition::new(origin, board, &hotel_chain_manager).place_hotel_case {
-            PlaceHotelCase::ExtendsChain(chain, positions) => {
-                extend_chain(chain, positions, hotel_chain_manager, board)?
-            }
-            _ => (),
+        if let PlaceHotelCase::ExtendsChain(chain, positions) =
+            AnalyzedPosition::new(origin, board, hotel_chain_manager).place_hotel_case
+        {
+            extend_chain(chain, positions, hotel_chain_manager, board)?
         }
         Ok(())
     }
@@ -551,7 +511,7 @@ pub mod place_hotel {
     /// Asks the player the order in which order the three or four chains should be fused.
     fn resolve_fusion_order_three_and_four_chains<'a>(
         player: &Player,
-        chains: &'a Vec<HotelChain>,
+        chains: &'a [HotelChain],
     ) -> Result<Vec<&'a HotelChain>> {
         if chains.len() <= 2 || chains.len() > 4 {
             return Err(miette!(
@@ -576,7 +536,7 @@ pub mod place_hotel {
                 } else {
                     available_chains_help.push_str(", ");
                 }
-                available_chains_help.push_str(&format!("{}", k.color(v.color()).to_string()));
+                available_chains_help.push_str(&k.color(v.color()).to_string());
             }
             let surviving_chain = player.read_input(
                 format!(
@@ -673,6 +633,7 @@ pub mod place_hotel {
     /// # Returns
     /// * 'Some(chain)' - The chain that is the longest
     /// * `None` - No chain is the longest
+    #[allow(clippy::unnecessary_unwrap)]
     fn longest_chain<'a>(
         chain1: &'a HotelChain,
         chain2: &'a HotelChain,
@@ -738,9 +699,9 @@ pub mod place_hotel {
         }
         // Determine what chain is the longest out of 2
         if hotel_chain_manager.chain_length(chain1) > hotel_chain_manager.chain_length(chain2) {
-            return Some(chain1);
+            Some(chain1)
         } else {
-            return Some(chain2);
+            Some(chain2)
         }
     }
 
@@ -827,19 +788,6 @@ pub mod place_hotel {
         Illegal(IllegalPlacement),
     }
 
-    impl PlaceHotelCase {
-        /// Returns the type name for the case
-        pub fn type_name(&self) -> String {
-            match self {
-                Self::SingleHotel => String::from("SingleHotel"),
-                Self::NewChain(_vec) => String::from("NewChain"),
-                Self::ExtendsChain(_chain, _vec) => String::from("ExtendsChain"),
-                Self::Fusion(_vec, _origin) => String::from("Fusion"),
-                Self::Illegal(_illegal) => String::from("Illegal"),
-            }
-        }
-    }
-
     /// The different ways a hotel placement can be illegal
     #[derive(PartialEq, Debug, Eq)]
     pub enum IllegalPlacement {
@@ -872,20 +820,6 @@ pub mod place_hotel {
         }
     }
 
-    /// Analyzes the players hand cards and returns a map of analyzed positons. The value is the case
-    /// that will happen when the card is played. Illegal positions are inlcuded in the map
-    fn analyze_cards(
-        player_cards: &Vec<Position>,
-        board: &Board,
-        hotel_chain_manager: &HotelChainManager,
-    ) -> Vec<AnalyzedPosition> {
-        let mut analyzed_cards = Vec::new();
-        for card in player_cards {
-            analyzed_cards.push(AnalyzedPosition::new(*card, board, hotel_chain_manager));
-        }
-        analyzed_cards
-    }
-
     /// Analyzes the position of the card.
     /// Returns the case to which the position belongs
     pub fn analyze_position(
@@ -893,7 +827,7 @@ pub mod place_hotel {
         board: &Board,
         hotel_chain_manager: &HotelChainManager,
     ) -> PlaceHotelCase {
-        let surrounding_positions: Vec<Position> = surrounding_positions(&origin);
+        let surrounding_positions: Vec<Position> = surrounding_positions(origin);
         // Stores the surrounding chains
         let mut surrounding_chains: Vec<HotelChain> = Vec::new();
         // Stores the surrounding hotels that do not belong to any chain
@@ -939,7 +873,7 @@ pub mod place_hotel {
         // Case 4: Fusion
         let mut cant_fuse = 0;
         for chain in &surrounding_chains {
-            if hotel_chain_manager.is_chain_safe(&chain) {
+            if hotel_chain_manager.is_chain_safe(chain) {
                 cant_fuse += 1;
             }
         }
@@ -948,7 +882,7 @@ pub mod place_hotel {
         if cant_fuse >= 2 {
             return PlaceHotelCase::Illegal(IllegalPlacement::FusionIllegal);
         }
-        return PlaceHotelCase::Fusion(surrounding_chains, *origin);
+        PlaceHotelCase::Fusion(surrounding_chains, *origin)
     }
 
     /// Analyzes the surrounding positions of the piece and returns them
@@ -971,8 +905,6 @@ pub mod place_hotel {
 
     #[cfg(test)]
     mod tests {
-        use std::slice::SliceIndex;
-
         use miette::Result;
 
         use crate::{
@@ -981,14 +913,9 @@ pub mod place_hotel {
                 board::{Board, Position},
                 hotel_chains::HotelChain,
                 player::Player,
-                settings::Settings,
-                ui,
             },
-            game::game::hotel_chain_manager::{self, HotelChainManager},
-            logic::{
-                check_end_condition,
-                place_hotel::{analyze_position, fuse_chains, IllegalPlacement, PlaceHotelCase},
-            },
+            game::hotel_chain_manager::HotelChainManager,
+            logic::place_hotel::{analyze_position, IllegalPlacement, PlaceHotelCase},
         };
 
         use super::{longest_chain, surrounding_positions};
@@ -1013,7 +940,10 @@ pub mod place_hotel {
             let mut board = Board::new();
             let mut bank = Bank::new();
             let mut hotel_chain_manager = HotelChainManager::new();
-            let mut players = vec![Player::new(vec![], 0, false), Player::new(vec![], 1, false)];
+            let mut players = vec![
+                Player::new(vec![], 0, false, String::from("Player 1")),
+                Player::new(vec![], 1, false, String::from("Player 2")),
+            ];
             let chain1 = &HotelChain::Luxor;
             let chain2 = &HotelChain::Festival;
             let chain3 = &HotelChain::Imperial;
@@ -1050,7 +980,6 @@ pub mod place_hotel {
                 players.get_mut(0).unwrap(),
                 &mut bank,
             )?;
-            board.print(false);
             assert_eq!(
                 longest_chain(chain1, chain3, None, None, &hotel_chain_manager).unwrap(),
                 chain3
@@ -1092,42 +1021,63 @@ pub mod place_hotel {
                 HotelChain::Airport,
                 chain1,
                 &mut board,
-                &mut Player::new(vec![], 0, false),
+                &mut Player::new(vec![], 0, false, String::from("Player 1")),
                 &mut bank,
             )?;
             hotel_chain_manager.start_chain(
                 HotelChain::Continental,
                 chain2,
                 &mut board,
-                &mut Player::new(vec![], 0, false),
+                &mut Player::new(vec![], 0, false, String::from("Player 2")),
                 &mut bank,
             )?;
-            board.print(false);
-            println!(
-                "Start new chain name: {}",
-                PlaceHotelCase::NewChain(vec![]).type_name()
-            );
             // Case 1: Isolated hotel
             assert_eq!(
-                analyze_position(&Position::new('F', 2), &board, &hotel_chain_manager),
-                PlaceHotelCase::SingleHotel
+                type_name(&analyze_position(
+                    &Position::new('F', 2),
+                    &board,
+                    &hotel_chain_manager
+                )),
+                "SingleHotel"
             );
             // Case 2: Start new chain
             assert_eq!(
-                analyze_position(&Position::new('C', 2), &board, &hotel_chain_manager).type_name(),
+                type_name(&analyze_position(
+                    &Position::new('C', 2),
+                    &board,
+                    &hotel_chain_manager
+                )),
                 "NewChain"
             );
             // Case 3: Extend chain
             assert_eq!(
-                analyze_position(&Position::new('I', 4), &board, &hotel_chain_manager).type_name(),
+                type_name(&analyze_position(
+                    &Position::new('I', 4),
+                    &board,
+                    &hotel_chain_manager
+                )),
                 "ExtendsChain"
             );
             // Case 4: Fusion
             assert_eq!(
-                analyze_position(&Position::new('H', 5), &board, &hotel_chain_manager).type_name(),
+                type_name(&analyze_position(
+                    &Position::new('H', 5),
+                    &board,
+                    &hotel_chain_manager
+                )),
                 "Fusion"
             );
             Ok(())
+        }
+
+        fn type_name(place_hotel_case: &PlaceHotelCase) -> String {
+            match place_hotel_case {
+                PlaceHotelCase::SingleHotel => String::from("SingleHotel"),
+                PlaceHotelCase::NewChain(_chain) => String::from("NewChain"),
+                PlaceHotelCase::ExtendsChain(_chain, _pos) => String::from("ExtendsChain"),
+                PlaceHotelCase::Fusion(_chains, _origin) => String::from("Fusion"),
+                PlaceHotelCase::Illegal(_reason) => String::from("Illegal"),
+            }
         }
 
         #[test]
@@ -1135,8 +1085,12 @@ pub mod place_hotel {
             let mut board = Board::new();
             let mut bank = Bank::new();
             let mut hotel_chain_manager = HotelChainManager::new();
-            let mut player =
-                Player::new(vec![Position::new('B', 3), Position::new('E', 6)], 0, false);
+            let mut player = Player::new(
+                vec![Position::new('B', 3), Position::new('E', 6)],
+                0,
+                false,
+                String::from("Player 1"),
+            );
             // Place some test hotels
             let mut positions1 = Vec::new();
             let mut positions2 = Vec::new();
@@ -1209,7 +1163,6 @@ pub mod place_hotel {
                 hotel_chain_manager.available_chains()
             );
             player.analyze_cards(&board, &hotel_chain_manager);
-            player.print_cards();
             assert!(player.only_illegal_cards());
             assert_eq!(
                 analyze_position(&Position::new('E', 6), &board, &hotel_chain_manager),
@@ -1233,8 +1186,8 @@ mod tests {
             settings::Settings,
             ui,
         },
-        game::game::hotel_chain_manager::HotelChainManager,
-        logic::{can_game_continue, check_end_condition},
+        game::hotel_chain_manager::HotelChainManager,
+        logic::check_end_condition,
     };
 
     #[test]
@@ -1242,7 +1195,7 @@ mod tests {
         let mut board = Board::new();
         let mut hotel_chain_manager = HotelChainManager::new();
         let mut bank = Bank::new();
-        let mut player = Player::new(vec![], 0, false);
+        let mut player = Player::new(vec![], 0, false, String::from("Player 1"));
         let mut positions = Vec::new();
         // Check no end condition is met
         assert!(check_end_condition(&board, &hotel_chain_manager).is_none());
@@ -1294,7 +1247,6 @@ mod tests {
         );
         // Check all hotels 10 or more and no place to found new
         assert!(check_end_condition(&board, &hotel_chain_manager).is_some());
-        assert!(!can_game_continue(&board, &hotel_chain_manager));
         Ok(())
     }
 }

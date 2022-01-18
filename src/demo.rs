@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use clap::{App, ArgMatches};
+use clap::ArgMatches;
 use miette::Result;
 use owo_colors::{AnsiColors, OwoColorize};
 use rand::Rng;
 
 use crate::{
     base_game::{
-        bank::{self, Bank},
+        bank::Bank,
         board::{letter::LETTERS, Board, Position},
         hotel_chains::HotelChain,
         player::Player,
@@ -15,21 +15,8 @@ use crate::{
         ui,
     },
     data_stream::read_enter,
-    game::game::{
-        self, final_account,
-        hotel_chain_manager::{self, HotelChainManager},
-        round::Round,
-        GameManager,
-    },
-    logic::place_hotel::fuse_chains,
+    game::{self, hotel_chain_manager::HotelChainManager, round::Round, GameManager},
 };
-
-fn place_test_hotels(board: &mut Board) -> Result<()> {
-    for (index, h) in HotelChain::iterator().enumerate() {
-        board.place_hotel_debug(Position::new('A', index.try_into().unwrap()), *h)?;
-    }
-    Ok(())
-}
 
 pub fn test_things(matches: &ArgMatches, settings: Settings) -> Result<()> {
     let mut game_manager = GameManager::new(
@@ -69,7 +56,7 @@ pub fn test_things(matches: &ArgMatches, settings: Settings) -> Result<()> {
     let player = game_manager.players.get_mut(0).unwrap();
     player.analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
     ui::print_main_ui_console(
-        Some(&player),
+        Some(player),
         Some(&player.name),
         &game_manager.board,
         &game_manager.settings,
@@ -88,9 +75,7 @@ pub fn test_things(matches: &ArgMatches, settings: Settings) -> Result<()> {
         if game_manager.hotel_chain_manager.chain_length(chain1)
             < game_manager.hotel_chain_manager.chain_length(chain2)
         {
-            let buffer = chain1;
-            chain1 = chain2;
-            chain2 = buffer;
+            std::mem::swap(&mut chain1, &mut chain2);
         }
         println!("Press enter to fuse {} into {}", chain2, chain1);
         read_enter();
@@ -99,7 +84,7 @@ pub fn test_things(matches: &ArgMatches, settings: Settings) -> Result<()> {
             .fuse_chains(chain1, chain2, &mut game_manager.board)?;
         player.analyze_cards(&game_manager.board, &game_manager.hotel_chain_manager);
         ui::print_main_ui_console(
-            Some(&player),
+            Some(player),
             Some(&player.name),
             &game_manager.board,
             &game_manager.settings,
@@ -131,7 +116,7 @@ pub fn set_hotel_chains_random(
             cards.push(game::draw_card(position_cards)?.unwrap());
         }
         for card in &cards {
-            board.place_hotel(&card)?;
+            board.place_hotel(card)?;
         }
         if cards.len() < 2 {
             break;
@@ -145,7 +130,7 @@ pub fn set_hotel_chains_random(
 pub fn set_hotel_chains_clever(
     active_chains: &mut Vec<HotelChain>,
     player: &mut Player,
-    position_cards: &mut Vec<Position>,
+    _position_cards: &mut Vec<Position>,
     board: &mut Board,
     hotel_chain_manager: &mut HotelChainManager,
     bank: &mut Bank,
@@ -192,7 +177,7 @@ pub fn set_hotel_chains_clever(
 
 fn update_placed_hotels(
     chain: &HotelChain,
-    new_hotels: &Vec<Position>,
+    new_hotels: &[Position],
     placed_hotels: &mut HashMap<Position, HotelChain>,
 ) {
     for hotel in new_hotels {
@@ -207,8 +192,7 @@ fn random_concatenated_positions(
     placed_hotels: &mut HashMap<Position, HotelChain>,
 ) -> Vec<Position> {
     let size = rand::thread_rng().gen_range(1..=41);
-    let mut positions = Vec::new();
-    positions.push(origin);
+    let mut positions = vec![origin];
     for i in 0..=size - 1 {
         match random_neighbour(
             chain,
@@ -275,81 +259,22 @@ fn is_neighbour_free(
         if position.is_none() {
             continue;
         }
-        if placed_hotels.contains_key(&position.unwrap()) {
-            if placed_hotels.get(&position.unwrap()).unwrap() != chain {
-                println!(
-                    "Unable to add to hotel at {} to chain {}: Illegal position",
-                    origin, chain
-                );
-                return false;
-            }
+        if placed_hotels.contains_key(&position.unwrap())
+            && placed_hotels.get(&position.unwrap()).unwrap() != chain
+        {
+            println!(
+                "Unable to add to hotel at {} to chain {}: Illegal position",
+                origin, chain
+            );
+            return false;
         }
     }
-    return true;
+    true
 }
 
 pub fn draw_card(allowed_cards: &mut Vec<Position>) -> Position {
     let random_number = rand::thread_rng().gen_range(0..=allowed_cards.len() - 1);
-    let position = allowed_cards.get(random_number).unwrap().clone();
+    let position = *allowed_cards.get(random_number).unwrap();
     allowed_cards.remove(random_number);
     position
-}
-fn fuse_chains_works_with_three() -> Result<()> {
-    let mut board = Board::new();
-    let mut bank = Bank::new();
-    let mut hotel_chain_manager = HotelChainManager::new();
-    let mut players = vec![Player::new(vec![], 0, false), Player::new(vec![], 1, false)];
-    let round = Round::new(1);
-    let settings = Settings::new(false, false, false);
-    hotel_chain_manager.start_chain(
-        HotelChain::Imperial,
-        vec![Position::new('E', 3), Position::new('E', 4)],
-        &mut board,
-        players.get_mut(0).unwrap(),
-        &mut bank,
-    )?;
-    hotel_chain_manager.start_chain(
-        HotelChain::Oriental,
-        vec![Position::new('C', 5), Position::new('D', 5)],
-        &mut board,
-        players.get_mut(0).unwrap(),
-        &mut bank,
-    )?;
-    hotel_chain_manager.start_chain(
-        HotelChain::Airport,
-        vec![Position::new('F', 5), Position::new('G', 5)],
-        &mut board,
-        players.get_mut(0).unwrap(),
-        &mut bank,
-    )?;
-    hotel_chain_manager.start_chain(
-        HotelChain::Prestige,
-        vec![Position::new('E', 6), Position::new('E', 7)],
-        &mut board,
-        players.get_mut(0).unwrap(),
-        &mut bank,
-    )?;
-    board.print(false);
-    let chains = vec![
-        HotelChain::Imperial,
-        HotelChain::Oriental,
-        HotelChain::Airport,
-        HotelChain::Prestige,
-    ];
-    let origin = Position::new('E', 5);
-    board.place_hotel(&origin)?;
-    fuse_chains(
-        chains,
-        origin,
-        0,
-        &mut players,
-        &mut board,
-        &mut bank,
-        &mut hotel_chain_manager,
-        &round,
-        &settings,
-    )?;
-    board.print(false);
-    final_account(&mut players, &mut bank, &hotel_chain_manager)?;
-    Ok(())
 }
