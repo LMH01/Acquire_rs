@@ -22,10 +22,6 @@ use demo::test_things;
 use game::{print_info_card, GameManager};
 use network::{start_client, start_server};
 
-//TODO Add flag with which the help card can be enabled. This will cause to print a copy of the
-//info card from the real game to the console
-//TODO Change $ to €
-
 fn main() -> miette::Result<()> {
     let matches = App::new("Acquire_rs")
         .version("0.1.0")

@@ -107,7 +107,7 @@ impl GameManager {
     /// Starts the game that has been created previously.
     /// Returns an Error when the game has already been started.
     pub fn start_game(&mut self) -> Result<()> {
-        broadcast("Starting game!", &self.players);
+        broadcast("Starting game!", &self.players)?;
         if self.game_started {
             return Err(miette!(
                 "Unable to start game: Game has already been started!"
@@ -118,12 +118,12 @@ impl GameManager {
         broadcast(
             "Each player draws a card now, the player with the lowest card starts.",
             &self.players,
-        );
+        )?;
         let mut cards_with_players = HashMap::new();
         let mut cards = Vec::new();
         for (index, player) in self.players.iter().enumerate() {
             let card = draw_card(&mut self.position_cards)?.unwrap();
-            player.get_enter("Press enter to draw your card");
+            player.get_enter("Press enter to draw your card")?;
             broadcast(
                 &format!(
                     "{} drew card {}",
@@ -131,7 +131,7 @@ impl GameManager {
                     &card.color(AnsiColors::Green)
                 ),
                 &self.players,
-            );
+            )?;
             self.board.place_hotel(&card)?;
             cards_with_players.insert(card, index);
             cards.push(card);
@@ -145,7 +145,7 @@ impl GameManager {
             broadcast(
                 &format!("{} is the {}. player", player_name, index + 1),
                 &self.players,
-            );
+            )?;
         }
         broadcast_others(
             &format!(
@@ -154,8 +154,8 @@ impl GameManager {
             ),
             &self.players[0].name,
             &self.players,
-        );
-        self.players[0].get_enter("Press enter to start the first round!");
+        )?;
+        self.players[0].get_enter("Press enter to start the first round!")?;
         self.players.sort();
         // Analyze the initial player cards
         for player in &mut self.players {
@@ -404,7 +404,7 @@ pub fn final_account(
             ),
         }
     }
-    broadcast(&leader_board, players);
+    broadcast(&leader_board, players)?;
     for i in 0..=players.len() - 1 {
         let money = player_money.get(i).unwrap();
         let player_id = player_money_map.get(money).unwrap();
@@ -414,10 +414,10 @@ pub fn final_account(
             0 => player.print_text_ln(&format!(
                 "{}, congratulations, you are the winner!",
                 player.name
-            )),
-            1 => player.print_text_ln(&format!("{}, you are second place!", player.name)),
-            2 => player.print_text_ln(&format!("{}, you are third place!", player.name)),
-            _ => player.print_text_ln(&format!("{}, you have lost!", player.name)),
+            ))?,
+            1 => player.print_text_ln(&format!("{}, you are second place!", player.name))?,
+            2 => player.print_text_ln(&format!("{}, you are third place!", player.name))?,
+            _ => player.print_text_ln(&format!("{}, you have lost!", player.name))?,
         }
         if player.tcp_stream.is_some() {
             player
@@ -570,7 +570,7 @@ pub mod hotel_chain_manager {
                 board.update_hotel(hotel_chain, &position)?;
             }
             // Update player stocks
-            bank.give_bonus_stock(&hotel_chain, player);
+            bank.give_bonus_stock(&hotel_chain, player)?;
             Ok(())
         }
 
@@ -856,7 +856,7 @@ pub mod round {
             check_end_condition,
             place_hotel::{place_hotel, IllegalPlacement, PlaceHotelCase},
         },
-        network::{broadcast_others, ping},
+        network::broadcast_others,
     };
 
     use super::hotel_chain_manager::HotelChainManager;
@@ -923,8 +923,6 @@ pub mod round {
             hotel_chain_manager: &mut HotelChainManager,
             position_cards: &mut Vec<Position>,
         ) -> Result<bool> {
-            // Check if players are still listening
-            ping(players)?;
             let player = players.get_mut(player_index).unwrap();
             let current_player_name = player.name.clone();
             // Update the players cards to new game state
@@ -938,7 +936,7 @@ pub mod round {
                 Some(self),
                 bank,
                 hotel_chain_manager,
-            );
+            )?;
             let mut game_ended = false;
             //1. Place piece
             let hotel_placed = place_hotel(
@@ -962,17 +960,17 @@ pub mod round {
                     Some(self),
                     bank,
                     hotel_chain_manager,
-                );
+                )?;
                 let player = players.get_mut(player_index).unwrap();
                 player.print_text_ln(&format!(
                     "The following game ending condition is met: {}",
                     condition.description().color(AnsiColors::Green)
-                ));
+                ))?;
                 let input = player.read_input(
                     "Would you like to end the game (you will still be able to by stocks)? [Y/n]: "
                         .to_string(),
                     vec!['Y', 'y', 'N', 'n'],
-                );
+                )?;
                 match input {
                     'Y' => game_ended = true,
                     'y' => game_ended = true,
@@ -991,21 +989,21 @@ pub mod round {
                     Some(self),
                     bank,
                     hotel_chain_manager,
-                );
+                )?;
                 let player = players.get_mut(player_index).unwrap();
-                match player.buy_stocks(bank, hotel_chain_manager) {
+                match player.buy_stocks(bank, hotel_chain_manager)? {
                     None => broadcast_others(
                         &format!("{} bought no stocks.", player.name),
                         &current_player_name,
                         players,
-                    ),
+                    )?,
                     Some(map) => {
                         let mut out = String::new();
                         out.push_str(&format!("{} bought the following stocks:\n", player.name));
                         for (k, v) in map {
                             out.push_str(&format!("{}: {}\n", k.name().color(k.color()), v));
                         }
-                        broadcast_others(&out, &current_player_name, players);
+                        broadcast_others(&out, &current_player_name, players)?;
                     }
                 }
             }
@@ -1028,11 +1026,11 @@ pub mod round {
                     }
                 }
                 if only_illegal_fusion {
-                    player.print_text_ln("You have only cards left that can not be played because the fusion would be illegal.");
+                    player.print_text_ln("You have only cards left that can not be played because the fusion would be illegal.")?;
                     let redraw = match player.read_input(
                         String::from("Would you like to redraw your hand cards? [Y/n]: "),
                         vec!['Y', 'y', 'N', 'n'],
-                    ) {
+                    )? {
                         'Y' => true,
                         'y' => true,
                         'N' => false,
@@ -1047,7 +1045,7 @@ pub mod round {
                             None => {
                                 player.print_text_ln(
                                     "No card can be drawn because no cards are left.",
-                                );
+                                )?;
                             }
                             Some(card) => {
                                 let new_card =
@@ -1056,25 +1054,25 @@ pub mod round {
                             }
                         }
                         for card in &player.analyzed_cards {
-                            player.print_text_ln(&format!("New card: {}", &card));
+                            player.print_text_ln(&format!("New card: {}", &card))?;
                         }
                         player.get_enter(&format!(
                             "You have gotten {} new cards. Press enter to finish your turn.",
                             player.analyzed_cards.len()
-                        ));
+                        ))?;
                     }
                 }
-                player.get_enter("Press enter to finish your turn");
+                player.get_enter("Press enter to finish your turn")?;
                 return Ok(false);
             }
             let drawn_position = super::draw_card(position_cards)?;
             match drawn_position {
                 None => {
-                    player.print_text_ln("No card can be drawn because no cards are left.");
-                    player.get_enter("Press enter to finish your turn");
+                    player.print_text_ln("No card can be drawn because no cards are left.")?;
+                    player.get_enter("Press enter to finish your turn")?;
                 }
                 Some(card) => {
-                    player.draw_card(card, settings.skip_dialogues, board, hotel_chain_manager)
+                    player.draw_card(card, settings.skip_dialogues, board, hotel_chain_manager)?
                 }
             }
             Ok(false)

@@ -909,15 +909,17 @@ pub mod bank {
         /// # Arguments
         /// * `players` - The list of players playing the game. Used to update largest
         /// shareholders.
-        pub fn give_bonus_stock(&mut self, chain: &HotelChain, player: &mut Player) {
+        pub fn give_bonus_stock(&mut self, chain: &HotelChain, player: &mut Player) -> Result<()> {
             // Check if stocks are left
             if *self.stocks_for_sale.stocks.get(chain).unwrap() == 0 {
-                player
-                    .print_text_ln("You did not recieve a bonus stock because no stocks are left!");
+                player.print_text_ln(
+                    "You did not recieve a bonus stock because no stocks are left!",
+                )?;
             }
             *self.stocks_for_sale.stocks.get_mut(chain).unwrap() -= 1;
             // Give stock to player
             *player.owned_stocks.stocks.get_mut(chain).unwrap() += 1;
+            Ok(())
         }
 
         /// Updates who the largest and second largest shareholders are.
@@ -1076,11 +1078,11 @@ pub mod bank {
                             ),
                             &largest_shareholder_name,
                             players,
-                        );
+                        )?;
                         players[largest_shareholders[0] as usize].get_enter(&format!(
                             "{}, you recieved {}€ because you where the largest shareholder. (press enter to continue)",
                             &largest_shareholder_name, largest_shareholder_bonus
-                        ));
+                        ))?;
                     }
                     match second_largest_shareholders.len() {
                         1 => {
@@ -1098,11 +1100,11 @@ pub mod bank {
                             ),
                             &second_largest_shareholder_name,
                             players,
-                        );
+                        )?;
                                 players[second_largest_shareholders[0] as usize].get_enter(&format!(
                             "{}, you recieved {}€ because you where the seond largest shareholder. (press enter to continue)",
                             &second_largest_shareholder_name, second_largest_shareholder_bonus
-                        ));
+                        ))?;
                             }
                         }
                         _ => {
@@ -1116,8 +1118,8 @@ pub mod bank {
                                 let name = players[*i as usize].name.clone();
                                 players[*i as usize].add_money(bonus);
                                 if inform_player {
-                                    broadcast_others(&format!("{}, recieved {}€ because they where one of the second largest shareholders.", &name, bonus), &name, players);
-                                    players[*i as usize].get_enter(&format!("{}, you recieved {}€ because you where one of the second largest shareholders. (press enter to continue)", &name, bonus));
+                                    broadcast_others(&format!("{}, recieved {}€ because they where one of the second largest shareholders.", &name, bonus), &name, players)?;
+                                    players[*i as usize].get_enter(&format!("{}, you recieved {}€ because you where one of the second largest shareholders. (press enter to continue)", &name, bonus))?;
                                 }
                             }
                         }
@@ -1133,7 +1135,7 @@ pub mod bank {
                         let player = players.get_mut(*i as usize).unwrap();
                         player.add_money(bonus);
                         if inform_player {
-                            player.get_enter(&format!("{}, you recieved {}€ because you where one of the largest shareholders. (press enter to continue)", player.name, bonus));
+                            player.get_enter(&format!("{}, you recieved {}€ because you where one of the largest shareholders. (press enter to continue)", player.name, bonus))?;
                         }
                     }
                 }
@@ -1476,7 +1478,6 @@ pub mod player {
         collections::HashMap,
         io::{BufRead, BufReader},
         net::TcpStream,
-        process::exit,
         str::FromStr,
     };
 
@@ -1775,20 +1776,21 @@ pub mod player {
             skip_dialogues: bool,
             board: &Board,
             hotel_chain_manager: &HotelChainManager,
-        ) {
+        ) -> Result<()> {
             if !skip_dialogues {
-                self.get_enter("Press enter to draw a new card");
+                self.get_enter("Press enter to draw a new card")?;
             }
             if !skip_dialogues {
                 self.print_text_ln(&format!(
                     "Card drawn: {}",
                     &card.to_string().color(AnsiColors::Green)
-                ));
+                ))?;
             }
             self.add_card(&card, board, hotel_chain_manager);
             if !skip_dialogues {
-                self.get_enter("Press enter to finish your turn");
+                self.get_enter("Press enter to finish your turn")?;
             }
+            Ok(())
         }
 
         /// Prompts the user to select a card.
@@ -1798,7 +1800,7 @@ pub mod player {
                 let card_index = self.read_input(
                     format!("Enter a number 1-{}: ", self.analyzed_cards.len()),
                     generate_number_vector(1, self.analyzed_cards.len() as u32),
-                ) as usize
+                )? as usize
                     - 1;
                 let analyzed_position = *self.analyzed_cards.get(card_index).as_ref().unwrap();
                 // Check if hotel placement is allowed
@@ -1814,12 +1816,10 @@ pub mod player {
                         };
                     self.print_text_ln(&format!(
                         "This position is illegal [{}]: {}",
-                        analyzed_position
-                            .position
-                            .color(Rgb(105, 105, 105)),
+                        analyzed_position.position.color(Rgb(105, 105, 105)),
                         reason.color(AnsiColors::Red)
-                    ));
-                    self.print_text_ln("Please select another card!");
+                    ))?;
+                    self.print_text_ln("Please select another card!")?;
                     continue;
                 }
                 let position = analyzed_position.position;
@@ -1844,7 +1844,7 @@ pub mod player {
             self.print_text_ln(&format!(
                 "{}, it's your turn to decide what you would like to do with your {} stock(s):",
                 self.name, number_of_stocks
-            ));
+            ))?;
             let mut stocks_unasigned;
             let mut stocks_to_exchange = 0;
             let mut stocks_to_sell;
@@ -1878,7 +1878,7 @@ pub mod player {
                             allowed_string
                         ),
                         allowed_values,
-                    );
+                    )?;
                     new_alive_stocks_number = stocks_to_exchange / 2;
                 } else {
                     // No stocks available for trade
@@ -1887,14 +1887,14 @@ pub mod player {
                         "Please enter how many stocks you would like to exchange [{}]: 0 {}",
                         allowed_string,
                         "- the bank does not have any stocks left that could be exchanged to you".color(Rgb(105, 105, 105))
-                    ));
+                    ))?;
                     } else {
                         self.print_text_ln(&format!(
                             "Please enter how many stocks you would like to exchange [{}]: 0 {}",
                             allowed_string,
                             "- you don't have enough stocks to exchange them"
                                 .color(Rgb(105, 105, 105))
-                        ));
+                        ))?;
                     }
                 }
                 stocks_unasigned -= stocks_to_exchange;
@@ -1907,30 +1907,24 @@ pub mod player {
                             stocks_unasigned
                         ),
                         generate_number_vector(0, stocks_unasigned),
-                    );
+                    )?;
                     stocks_unasigned -= stocks_to_sell;
                 } else {
                     // No stocks left to sell
                     self.print_text_ln(&format!(
                         "Please enter how many stocks you would like to sell [0-0]: 0 {}",
                         "- not stocks left to sell".color(Rgb(105, 105, 105))
-                    ));
+                    ))?;
                 }
                 self.print_text_ln(&format!(
                     "The following will happen to your stocks:\nTotal {} stocks: {} - {} = {}\nTotal {} stocks: {} + {} = {}\nMoney: {}€ + {}€ = {}€",
                     dead.name().color(dead.color()), self.owned_stocks.stocks_for_hotel(dead), stocks_to_sell+stocks_to_exchange, self.owned_stocks.stocks_for_hotel(dead)-(stocks_to_sell+stocks_to_exchange),
                     alive.name().color(alive.color()), self.owned_stocks.stocks_for_hotel(alive), new_alive_stocks_number, self.owned_stocks.stocks_for_hotel(alive)+new_alive_stocks_number,
                     self.money, Bank::stock_price(hotel_chain_manager, dead)*stocks_to_sell, self.money+Bank::stock_price(hotel_chain_manager, dead)*stocks_to_sell,
-                ));
-                match self.read_input(
-                    String::from("Is this correct? [Y/n]: "),
-                    vec!['Y', 'y', 'N', 'n'],
-                ) {
-                    'Y' => break,
-                    'y' => break,
-                    'N' => continue,
-                    'n' => continue,
-                    _ => (),
+                ))?;
+                match self.get_correct()? {
+                    true => break,
+                    false => continue,
                 }
             }
             // Exchange stocks
@@ -1953,10 +1947,10 @@ pub mod player {
             &mut self,
             bank: &mut Bank,
             hotel_chain_manager: &HotelChainManager,
-        ) -> Option<HashMap<HotelChain, u32>> {
+        ) -> Result<Option<HashMap<HotelChain, u32>>> {
             // Check if stocks are available to be bought
             if hotel_chain_manager.active_chains().is_empty() {
-                return None;
+                return Ok(None);
             }
             // Check if player has enough money to buy the lowest costing stock
             // Stores the value of the stock that costs the least
@@ -1970,7 +1964,7 @@ pub mod player {
             self.print_text_ln(&format!(
                 "{}, you can buy a maximum of three stocks now:",
                 self.name
-            ));
+            ))?;
             // Runs until the player confirms the stocks bought
             loop {
                 // Stores how many stockes the player is allowed to buy
@@ -1990,7 +1984,7 @@ pub mod player {
                             "{} [0-0]: 0 {}",
                             main_message,
                             "- already bought 3 stocks".color(Rgb(105, 105, 105))
-                        ));
+                        ))?;
                         continue;
                     }
                     if *bank.stocks_available(&chain, hotel_chain_manager) == 0 {
@@ -1999,7 +1993,7 @@ pub mod player {
                             "{} [0-0]: 0 {}",
                             main_message,
                             "- no stocks left".color(Rgb(105, 105, 105))
-                        ));
+                        ))?;
                         continue;
                     }
                     let stock_price = Bank::stock_price(hotel_chain_manager, &chain);
@@ -2009,7 +2003,7 @@ pub mod player {
                             "{} [0-0]: 0 {}",
                             main_message,
                             "- not enough money".color(Rgb(105, 105, 105))
-                        ));
+                        ))?;
                         continue;
                     }
                     // Check how many stocks the player could buy with their current money
@@ -2037,7 +2031,7 @@ pub mod player {
                             stocks_can_be_bought,
                         ),
                         generate_number_vector(0, stocks_can_be_bought),
-                    );
+                    )?;
                     if bought > 0 {
                         stocks_bought.insert(chain, bought);
                         stocks_left -= bought;
@@ -2046,13 +2040,13 @@ pub mod player {
                 }
                 // Check if player bought any stocks
                 if stocks_bought.is_empty() {
-                    self.print_text_ln("You did not buy any stocks.");
-                    if self.get_correct() {
-                        return None;
+                    self.print_text_ln("You did not buy any stocks.")?;
+                    if self.get_correct()? {
+                        return Ok(None);
                     }
                     continue;
                 }
-                self.print_text_ln("The following will happen to your stocks:");
+                self.print_text_ln("The following will happen to your stocks:")?;
                 let mut expanses = 0;
                 for (k, v) in &stocks_bought {
                     let current_stocks = self.owned_stocks.stocks_for_hotel(k);
@@ -2062,7 +2056,7 @@ pub mod player {
                         current_stocks,
                         v,
                         current_stocks + v
-                    ));
+                    ))?;
                     expanses += Bank::stock_price(hotel_chain_manager, k) * v;
                 }
                 self.print_text_ln(&format!(
@@ -2070,8 +2064,8 @@ pub mod player {
                     self.money,
                     expanses,
                     self.money - expanses
-                ));
-                if !self.get_correct() {
+                ))?;
+                if !self.get_correct()? {
                     continue;
                 }
                 // Player confirmed transaction
@@ -2080,7 +2074,7 @@ pub mod player {
                         bank.buy_stock(hotel_chain_manager, k, self).unwrap();
                     }
                 }
-                return Some(stocks_bought);
+                return Ok(Some(stocks_bought));
             }
         }
 
@@ -2095,11 +2089,11 @@ pub mod player {
             &self,
             text: String,
             allowed_values: Vec<T>,
-        ) -> T {
+        ) -> Result<T> {
             if self.tcp_stream.is_none() {
                 // Player does not play fia lan
                 print!("{}", text);
-                input::<T>().inside(allowed_values).get()
+                Ok(input::<T>().inside(allowed_values).get())
             } else {
                 // Player plays fia lan
                 let message = text.split('\n').next().unwrap();
@@ -2108,27 +2102,21 @@ pub mod player {
                     let result = send_string(self, message, "$Input");
                     let mut buffer = String::new();
                     if let Err(err) = br.read_line(&mut buffer) {
-                        println!("Unable to send data to player {}: {}", self.name, err);
-                        exit(1);
-                    } else if result.is_err() {
-                        println!(
-                            "Unable to send data to player {}: {}",
-                            self.name,
-                            result.unwrap_err()
-                        );
-                        exit(1);
+                        return Err(miette!("Unable to send data to player, io error: {}", err));
+                    } else if let Err(err) = result {
+                        return Err(err);
                     }
                     let input = buffer.trim();
                     match input.parse::<T>() {
                         Ok(ok) => {
                             if !allowed_values.contains(&ok) {
-                                self.print_text_ln("That value did not pass, please try again!");
+                                self.print_text_ln("That value did not pass, please try again!")?;
                                 continue;
                             }
-                            return ok;
+                            return Ok(ok);
                         }
                         Err(_err) => {
-                            self.print_text_ln("That value did not pass, please try again!");
+                            self.print_text_ln("That value did not pass, please try again!")?;
                         }
                     };
                 }
@@ -2138,7 +2126,7 @@ pub mod player {
         /// Prints a text to the player and waits until they pressed enter.
         ///
         /// If the player is a client, only the text before the first `\n` is transmitted.
-        pub fn get_enter(&self, text: &str) {
+        pub fn get_enter(&self, text: &str) -> Result<()> {
             if self.tcp_stream.is_none() {
                 // Player does not play fia lan
                 print!("{}", &text);
@@ -2150,47 +2138,45 @@ pub mod player {
                 let mut br = BufReader::new(self.tcp_stream.as_ref().unwrap());
                 let mut buffer = String::new();
                 if let Err(err) = br.read_line(&mut buffer) {
-                    println!("Unable to send data to player {}: {}", self.name, err);
-                    exit(1);
-                } else if result.is_err() {
-                    println!(
-                        "Unable to send data to player {}: {}",
-                        self.name,
-                        result.unwrap_err()
-                    );
-                    exit(1);
+                    return Err(miette!("Unable to send data to player, io error: {}", err));
+                } else if let Err(err) = result {
+                    return Err(err);
                 }
             }
+            Ok(())
         }
 
         /// Displayes the message `Is this correct? [Y/n]: ` to the player and returns if they
         /// pressed yes or no.
-        pub fn get_correct(&self) -> bool {
+        pub fn get_correct(&self) -> Result<bool> {
             match self.read_input(
                 String::from("Is this correct? [Y/n]: "),
                 vec!['Y', 'y', 'N', 'n'],
             ) {
-                'Y' => true,
-                'y' => true,
-                'N' => false,
-                'n' => false,
-                _ => false,
+                Ok(t) => match t {
+                    'Y' => Ok(true),
+                    'y' => Ok(true),
+                    'N' => Ok(false),
+                    'n' => Ok(false),
+                    _ => Ok(false),
+                },
+                Err(err) => Err(err),
             }
         }
 
         /// Prints the text to the player.
         /// A linebreak is written.
-        pub fn print_text_ln(&self, text: &str) {
+        pub fn print_text_ln(&self, text: &str) -> Result<()> {
             if self.tcp_stream.is_none() {
                 // Player does not play fia lan
                 println!("{}", &text);
             } else {
                 // Player plays fia lan
                 if let Err(err) = send_string(self, text, "$Println") {
-                    println!("Unable to send data to player {}: {}", self.name, err);
-                    exit(1);
+                    return Err(err);
                 }
             }
+            Ok(())
         }
     }
 
@@ -2211,6 +2197,7 @@ pub mod ui {
         base_game::{bank::Bank, board::Board, hotel_chains::HotelChain, settings::Settings},
         game::{hotel_chain_manager::HotelChainManager, round::Round},
     };
+    use miette::Result;
     use owo_colors::{AnsiColors, DynColors, OwoColorize, Rgb};
 
     use super::player::{player_by_name, Player};
@@ -2225,10 +2212,10 @@ pub mod ui {
         round: Option<&Round>,
         bank: &Bank,
         hotel_chain_manager: &HotelChainManager,
-    ) {
+    ) -> Result<()> {
         let mut written_to_console = false;
         for player in players {
-            player.print_text_ln("");
+            player.print_text_ln("")?;
             if all_players_local(players) {
                 let current_player = player_by_name(&current_player_name, players).unwrap();
                 print_main_ui_console(
@@ -2265,10 +2252,11 @@ pub mod ui {
                     bank,
                     hotel_chain_manager,
                 ) {
-                    player.print_text_ln(&line);
+                    player.print_text_ln(&line)?;
                 }
             }
         }
+        Ok(())
     }
 
     /// Checks if all playing players are playing on one pc

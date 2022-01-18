@@ -7,6 +7,7 @@ use std::{
 use clap::ArgMatches;
 use local_ip_address::local_ip;
 use miette::{miette, IntoDiagnostic, Result};
+use owo_colors::{OwoColorize, AnsiColors};
 
 use crate::{
     base_game::{player::Player, settings::Settings},
@@ -53,12 +54,7 @@ pub fn start_client(matches: &ArgMatches) -> Result<()> {
             }
             tcp_stream
                 .write_all(
-                    format!(
-                        "$Init{}$Name{}\n",
-                        matches.is_present("small_board"),
-                        name
-                    )
-                    .as_bytes(),
+                    format!("$Init{}$Name{}\n", matches.is_present("small_board"), name).as_bytes(),
                 )
                 .into_diagnostic()?;
             println!("Waiting for the game to start...");
@@ -93,7 +89,7 @@ pub fn start_client(matches: &ArgMatches) -> Result<()> {
                         .into_diagnostic()?;
                 } else if input_buffer.starts_with("$TERMINATE") {
                     let reason = input_buffer.replacen("$TERMINATE", "", 1);
-                    println!("Game has been canceled!");
+                    println!("{}", "Game has been canceled!".color(AnsiColors::Red));
                     println!("Reason: {}", reason);
                     break;
                 } else if input_buffer.starts_with("$GameEnded") {
@@ -193,7 +189,13 @@ pub fn start_server(matches: &ArgMatches, settings: Settings) -> Result<()> {
     println!("Game has been setup.");
     println!("Press enter to start the game!");
     read_enter();
-    game_manager.start_game()?;
+    if let Err(err) = game_manager.start_game() {
+        // Some error occured because of which the game is canceled
+        println!("{}", "An unrecoverable error occured, the game is canceled!".color(AnsiColors::Red));
+        abort_game(&game_manager.players, err.to_string());
+        println!("Reason the game had to be canceled:");
+        return Err(err);
+    }
     // game is over, stream will be closed
     for player in game_manager.players {
         if player.tcp_stream.is_some() {
@@ -209,32 +211,47 @@ pub fn start_server(matches: &ArgMatches, settings: Settings) -> Result<()> {
 
 /// Send a message to every player (including the local player).
 /// If the game is only played local the message is only written once to the console.
-pub fn broadcast(message: &str, players: &[Player]) {
+/// # Returns
+/// * `Ok(())` - When the message was send successfully
+/// * `Err(err)` - When the mesage could not be sent to at least one player
+pub fn broadcast(message: &str, players: &[Player]) -> Result<()> {
     let mut written_to_console = false;
     for player in players {
         if player.tcp_stream.is_none() {
             if !written_to_console {
-                player.print_text_ln(message);
+                player.print_text_ln(message)?;
                 written_to_console = true;
             }
         } else {
-            player.print_text_ln(message);
+            player.print_text_ln(message)?;
         }
     }
+    Ok(())
 }
 
 /// Send a message to every player except for the player that currently has their turn.
 /// If the game is only played local the message is only written once to the console.
-pub fn broadcast_others(message: &str, current_player_name: &str, players: &[Player]) {
+/// # Returns
+/// * `Ok(())` - When the message was send successfully
+/// * `Err(err)` - When the message was not sent to at least one player
+pub fn broadcast_others(
+    message: &str,
+    current_player_name: &str,
+    players: &[Player],
+) -> Result<()> {
     for player in players {
         if player.name != *current_player_name {
-            player.print_text_ln(message);
+            player.print_text_ln(message)?;
         }
     }
+    Ok(())
 }
 
 /// Sends a string to the client.
 /// The text is split at `\n`. These slices are send individually.
+/// # Returns
+/// * `Ok(())` - When the string was send successfully
+/// * `Err(err)` - When the string could not be sent
 pub fn send_string(player: &Player, text: &str, command: &str) -> Result<()> {
     let mut stream = player.tcp_stream.as_ref().unwrap();
     let text = String::from(text);
@@ -245,7 +262,6 @@ pub fn send_string(player: &Player, text: &str, command: &str) -> Result<()> {
         out.push_str(split);
         out.push('\n');
         if let Err(err) = stream.write_all(out.as_bytes()) {
-            println!("Unable to send data to player {}: {}", player.name, err);
             return Err(miette!(
                 "Unable to send data to player {}: {}",
                 player.name,
@@ -256,49 +272,18 @@ pub fn send_string(player: &Player, text: &str, command: &str) -> Result<()> {
     Ok(())
 }
 
-/// Send each player a short message to see if they are still listening.
-/// If a player does not answer the game is canceled and each player will be notified.
-pub fn ping(players: &[Player]) -> Result<()> {
-    let mut error = Ok(());
+/// Sends a message to each player that the game is canceled
+pub fn abort_game(players: &[Player], reason: String) {
+    // Message players and terminate game
     for player in players {
         if player.tcp_stream.is_some() {
-            if let Err(e) = send_string(player, "", "$Ping") {
-                error = Err(e);
-            } else {
-                // Wait for response
-                let mut br = BufReader::new(player.tcp_stream.as_ref().unwrap());
-                let mut buffer = String::new();
-                if let Err(err) = br.read_line(&mut buffer) {
-                    println!(
-                        "Player {} did not respond to ping. Reason: {}",
-                        player.name, err
-                    );
-                    error = Err(miette!(
-                        "Player {} did not respond to ping. Reason: {}",
-                        player.name,
-                        err
-                    ));
-                }
+            if let Ok(()) = send_string(
+                player,
+                &(&reason).color(AnsiColors::Red).to_string(),
+                "$TERMINATE",
+            ) {
+                println!("Stop command has been sent to {}", &player.name);
             }
         }
     }
-    if error.is_err() {
-        // Message players and terminate game
-        for player in players {
-            if player.tcp_stream.is_some() {
-                if let Err(e) = send_string(
-                    player,
-                    &"Game has been canceled!\nReason: A player has lost connection.".to_string(),
-                    "$TERMINATE",
-                ) {
-                    println!(
-                        "Error sending terminate command to player {}! Reason: {}",
-                        player.name, e
-                    )
-                }
-            }
-        }
-        return error;
-    }
-    Ok(())
 }
