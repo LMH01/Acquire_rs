@@ -13,9 +13,11 @@ This is my try at writing the board game Acquire in rust to be played fia the co
 ### Examples
 
 `acquire_rs --lan-server -p 3 --name LMH01`
+
 This will start a server on port 11511 on your local machine. The name of the local player is set to `LMH01` and the number of players is set to 3.
 
 `acquire_rs --lan-client --name LMH01 --ip 192.168.178.1:11511`
+
 This will launch a client instance on your computer that tries to connect to the server at `192.168.178.1:11511`. The player name is set to `LMH01`.
 
 ### Features
