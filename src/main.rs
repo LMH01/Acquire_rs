@@ -24,7 +24,7 @@ use network::{start_client, start_server};
 
 fn main() -> miette::Result<()> {
     let matches = App::new("Acquire_rs")
-        .version("0.1.0")
+        .version("1.0.0")
         .author("LMH01")
         .about("The board game Acquire fia command line in Rust")
         .arg(Arg::new("players")
