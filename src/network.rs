@@ -5,7 +5,6 @@ use std::{
 };
 
 use clap::ArgMatches;
-use local_ip_address::local_ip;
 use miette::{miette, IntoDiagnostic, Result};
 use owo_colors::{AnsiColors, OwoColorize};
 
@@ -125,7 +124,19 @@ impl ClientPlayer {
 
 /// Starts the server to play the game on multiplayer per lan.
 pub fn start_server(matches: &ArgMatches, settings: Settings) -> Result<()> {
-    let local_ip = local_ip().unwrap();
+    // Check if local ip was found
+    let local_ip = match local_ip_address::local_ip() {
+	Ok(ip) => ip,
+	Err(_err) => {
+		println!("Local ip could not be determined automatically, please enter it manually.");
+		let mut buffer = String::new();
+		print!("Ip: ");
+		stdout().flush().into_diagnostic()?;
+		io::stdin().read_line(&mut buffer).into_diagnostic()?;
+		let ip = String::from(buffer.trim());
+		ip.parse().into_diagnostic()?
+	},
+    };
     let local_ip = match local_ip {
         IpAddr::V4(ip4) => ip4,
         IpAddr::V6(ip6) => {
