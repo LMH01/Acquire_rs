@@ -1,6 +1,6 @@
 ## Acquire_rs
 
-This is my try at writing the board game Acquire in rust to be played fia the command line.
+This is my try at writing the board game Acquire in rust to be played via the command line.
 
 ### Getting started
 
