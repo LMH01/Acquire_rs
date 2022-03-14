@@ -2389,12 +2389,11 @@ pub mod ui {
         hotel_chain_manager: &HotelChainManager,
     ) -> Vec<String> {
         let mut main_ui = Vec::new();
-        let small_board;
-        if let Some(player) = player {
-            small_board = player.small_board;
+        let small_board = if let Some(player) = player {
+            player.small_board
         } else {
-            small_board = settings.small_board;
-        }
+            settings.small_board
+        };
         for line in board.get_board_state(small_board) {
             main_ui.push(line);
         }
@@ -2461,11 +2460,10 @@ pub mod ui {
                     !settings.hide_extra_info,
                 ),
             };
-            let hotel_price_color;
-            if !enable_color {
-                hotel_price_color = color;
+            let hotel_price_color = if !enable_color {
+                color
             } else {
-                hotel_price_color = match chain.price_level() {
+                match chain.price_level() {
                     super::hotel_chains::PriceLevel::Low => DynColors::Ansi(AnsiColors::Red),
                     super::hotel_chains::PriceLevel::Medium => DynColors::Ansi(AnsiColors::Yellow),
                     super::hotel_chains::PriceLevel::High => DynColors::Ansi(AnsiColors::Green),

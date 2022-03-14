@@ -27,31 +27,29 @@ use crate::{
 /// A message always ends with `\n`.
 pub fn start_client(matches: &ArgMatches) -> Result<()> {
     let stdin = io::stdin();
-    let ip;
-    if matches.is_present("ip") {
-        ip = String::from(matches.value_of("ip").unwrap());
+    let ip = if matches.is_present("ip") {
+        String::from(matches.value_of("ip").unwrap())
     } else {
         // Ip was not privided fia command line
         let mut buffer = String::new();
         print!("Enter ip and port: ");
         stdout().flush().into_diagnostic()?;
         stdin.read_line(&mut buffer).into_diagnostic()?;
-        ip = String::from(buffer.trim());
-    }
+        String::from(buffer.trim())
+    };
     println!("Connecting to {}...", &ip);
     match TcpStream::connect(ip) {
         Ok(mut tcp_stream) => {
             println!("Connection established!");
-            let name;
-            if matches.is_present("name") {
-                name = String::from(matches.value_of("name").unwrap().trim());
+            let name = if matches.is_present("name") {
+                String::from(matches.value_of("name").unwrap().trim())
             } else {
                 print!("Enter name: ");
                 stdout().flush().into_diagnostic()?;
                 let mut buffer = String::new();
                 stdin.read_line(&mut buffer).into_diagnostic()?;
-                name = buffer.trim().to_string();
-            }
+                buffer.trim().to_string()
+            };
             tcp_stream
                 .write_all(
                     format!("$Init{}$Name{}\n", matches.is_present("small_board"), name).as_bytes(),
@@ -175,16 +173,15 @@ pub fn start_server(matches: &ArgMatches, settings: Settings) -> Result<()> {
     }
     // All players have connected to the game, game will start
     println!("Setting up game...");
-    let host_name;
-    if matches.is_present("name") {
-        host_name = String::from(matches.value_of("name").unwrap());
+    let host_name = if matches.is_present("name") {
+        String::from(matches.value_of("name").unwrap())
     } else {
         let mut buffer = String::new();
         print!("Please enter your name: ");
         stdout().flush().into_diagnostic()?;
         stdin().read_line(&mut buffer).into_diagnostic()?;
-        host_name = String::from(buffer.trim());
-    }
+        String::from(buffer.trim())
+    };
     let mut game_manager = GameManager::new_server(client_players, settings, host_name)?;
     println!("Game has been setup.");
     println!("Press enter to start the game!");

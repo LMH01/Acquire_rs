@@ -219,9 +219,8 @@ impl GameManager {
                 stdout().flush().into_diagnostic()?;
                 stdin().read_line(&mut buffer).into_diagnostic()?;
                 buffer = buffer.trim().to_string();
-                let player_name;
-                if buffer.is_empty() {
-                    player_name = format!("Player {}", player_id + 1);
+                let player_name = if buffer.is_empty() {
+                    format!("Player {}", player_id + 1)
                 } else {
                     for player in &players {
                         if player.name == buffer {
@@ -229,8 +228,8 @@ impl GameManager {
                             continue 'inner;
                         }
                     }
-                    player_name = buffer.clone();
-                }
+                    buffer.clone()
+                };
                 players.push(Player::new(
                     player_cards.pop().unwrap(),
                     player_id,
@@ -808,24 +807,21 @@ pub fn print_info_card() {
     println!(" Festival ||  Oriental  || Continental  ||   buy/sell  || Largest shareholder || Second largest shareholder");
     println!("==================================================================================================================");
     for (index, i) in STOCK_BASE_PRICE.iter().enumerate() {
-        let low;
-        if index > 8 {
-            low = "  -  ";
+        let low = if index > 8 {
+            "  -  "
         } else {
-            low = HOTEL_LEVELS[index];
-        }
-        let medium;
-        if !(1..=9).contains(&index) {
-            medium = "  -  ";
+            HOTEL_LEVELS[index]
+        };
+        let medium = if !(1..=9).contains(&index) {
+            "  -  "
         } else {
-            medium = HOTEL_LEVELS[index - 1];
-        }
-        let high;
-        if !(2..=10).contains(&index) {
-            high = "  -  ";
+            HOTEL_LEVELS[index - 1]
+        };
+        let high = if !(2..=10).contains(&index) {
+            "  -  "
         } else {
-            high = HOTEL_LEVELS[index - 2];
-        }
+            HOTEL_LEVELS[index - 2]
+        };
         println!(
             "   {}  ||    {}   ||     {}    ||     {:4}    ||              {:5}  || {:5}",
             low,

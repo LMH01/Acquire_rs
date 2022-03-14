@@ -553,12 +553,11 @@ pub mod place_hotel {
                     .name()
                     .color(surviving_chain_temp.color())
             ))?;
-            let mut available_positions: Vec<u32>;
-            if chains.len() == 3 {
-                available_positions = vec![1, 2];
+            let mut available_positions: Vec<u32> = if chains.len() == 3 {
+                vec![1, 2]
             } else {
-                available_positions = vec![1, 2, 3];
-            }
+                vec![1, 2, 3]
+            };
             let mut determined_positions = HashMap::new();
             let mut surviving_chain = None;
             for chain in chains {
