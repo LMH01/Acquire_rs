@@ -5,6 +5,8 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 
 use crate::tui::App;
 
+/// All data types and logic of the game
+mod game;
 /// Terminal user interface
 mod tui;
 
