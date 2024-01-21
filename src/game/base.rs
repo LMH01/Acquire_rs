@@ -1,9 +1,16 @@
+use std::fmt::Display;
+
 use anyhow::Result;
-use ratatui::style::Color;
+use ratatui::{
+    layout::Constraint,
+    style::{Color, Style},
+    text::Text,
+    widgets::{Row, Table},
+};
 
 /// Contains all variables required to play a game.
 pub struct Game {
-    board: Board,
+    pub board: Board,
 }
 
 /// The board on which the hotels are placed.
@@ -12,22 +19,20 @@ pub struct Game {
 pub struct Board {
     /// The pieces on the board
     ///
-    /// pieces[0] is x coordinate
+    /// pieces[0] is y coordinate
     ///
-    /// pieces[1] is y coordinate
-    pieces: Vec<Vec<Piece>>,
+    /// pieces[1] is x coordinate
+    pub pieces: Vec<Vec<Piece>>,
 }
 
 impl Board {
     /// Create a new board with the specified dimensions.
     ///
-    /// (u8, u8) are the (x,y) dimensions.
+    /// (u8, u8) are the (y,x) dimensions.
     ///
     /// Max y coordinate is 26 because Z is the last letter in the alphabet.
     fn new(dimensions: (u8, u8)) -> Result<Self> {
         // limitation of alphabet is caused by using a char in the Card struct, this might be changed later
-        // shuffle dimensions around so that x and y are aligned correctly
-        let dimensions = (dimensions.1, dimensions.0);
         let mut pieces = Vec::new();
         for i in 0..dimensions.1 {
             let mut inner = Vec::new();
@@ -41,6 +46,20 @@ impl Board {
         }
         Ok(Self { pieces })
     }
+
+    /// Creates a new table out of the current state of the board
+    pub fn to_table(&self) -> Table {
+        let mut rows = Vec::new();
+        let mut widths = Vec::new();
+        for x in &self.pieces {
+            rows.push(Row::new(x));
+        }
+        for _ in 0..self.pieces[0].len() {
+            widths.push(Constraint::Length(1));
+        }
+        let table = Table::new(rows, widths);
+        table
+    }
 }
 
 impl Default for Board {
@@ -50,11 +69,32 @@ impl Default for Board {
 }
 
 /// A piece on the board
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Piece {
     /// True when the piece is placed on the board.
-    placed: bool,
-    chain: Option<HotelChain>,
+    pub placed: bool,
+    pub chain: Option<HotelChain>,
+}
+
+impl Display for Piece {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.chain {
+            None => write!(f, " "),
+            Some(chain) => write!(f, "{}", chain.identifier()),
+        }
+    }
+}
+
+impl From<&Piece> for Text<'_> {
+    fn from(value: &Piece) -> Self {
+        match &value.chain {
+            None => Text::raw("X"),
+            Some(chain) => Text::styled(
+                format!("{}", chain.identifier()),
+                Style::default().fg(chain.color()),
+            ),
+        }
+    }
 }
 
 /// A card that a player can play to place a hotel on the board.
@@ -73,7 +113,7 @@ impl Card {
 }
 
 /// All different hotel chains in the game
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum HotelChain {
     Airport,
     Continental,
@@ -130,28 +170,28 @@ mod tests {
             }
         );
         assert_eq!(
-            board.pieces[0][1],
-            Piece {
-                placed: false,
-                chain: None
-            }
-        );
-        assert_eq!(
-            board.pieces[0][2],
-            Piece {
-                placed: false,
-                chain: None
-            }
-        );
-        assert_eq!(
-            board.pieces[0][3],
-            Piece {
-                placed: false,
-                chain: None
-            }
-        );
-        assert_eq!(
             board.pieces[1][0],
+            Piece {
+                placed: false,
+                chain: None
+            }
+        );
+        assert_eq!(
+            board.pieces[2][0],
+            Piece {
+                placed: false,
+                chain: None
+            }
+        );
+        assert_eq!(
+            board.pieces[3][0],
+            Piece {
+                placed: false,
+                chain: None
+            }
+        );
+        assert_eq!(
+            board.pieces[0][1],
             Piece {
                 placed: false,
                 chain: None
@@ -165,21 +205,21 @@ mod tests {
             }
         );
         assert_eq!(
-            board.pieces[1][2],
+            board.pieces[2][1],
             Piece {
                 placed: false,
                 chain: None
             }
         );
         assert_eq!(
-            board.pieces[1][3],
+            board.pieces[3][1],
             Piece {
                 placed: false,
                 chain: None
             }
         );
-        assert_eq!(board.pieces.get(2), None);
-        assert_eq!(board.pieces[0].get(4), None);
+        assert_eq!(board.pieces.get(4), None);
+        assert_eq!(board.pieces[0].get(2), None);
     }
 
     #[test]

@@ -1,6 +1,8 @@
-use crossterm::event::{Event, self, KeyCode};
-use ratatui::{backend::Backend, Terminal};
 use anyhow::Result;
+use crossterm::event::{self, Event, KeyCode};
+use ratatui::{backend::Backend, Terminal};
+
+use crate::game::base::{Board, Game, HotelChain};
 
 use self::ui::draw;
 
@@ -9,13 +11,16 @@ mod ui;
 
 /// App holds the state of the application
 pub struct App {
-
+    game: Game,
 }
 
 impl App {
-
     pub fn new() -> Self {
-        Self {}
+        Self {
+            game: Game {
+                board: Board::default(),
+            },
+        }
     }
 
     pub fn run<B: Backend>(&mut self, terminal: &mut Terminal<B>) -> Result<()> {
@@ -25,7 +30,10 @@ impl App {
                 match key.code {
                     KeyCode::Char('q') => {
                         return Ok(());
-                    },
+                    }
+                    KeyCode::Char('n') => {
+                        self.game.board.pieces[1][2].chain = Some(HotelChain::Airport);
+                    }
                     _ => (),
                 }
             }
