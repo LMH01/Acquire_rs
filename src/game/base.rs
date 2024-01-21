@@ -4,8 +4,8 @@ use anyhow::Result;
 use ratatui::{
     layout::Constraint,
     style::{Color, Style},
-    text::Text,
-    widgets::{Row, Table},
+    text::{Text, Line, Span},
+    widgets::{Row, Table, Widget, Paragraph},
 };
 
 /// Contains all variables required to play a game.
@@ -47,18 +47,38 @@ impl Board {
         Ok(Self { pieces })
     }
 
-    /// Creates a new table out of the current state of the board
-    pub fn to_table(&self) -> Table {
-        let mut rows = Vec::new();
-        let mut widths = Vec::new();
-        for x in &self.pieces {
-            rows.push(Row::new(x));
+    /// Creates a new paragraph out of the current state of the board
+    pub fn to_paragraph(&self) -> Paragraph {
+        let mut text = Vec::new();
+        for (y_idx, y) in self.pieces.iter().enumerate() {
+            let mut line_components = Vec::new();
+            if y_idx != 0 {
+                // insert row filled with dashes
+                let mut hline = String::from("--");
+                for i in 0..y.len() {
+                    hline.push_str("+---");
+                }
+                text.push(Line::from(hline));
+            }
+            for (x_idx, x) in y.iter().enumerate() {
+                if x_idx == 0 {
+                    // insert row label
+                    // determine line char with ascii magic
+                    line_components.push(Span::from(format!("{} ", ((y_idx as u8) + 65) as char)))
+                }
+                line_components.push(Span::from("| "));
+                line_components.push(Span::from(x));
+                line_components.push(Span::from(" "));
+            }
+            text.push(Line::from(line_components));
         }
-        for _ in 0..self.pieces[0].len() {
-            widths.push(Constraint::Length(1));
+        // add column labels
+        let mut line = String::from("  ");
+        for x in 0..self.pieces[0].len() {
+            line.push_str(&format!(" {:2} ", x));
         }
-        let table = Table::new(rows, widths);
-        table
+        text.push(Line::from(line));
+        Paragraph::new(text)
     }
 }
 
@@ -87,9 +107,15 @@ impl Display for Piece {
 
 impl From<&Piece> for Text<'_> {
     fn from(value: &Piece) -> Self {
+        Text::from(Span::from(value))
+    }
+}
+
+impl From<&Piece> for Span<'_> {
+    fn from(value: &Piece) -> Self {
         match &value.chain {
-            None => Text::raw("X"),
-            Some(chain) => Text::styled(
+            None => Span::raw("X"),
+            Some(chain) => Span::styled(
                 format!("{}", chain.identifier()),
                 Style::default().fg(chain.color()),
             ),

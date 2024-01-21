@@ -19,5 +19,5 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         .style(Style::default().fg(Color::Green));
 
     f.render_widget(key_hints, chunks[0]);
-    f.render_widget(app.game.board.to_table(), chunks[1])
+    f.render_widget(app.game.board.to_paragraph(), chunks[1])
 }
