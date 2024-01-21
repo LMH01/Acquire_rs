@@ -52,7 +52,7 @@ impl Board {
     /// Creates a new paragraph out of the current state of the board.
     /// 
     /// If `large` is true, the board will be printed in a larger fashion
-    pub fn to_paragraph(&self, size: BoardSize) -> Paragraph {
+    pub fn to_paragraph(&self, size: BoardSize) -> Paragraph {// TODO center board
         let mut text = Vec::new();
         for (y_idx, y) in self.pieces.iter().enumerate() {
             let mut line_components = Vec::new();
