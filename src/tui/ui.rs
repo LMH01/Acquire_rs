@@ -5,6 +5,8 @@ use ratatui::{
     Frame,
 };
 
+use crate::game::base::BoardSize;
+
 use super::App;
 
 /// Draw the current ui
@@ -19,5 +21,12 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         .style(Style::default().fg(Color::Green));
 
     f.render_widget(key_hints, chunks[0]);
-    f.render_widget(app.game.board.to_paragraph(), chunks[1])
+    
+    if chunks[1].height < 20 || chunks[1].width < 60 {
+        f.render_widget(app.game.board.to_paragraph(BoardSize::Small), chunks[1])
+    } else if chunks[1].height >= 20 && chunks[1].height <= 35 {
+        f.render_widget(app.game.board.to_paragraph(BoardSize::Medium), chunks[1])
+    } else {
+        f.render_widget(app.game.board.to_paragraph(BoardSize::Large), chunks[1])
+    }
 }

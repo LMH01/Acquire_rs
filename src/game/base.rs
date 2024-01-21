@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, cmp::Ordering};
 
 use anyhow::Result;
 use ratatui::{
@@ -47,18 +47,29 @@ impl Board {
         Ok(Self { pieces })
     }
 
-    /// Creates a new paragraph out of the current state of the board
-    pub fn to_paragraph(&self) -> Paragraph {
+    // Some more colorization's could be implemented, for example that the background color of the surrounding empty squares is equal to the color of the hotel chain
+
+    /// Creates a new paragraph out of the current state of the board.
+    /// 
+    /// If `large` is true, the board will be printed in a larger fashion
+    pub fn to_paragraph(&self, size: BoardSize) -> Paragraph {
         let mut text = Vec::new();
         for (y_idx, y) in self.pieces.iter().enumerate() {
             let mut line_components = Vec::new();
             if y_idx != 0 {
+                extra_lines(&size, y.len(), &mut text);
                 // insert row filled with dashes
                 let mut hline = String::from("--");
                 for i in 0..y.len() {
                     hline.push_str("+---");
+                    if size >= BoardSize::Medium {
+                        hline.push_str("--");
+                    }
                 }
                 text.push(Line::from(hline));
+                extra_lines(&size, y.len(), &mut text);
+            } else {
+                extra_lines(&size, y.len(), &mut text);
             }
             for (x_idx, x) in y.iter().enumerate() {
                 if x_idx == 0 {
@@ -66,16 +77,32 @@ impl Board {
                     // determine line char with ascii magic
                     line_components.push(Span::from(format!("{} ", ((y_idx as u8) + 65) as char)))
                 }
-                line_components.push(Span::from("| "));
+                // different amount of spaces depending on the size
+                if size >= BoardSize::Medium {
+                    line_components.push(Span::from("|  "));
+                } else {
+                    line_components.push(Span::from("| "));
+                }
                 line_components.push(Span::from(x));
-                line_components.push(Span::from(" "));
+                if size >= BoardSize::Medium {
+                    line_components.push(Span::from("  "));
+                } else {
+                    line_components.push(Span::from(" "));
+                }
             }
             text.push(Line::from(line_components));
+            if y_idx == self.pieces.len()-1 {
+                extra_lines(&size, self.pieces[0].len(), &mut text)
+            }
         }
         // add column labels
         let mut line = String::from("  ");
         for x in 0..self.pieces[0].len() {
-            line.push_str(&format!(" {:2} ", x));
+            if size >= BoardSize::Medium {
+                line.push_str(&format!("  {:2}  ", x));
+            } else {
+                line.push_str(&format!(" {:2} ", x));
+            }
         }
         text.push(Line::from(line));
         Paragraph::new(text)
@@ -85,6 +112,53 @@ impl Board {
 impl Default for Board {
     fn default() -> Self {
         Self::new((12, 9)).unwrap()
+    }
+}
+
+/// Used to determine how large the board can be printed, depends on the canvas size.
+#[derive(PartialEq)]
+pub enum BoardSize {
+    Small,
+    Medium,
+    Large
+}
+
+impl PartialOrd for BoardSize {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match self {
+            BoardSize::Small => {
+                if other == &BoardSize::Small {
+                    Some(Ordering::Equal)
+                } else {
+                    Some(Ordering::Less)
+                }
+            },
+            BoardSize::Medium => {
+                match other {
+                    BoardSize::Small => Some(Ordering::Greater),
+                    BoardSize::Medium => Some(Ordering::Equal),
+                    BoardSize::Large => Some(Ordering::Less)
+                }
+            },
+            BoardSize::Large => {
+                if other == &BoardSize::Large {
+                    Some(Ordering::Equal)
+                } else {
+                    Some(Ordering::Greater)
+                }
+            }
+        }
+    }
+}
+
+/// Prints extra lines for the board when board size is equal to large
+fn extra_lines(size: &BoardSize, len: usize, text: &mut Vec<Line>) {
+    if size == &BoardSize::Large {
+        let mut line = String::from("  ");
+        for i in 0..len {
+            line.push_str("|     ");
+        }
+        text.push(Line::from(line))
     }
 }
 
@@ -181,7 +255,9 @@ impl HotelChain {
 
 #[cfg(test)]
 mod tests {
-    use crate::game::base::Piece;
+    use std::cmp::Ordering;
+
+    use crate::game::base::{Piece, BoardSize};
 
     use super::{Board, Card};
 
@@ -259,14 +335,14 @@ mod tests {
             }
         );
         assert_eq!(
-            board.pieces[11][8],
+            board.pieces[8][11],
             Piece {
                 placed: false,
                 chain: None
             }
         );
-        assert_eq!(board.pieces.get(12), None);
-        assert_eq!(board.pieces[11].get(9), None);
+        assert_eq!(board.pieces.get(10), None);
+        assert_eq!(board.pieces[8].get(12), None);
     }
 
     #[test]
@@ -295,5 +371,18 @@ mod tests {
             .to_vec_coordinates(),
             (19, 25)
         );
+    }
+
+    #[test]
+    fn test_board_size_partial_cmp() {
+        assert_eq!(BoardSize::Small.partial_cmp(&BoardSize::Small), Some(Ordering::Equal));
+        assert_eq!(BoardSize::Medium.partial_cmp(&BoardSize::Small), Some(Ordering::Greater));
+        assert_eq!(BoardSize::Large.partial_cmp(&BoardSize::Small), Some(Ordering::Greater));
+        assert_eq!(BoardSize::Small.partial_cmp(&BoardSize::Medium), Some(Ordering::Less));
+        assert_eq!(BoardSize::Medium.partial_cmp(&BoardSize::Medium), Some(Ordering::Equal));
+        assert_eq!(BoardSize::Large.partial_cmp(&BoardSize::Medium), Some(Ordering::Greater));
+        assert_eq!(BoardSize::Small.partial_cmp(&BoardSize::Large), Some(Ordering::Less));
+        assert_eq!(BoardSize::Medium.partial_cmp(&BoardSize::Large), Some(Ordering::Less));
+        assert_eq!(BoardSize::Large.partial_cmp(&BoardSize::Large), Some(Ordering::Equal));
     }
 }
