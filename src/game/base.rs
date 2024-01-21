@@ -1,11 +1,11 @@
-use std::{fmt::Display, cmp::Ordering};
+use std::{cmp::Ordering, fmt::Display};
 
 use anyhow::Result;
 use ratatui::{
     layout::Constraint,
     style::{Color, Style},
-    text::{Text, Line, Span},
-    widgets::{Row, Table, Widget, Paragraph},
+    text::{Line, Span, Text},
+    widgets::{Paragraph, Row, Table, Widget},
 };
 
 /// Contains all variables required to play a game.
@@ -50,9 +50,10 @@ impl Board {
     // Some more colorization's could be implemented, for example that the background color of the surrounding empty squares is equal to the color of the hotel chain
 
     /// Creates a new paragraph out of the current state of the board.
-    /// 
+    ///
     /// If `large` is true, the board will be printed in a larger fashion
-    pub fn to_paragraph(&self, size: BoardSize) -> Paragraph {// TODO center board
+    pub fn to_paragraph(&self, size: BoardSize) -> Paragraph {
+        // TODO center board
         let mut text = Vec::new();
         for (y_idx, y) in self.pieces.iter().enumerate() {
             let mut line_components = Vec::new();
@@ -91,7 +92,7 @@ impl Board {
                 }
             }
             text.push(Line::from(line_components));
-            if y_idx == self.pieces.len()-1 {
+            if y_idx == self.pieces.len() - 1 {
                 extra_lines(&size, self.pieces[0].len(), &mut text)
             }
         }
@@ -120,7 +121,7 @@ impl Default for Board {
 pub enum BoardSize {
     Small,
     Medium,
-    Large
+    Large,
 }
 
 impl PartialOrd for BoardSize {
@@ -132,13 +133,11 @@ impl PartialOrd for BoardSize {
                 } else {
                     Some(Ordering::Less)
                 }
-            },
-            BoardSize::Medium => {
-                match other {
-                    BoardSize::Small => Some(Ordering::Greater),
-                    BoardSize::Medium => Some(Ordering::Equal),
-                    BoardSize::Large => Some(Ordering::Less)
-                }
+            }
+            BoardSize::Medium => match other {
+                BoardSize::Small => Some(Ordering::Greater),
+                BoardSize::Medium => Some(Ordering::Equal),
+                BoardSize::Large => Some(Ordering::Less),
             },
             BoardSize::Large => {
                 if other == &BoardSize::Large {
@@ -257,7 +256,7 @@ impl HotelChain {
 mod tests {
     use std::cmp::Ordering;
 
-    use crate::game::base::{Piece, BoardSize};
+    use crate::game::base::{BoardSize, Piece};
 
     use super::{Board, Card};
 
@@ -375,14 +374,41 @@ mod tests {
 
     #[test]
     fn test_board_size_partial_cmp() {
-        assert_eq!(BoardSize::Small.partial_cmp(&BoardSize::Small), Some(Ordering::Equal));
-        assert_eq!(BoardSize::Medium.partial_cmp(&BoardSize::Small), Some(Ordering::Greater));
-        assert_eq!(BoardSize::Large.partial_cmp(&BoardSize::Small), Some(Ordering::Greater));
-        assert_eq!(BoardSize::Small.partial_cmp(&BoardSize::Medium), Some(Ordering::Less));
-        assert_eq!(BoardSize::Medium.partial_cmp(&BoardSize::Medium), Some(Ordering::Equal));
-        assert_eq!(BoardSize::Large.partial_cmp(&BoardSize::Medium), Some(Ordering::Greater));
-        assert_eq!(BoardSize::Small.partial_cmp(&BoardSize::Large), Some(Ordering::Less));
-        assert_eq!(BoardSize::Medium.partial_cmp(&BoardSize::Large), Some(Ordering::Less));
-        assert_eq!(BoardSize::Large.partial_cmp(&BoardSize::Large), Some(Ordering::Equal));
+        assert_eq!(
+            BoardSize::Small.partial_cmp(&BoardSize::Small),
+            Some(Ordering::Equal)
+        );
+        assert_eq!(
+            BoardSize::Medium.partial_cmp(&BoardSize::Small),
+            Some(Ordering::Greater)
+        );
+        assert_eq!(
+            BoardSize::Large.partial_cmp(&BoardSize::Small),
+            Some(Ordering::Greater)
+        );
+        assert_eq!(
+            BoardSize::Small.partial_cmp(&BoardSize::Medium),
+            Some(Ordering::Less)
+        );
+        assert_eq!(
+            BoardSize::Medium.partial_cmp(&BoardSize::Medium),
+            Some(Ordering::Equal)
+        );
+        assert_eq!(
+            BoardSize::Large.partial_cmp(&BoardSize::Medium),
+            Some(Ordering::Greater)
+        );
+        assert_eq!(
+            BoardSize::Small.partial_cmp(&BoardSize::Large),
+            Some(Ordering::Less)
+        );
+        assert_eq!(
+            BoardSize::Medium.partial_cmp(&BoardSize::Large),
+            Some(Ordering::Less)
+        );
+        assert_eq!(
+            BoardSize::Large.partial_cmp(&BoardSize::Large),
+            Some(Ordering::Equal)
+        );
     }
 }

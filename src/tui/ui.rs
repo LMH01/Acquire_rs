@@ -5,7 +5,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::game::base::{BoardSize, self};
+use crate::game::base::{self, BoardSize};
 
 use super::App;
 
@@ -26,10 +26,15 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
         .split(base_chunks[0]);
-    
+
     let right_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(30), Constraint::Percentage(5), Constraint::Percentage(20), Constraint::Percentage(45)])
+        .constraints([
+            Constraint::Percentage(30),
+            Constraint::Percentage(5),
+            Constraint::Percentage(20),
+            Constraint::Percentage(45),
+        ])
         .split(base_chunks[1]);
 
     let key_hints = Tabs::new(vec!["a", "b", "c"])
@@ -39,14 +44,32 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     f.render_widget(key_hints, global_chunks[1]);
 
     let board_block = Block::new().title("Board").borders(Borders::ALL);
-    
+
     //f.render_widget(app.game.board.to_paragraph(BoardSize::Large).block(board_block), left_chunks[0])
-    
+
     if left_chunks[0].height < 20 || left_chunks[0].width < 60 {
-        f.render_widget(app.game.board.to_paragraph(BoardSize::Small).block(board_block), left_chunks[0])
+        f.render_widget(
+            app.game
+                .board
+                .to_paragraph(BoardSize::Small)
+                .block(board_block),
+            left_chunks[0],
+        )
     } else if left_chunks[0].height >= 20 && left_chunks[0].height <= 37 {
-        f.render_widget(app.game.board.to_paragraph(BoardSize::Medium).block(board_block), left_chunks[0])
+        f.render_widget(
+            app.game
+                .board
+                .to_paragraph(BoardSize::Medium)
+                .block(board_block),
+            left_chunks[0],
+        )
     } else {
-        f.render_widget(app.game.board.to_paragraph(BoardSize::Large).block(board_block), left_chunks[0])
+        f.render_widget(
+            app.game
+                .board
+                .to_paragraph(BoardSize::Large)
+                .block(board_block),
+            left_chunks[0],
+        )
     }
 }
