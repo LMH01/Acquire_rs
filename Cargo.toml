@@ -1,20 +1,8 @@
 [package]
 name = "acquire_rs"
-version = "1.0.1"
+version = "2.0.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-miette = {version = "3.2.0", features = ["fancy"] }
-rand = "0.8.0"
-clap = {version = "3.0.x"}
-owo-colors = "3.2.0"
-read_input = "0.8"
-local-ip-address = "0.4.4"
-
-[features]
-
-# Colored is used in windows builds to switch the terminal output
-[target.'cfg(windows)'.dependencies.colored]
-version = "2.0.0"
