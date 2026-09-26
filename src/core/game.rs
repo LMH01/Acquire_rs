@@ -145,6 +145,7 @@ enum Phase {
 enum FusionItem {
     PayBonuses {
         dead: HotelChain,
+        #[allow(dead_code)]
         alive: HotelChain,
     },
     HandleStocks {
@@ -186,6 +187,7 @@ pub struct Game {
     /// The players (index order == turn order after setup).
     pub players: Vec<Player>,
     /// The settings.
+    #[allow(dead_code)]
     pub settings: Settings,
     /// The current round number.
     pub round_number: u32,
@@ -196,6 +198,7 @@ pub struct Game {
     /// The game log (replaces broadcasts).
     pub log: Vec<LogEntry>,
     /// The kind of each seat (for display/logging).
+    #[allow(dead_code)]
     pub roster: Vec<DeciderKind>,
     phase: Phase,
     game_ending: bool,
@@ -948,6 +951,7 @@ impl Game {
     }
 
     /// Returns the pending input request, if the engine is waiting for a decision.
+    #[allow(dead_code)]
     pub fn pending(&self) -> Option<(usize, InputRequest)> {
         match &self.phase {
             Phase::PlaceCard => {
@@ -968,6 +972,7 @@ impl Game {
     }
 
     /// Returns `true` once the game has finished.
+    #[allow(dead_code)]
     pub fn is_over(&self) -> bool {
         matches!(self.phase, Phase::GameOver)
     }
@@ -977,6 +982,7 @@ impl Game {
     ///
     /// This is the headless driver used by the bot-vs-bot tests and (in the future) by the
     /// TUI to run bot turns automatically. One decider per seat is required.
+    #[allow(dead_code)]
     pub fn run_until_finished(&mut self, deciders: &[Box<dyn Decider>]) -> Result<FinalResult> {
         if deciders.len() != self.players.len() {
             return Err(miette!(

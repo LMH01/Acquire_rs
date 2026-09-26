@@ -21,6 +21,7 @@ pub enum DeciderKind {
     /// A bot, seeded so its play is reproducible.
     Bot { seed: u64 },
     /// A (future) remote player over the network. Placeholder for now.
+    #[allow(dead_code)]
     Network,
 }
 
@@ -42,6 +43,7 @@ pub trait Decider: Send {
     fn decide(&self, request: &InputRequest, game: &Game) -> Decision;
 
     /// A display name for the decider.
+    #[allow(dead_code)]
     fn name(&self) -> &str;
 }
 

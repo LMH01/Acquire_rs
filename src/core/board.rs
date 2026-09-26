@@ -38,6 +38,7 @@ impl Board {
     }
 
     /// Returns the number of hotels that have been placed on the board.
+    #[allow(dead_code)]
     pub fn placed_count(&self) -> u32 {
         self.pieces
             .iter()

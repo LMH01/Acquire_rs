@@ -47,6 +47,7 @@ impl LogEntry {
     }
 
     /// Returns `true` if this entry should be shown to the player with `viewer_id`.
+    #[allow(dead_code)]
     pub fn visible_to(&self, viewer_id: u32) -> bool {
         match self.audience {
             Audience::Everyone => true,

@@ -214,6 +214,7 @@ pub fn longest_chain<'a>(
 /// # Arguments
 /// * `chain` - The chain that is extended
 /// * `positions` - The positions that should extend the chain
+#[allow(dead_code)]
 pub fn extend_chain(
     chain: HotelChain,
     positions: Vec<Position>,

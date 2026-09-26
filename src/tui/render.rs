@@ -768,7 +768,7 @@ fn fusion_order_body<'a>(app: &'a App, chains: &'a [HotelChain]) -> Vec<Line<'a>
     out
 }
 
-fn fusion_stock_body(app: &App, max_exchange: u32, max_sell: u32) -> Vec<Line> {
+fn fusion_stock_body(app: &App, max_exchange: u32, max_sell: u32) -> Vec<Line<'_>> {
     vec![
         Line::from(format!(
             "  Exchange: {}  (even, 0..={max_exchange})   ← →  to change",

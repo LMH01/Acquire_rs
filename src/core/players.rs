@@ -121,6 +121,7 @@ impl Player {
     /// Removes a card from the player's inventory.
     /// Returns the removed card when the card has been removed successfully.
     /// Otherwise `None` is returned.
+    #[allow(dead_code)]
     pub fn remove_card(&mut self, position: &Position) -> Result<AnalyzedPosition> {
         self.sort_cards();
         for (index, analyzed_card) in self.analyzed_cards.iter().enumerate() {

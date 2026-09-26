@@ -119,7 +119,7 @@ fn main() -> Result<()> {
     // Build the terminal once.
     let backend = ratatui::backend::CrosstermBackend::new(std::io::stdout());
     let mut terminal = ratatui::Terminal::new(backend)
-        .map_err(|e| miette::miette!("failed to initialize terminal: {e}"))?;
+        .map_err(|e| miette::miette!(format!("failed to initialize terminal: {e}")))?;
 
     // Dispatch: demo → lan → info-card → normal game.
     let mut app = if matches.is_present("demo") {

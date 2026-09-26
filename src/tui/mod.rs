@@ -43,9 +43,9 @@ pub struct TerminalGuard;
 impl TerminalGuard {
     /// Puts the terminal into raw mode and the alternate screen.
     pub fn new() -> Result<Self> {
-        enable_raw_mode().map_err(|e| miette!("failed to enable raw mode: {e}"))?;
+        enable_raw_mode().map_err(|e| miette!(format!("failed to enable raw mode: {e}")))?;
         execute!(io::stdout(), EnterAlternateScreen)
-            .map_err(|e| miette!("failed to enter alternate screen: {e}"))?;
+            .map_err(|e| miette!(format!("failed to enter alternate screen: {e}")))?;
         Ok(Self)
     }
 }
@@ -100,6 +100,7 @@ pub struct DemoState {
     pub board: Board,
     pub chains: HotelChainManager,
     pub bank: Bank,
+    #[allow(dead_code)]
     pub player: Player,
 }
 
@@ -697,7 +698,7 @@ impl App {
 
     /// Runs the application until it is quit. Restores the terminal on the way out.
     pub fn run(&mut self, terminal: &mut Terminal<impl Backend>) -> Result<()> {
-        let mut guard = TerminalGuard::new()?;
+        let guard = TerminalGuard::new()?;
         loop {
             // Drive the engine while we are playing and not waiting on the human.
             if self.screen == Screen::Play
@@ -712,14 +713,14 @@ impl App {
             }
             terminal
                 .draw(|f| render::render(f, self))
-                .map_err(|e| miette!("terminal draw failed: {e}"))?;
+                .map_err(|e| miette!(format!("terminal draw failed: {e}")))?;
             // Sleep briefly so a full game does not burn 100% CPU while bots play.
             let has_event = event::poll(Duration::from_millis(16))
-                .map_err(|e| miette!("event poll failed: {e}"))?;
+                .map_err(|e| miette!(format!("event poll failed: {e}")))?;
             if !has_event {
                 continue;
             }
-            let event = event::read().map_err(|e| miette!("event read failed: {e}"))?;
+            let event = event::read().map_err(|e| miette!(format!("event read failed: {e}")))?;
             match event {
                 Event::Key(key) => {
                     if self.handle_key(key)? {

@@ -25,6 +25,7 @@ pub struct Bot {
     /// The index of the player this bot controls (into [`Game::players`]).
     player_index: usize,
     /// A human-readable name for the seat.
+    #[allow(dead_code)]
     name: String,
     /// The seeded RNG. `RefCell` gives interior mutability so `decide(&self, ..)` can
     /// still advance the state while the [`Decider`] trait takes `&self`.
