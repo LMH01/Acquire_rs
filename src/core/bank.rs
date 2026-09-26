@@ -333,9 +333,17 @@ impl Bank {
             .get(chain)
             .unwrap()
             .clone();
-        // Check if largest shareholders are set.
+        // A chain that has no shareholders (founded but never bought) simply pays no
+        // bonuses — this is a legitimate game state, not an error.
         if largest_shareholders.is_empty() && second_largest_shareholders.is_empty() {
-            return Err(miette!("Unable to give majority shareholder bonuses: The largest shareholders are not set for chain {}", chain));
+            if inform_player {
+                log.push(LogEntry::others(
+                    round,
+                    0,
+                    format!("Chain {} has no shareholders, no bonuses are paid.", chain),
+                ));
+            }
+            return Ok(());
         }
         let largest_shareholder_bonus = Bank::stock_price(hotel_chain_manager, chain) * 10;
         let second_largest_shareholder_bonus =

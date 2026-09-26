@@ -59,9 +59,17 @@ pub enum InputRequest {
     Pass { can_redraw: bool },
     /// A new chain is being started; pick which of the `available` chains it is.
     ChooseChain { available: Vec<HotelChain> },
-    /// A fusion's order must be chosen: order `chains` (the last element survives unless a
-    /// fixed survivor already exists).
-    FusionOrder { chains: Vec<HotelChain> },
+    /// A fusion's order must be chosen.
+    ///
+    /// * `survivor` is the already-fixed survivor (the uniquely longest chain in the
+    ///   3-chain case); when `Some`, `chains` are all *dead* and must be ordered as the
+    ///   sequence in which they are fused into the survivor.
+    /// * when `survivor` is `None`, `chains` are **all** chains in the fusion and the
+    ///   decider's ordering decides the survivor (the **last** element).
+    FusionOrder {
+        survivor: Option<HotelChain>,
+        chains: Vec<HotelChain>,
+    },
     /// A player decides what to do with their stocks of a dying chain.
     FusionStocks {
         holder: u32,
@@ -146,6 +154,8 @@ struct FusionState {
     chains: Vec<HotelChain>,
     order_determined: bool,
     pending_survivor: Option<HotelChain>,
+    /// The chains the decider must order (for validation of their answer).
+    pending_chains: Vec<HotelChain>,
     items: Vec<FusionItem>,
     item_index: usize,
 }
@@ -168,6 +178,8 @@ pub struct Game {
     pub round_number: u32,
     /// The index of the player whose turn it is.
     pub current_player: usize,
+    /// How many full player turns have completed (for invariant checks).
+    pub completed_turns: u32,
     /// The game log (replaces broadcasts).
     pub log: Vec<LogEntry>,
     /// The kind of each seat (for display/logging).
@@ -217,6 +229,7 @@ impl Game {
             settings,
             round_number: 1,
             current_player: 0,
+            completed_turns: 0,
             log: Vec::new(),
             roster: kinds,
             phase: Phase::Setup,
@@ -399,6 +412,7 @@ impl Game {
                     order_chains,
                 } => {
                     f.pending_survivor = survivor;
+                    f.pending_chains = order_chains.clone();
                     self.log.push(LogEntry::others(
                         self.round_number,
                         self.players[f.player_index].id,
@@ -410,6 +424,7 @@ impl Game {
                     return Ok(Step::Input(
                         f.player_index,
                         InputRequest::FusionOrder {
+                            survivor,
                             chains: order_chains,
                         },
                     ));
@@ -719,6 +734,7 @@ impl Game {
                     chains,
                     order_determined: false,
                     pending_survivor: None,
+                    pending_chains: Vec::new(),
                     items: Vec::new(),
                     item_index: 0,
                 });
@@ -764,17 +780,20 @@ impl Game {
         if f.order_determined {
             return Err(miette!("the fusion order has already been determined"));
         }
-        // Validate that `ordered` is a permutation of the requested chains.
-        let expected = match &self.phase {
-            Phase::Fusion => f.chains.clone(),
-            _ => return Err(miette!("a fusion order can only be given during a fusion")),
-        };
-        if !same_multiset(&ordered, &expected) {
+        if !matches!(self.phase, Phase::Fusion) {
+            return Err(miette!("a fusion order can only be given during a fusion"));
+        }
+        // Validate that `ordered` is a permutation of the chains we asked to order.
+        if !same_multiset(&ordered, &f.pending_chains) {
             return Err(miette!(
-                "the fusion order must contain exactly the chains being fused"
+                "the fusion order must contain exactly the chains that were requested"
             ));
         }
-        let (survivor, order) = order_to_result(f.pending_survivor, ordered);
+        // Resolve the survivor and the dead-chain order.
+        let (survivor, order) = match f.pending_survivor {
+            Some(fixed) => (fixed, ordered),
+            None => order_to_result(None, ordered),
+        };
         if let Some(f) = self.fusion.as_mut() {
             f.order_determined = true;
             f.items = Self::build_fusion_items(&order, survivor, &self.players);
@@ -955,16 +974,27 @@ impl Game {
         matches!(self.phase, Phase::GameOver)
     }
 
-    /// Drives the game to completion using `decider` to answer every request.
+    /// Drives the game to completion, answering every request with the decider assigned
+    /// to that player (`deciders[player]`).
     ///
-    /// This is the headless driver used by tests and (in the future) by the TUI to run
-    /// bot turns automatically.
-    pub fn run_until_finished<D: Decider>(&mut self, decider: &D) -> Result<FinalResult> {
+    /// This is the headless driver used by the bot-vs-bot tests and (in the future) by the
+    /// TUI to run bot turns automatically. One decider per seat is required.
+    pub fn run_until_finished(
+        &mut self,
+        deciders: &[Box<dyn Decider>],
+    ) -> Result<FinalResult> {
+        if deciders.len() != self.players.len() {
+            return Err(miette!(
+                "decider count {} does not match player count {}",
+                deciders.len(),
+                self.players.len()
+            ));
+        }
         loop {
             match self.step()? {
                 Step::Event(_) => {}
                 Step::Input(player, request) => {
-                    let decision = decider.decide(&request, self);
+                    let decision = deciders[player].decide(&request, self);
                     self.apply_decision(player, decision)?;
                 }
                 Step::Finished(result) => return Ok(result),
@@ -989,7 +1019,9 @@ impl Game {
     }
 
     fn advance_player(&mut self) {
+        debug_assert!(self.current_player < self.players.len());
         self.current_player = (self.current_player + 1) % self.players.len();
+        self.completed_turns += 1;
         if self.current_player == 0 {
             self.round_number += 1;
         }

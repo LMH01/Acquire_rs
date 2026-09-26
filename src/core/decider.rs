@@ -62,7 +62,9 @@ impl Decider for ScriptedDecider {
             InputRequest::ChooseChain { available } => Decision::Chain(
                 *available.first().expect("a choose-chain request must list an available chain"),
             ),
-            InputRequest::FusionOrder { chains } => Decision::FusionOrder(chains.clone()),
+            InputRequest::FusionOrder { chains, survivor: _ } => {
+                Decision::FusionOrder(chains.clone())
+            }
             InputRequest::FusionStocks { .. } => Decision::FusionStocks {
                 exchange: 0,
                 sell: 0,

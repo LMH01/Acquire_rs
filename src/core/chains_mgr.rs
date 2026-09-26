@@ -129,11 +129,18 @@ impl HotelChainManager {
             if board.is_hotel_placed(&position).is_none() {
                 board.place_hotel(&position)?;
             }
-            // Update single hotels that surround the placed hotel
+            // Update single hotels that surround the placed hotel. Any absorbed position is
+            // registered in `active_chains` as well so the board and the chain manager stay
+            // consistent (previously absorbed positions were marked on the board but never
+            // added to the chain, which later broke fusions and stock lookups).
             let analyzed_position = analyze_position(&position, board, self);
             if let PlaceHotelCase::NewChain(positions_ext) = analyzed_position {
                 for p in positions_ext {
-                    board.update_hotel(hotel_chain, &p)?
+                    board.update_hotel(hotel_chain, &p)?;
+                    let active = self.active_chains.get_mut(&hotel_chain).unwrap();
+                    if !active.contains(&p) {
+                        active.push(p);
+                    }
                 }
             };
             board.update_hotel(hotel_chain, &position)?;
