@@ -83,10 +83,7 @@ impl HotelChainManager {
 
     /// Returns the positions that belong to the given chain.
     pub fn chain_positions(&self, hotel: &HotelChain) -> Vec<Position> {
-        self.active_chains
-            .get(hotel)
-            .cloned()
-            .unwrap_or_default()
+        self.active_chains.get(hotel).cloned().unwrap_or_default()
     }
 
     /// Start a new chain.
@@ -197,7 +194,11 @@ impl HotelChainManager {
     ) -> Result<()> {
         // Check if the two chains exist
         if !(self.active_chains.contains_key(alive) && self.active_chains.contains_key(dead)) {
-            return Err(miette!("Unable to fuse chain {} into {}: At least one of the two chains does not exist!", &dead, &alive));
+            return Err(miette!(
+                "Unable to fuse chain {} into {}: At least one of the two chains does not exist!",
+                &dead,
+                &alive
+            ));
         }
         // Transfer positions and update board
         for position in self.active_chains.get(dead).unwrap().clone() {

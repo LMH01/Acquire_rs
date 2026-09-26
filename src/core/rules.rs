@@ -161,11 +161,15 @@ pub fn longest_chain<'a>(
         let chain3_length = hotel_chain_manager.chain_length(chain3.unwrap());
         let chain4_length = hotel_chain_manager.chain_length(chain4.unwrap());
         // Determine what chain is the longest out of 4
-        if chain1_length > chain2_length && chain1_length > chain3_length && chain1_length > chain4_length
+        if chain1_length > chain2_length
+            && chain1_length > chain3_length
+            && chain1_length > chain4_length
         {
             return Some(chain1);
         }
-        if chain2_length > chain1_length && chain2_length > chain3_length && chain2_length > chain4_length
+        if chain2_length > chain1_length
+            && chain2_length > chain3_length
+            && chain2_length > chain4_length
         {
             return Some(chain2);
         }
@@ -226,11 +230,13 @@ pub fn extend_chain(
 mod tests {
     use miette::Result;
 
-    use super::{analyze_position, IllegalPlacement, PlaceHotelCase, longest_chain, surrounding_positions};
+    use super::{
+        analyze_position, longest_chain, surrounding_positions, IllegalPlacement, PlaceHotelCase,
+    };
+    use crate::core::bank::Bank;
     use crate::core::board::{Board, Position};
     use crate::core::chains::HotelChain;
     use crate::core::chains_mgr::HotelChainManager;
-    use crate::core::bank::Bank;
     use crate::core::players::Player;
 
     #[test]

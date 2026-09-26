@@ -84,7 +84,10 @@ pub enum InputRequest {
         description: String,
     },
     /// Buy up to `remaining_slots` stocks from the listed chains.
-    BuyStocks { table: Vec<BuyRow>, remaining_slots: u32 },
+    BuyStocks {
+        table: Vec<BuyRow>,
+        remaining_slots: u32,
+    },
 }
 
 /// A row describing what can be bought for a chain.
@@ -140,9 +143,19 @@ enum Phase {
 /// A single bookkeeping step of an in-progress fusion.
 #[derive(Clone, Debug)]
 enum FusionItem {
-    PayBonuses { dead: HotelChain, alive: HotelChain },
-    HandleStocks { player_index: usize, dead: HotelChain, alive: HotelChain },
-    FuseOnBoard { dead: HotelChain, alive: HotelChain },
+    PayBonuses {
+        dead: HotelChain,
+        alive: HotelChain,
+    },
+    HandleStocks {
+        player_index: usize,
+        dead: HotelChain,
+        alive: HotelChain,
+    },
+    FuseOnBoard {
+        dead: HotelChain,
+        alive: HotelChain,
+    },
     AddOrigin,
 }
 
@@ -325,12 +338,7 @@ impl Game {
         cards.sort();
         for (index, card) in cards.iter().enumerate() {
             let player_index = cards_with_players.get(card).unwrap();
-            let player_name = self
-                .players
-                .get(*player_index)
-                .unwrap()
-                .name
-                .clone();
+            let player_name = self.players.get(*player_index).unwrap().name.clone();
             self.players.get_mut(*player_index).unwrap().id = index as u32;
             self.log.push(LogEntry::everyone(
                 self.round_number,
@@ -344,10 +352,8 @@ impl Game {
         self.current_player = 0;
         self.round_number = 1;
         self.phase = Phase::PlaceCard;
-        self.log.push(LogEntry::everyone(
-            self.round_number,
-            "Game started.",
-        ));
+        self.log
+            .push(LogEntry::everyone(self.round_number, "Game started."));
         Ok(Step::Event(String::from("Game started")))
     }
 
@@ -359,7 +365,10 @@ impl Game {
             self.log.push(LogEntry::others(
                 self.round_number,
                 self.players[idx].id,
-                format!("{} has no card that could be played.", self.players[idx].name),
+                format!(
+                    "{} has no card that could be played.",
+                    self.players[idx].name
+                ),
             ));
             self.after_placement();
             return Ok(Step::Event(String::from("passed (no legal card)")));
@@ -370,16 +379,14 @@ impl Game {
             .filter(|c| !c.is_illegal())
             .map(|c| c.position)
             .collect();
-        Ok(Step::Input(
-            idx,
-            InputRequest::ChooseCard { legal },
-        ))
+        Ok(Step::Input(idx, InputRequest::ChooseCard { legal }))
     }
 
     fn step_choose_chain(&mut self, _positions: Vec<Position>) -> Result<Step> {
-        let available = self.chains.available_chains().ok_or_else(|| {
-            miette!("Unable to start a chain: no chains are left to be founded.")
-        })?;
+        let available = self
+            .chains
+            .available_chains()
+            .ok_or_else(|| miette!("Unable to start a chain: no chains are left to be founded."))?;
         Ok(Step::Input(
             self.current_player,
             InputRequest::ChooseChain { available },
@@ -445,20 +452,16 @@ impl Game {
         match item {
             FusionItem::PayBonuses { dead, alive: _ } => {
                 self.bank.update_largest_shareholders(&self.players);
-                self.bank
-                    .give_majority_shareholder_bonuses(
-                        &mut self.players,
-                        &dead,
-                        &self.chains,
-                        true,
-                        self.round_number,
-                        &mut self.log,
-                    )?;
+                self.bank.give_majority_shareholder_bonuses(
+                    &mut self.players,
+                    &dead,
+                    &self.chains,
+                    true,
+                    self.round_number,
+                    &mut self.log,
+                )?;
                 f.item_index += 1;
-                Ok(Step::Event(format!(
-                    "paid majority bonuses for {}",
-                    dead
-                )))
+                Ok(Step::Event(format!("paid majority bonuses for {}", dead)))
             }
             FusionItem::HandleStocks {
                 player_index,
@@ -596,10 +599,7 @@ impl Game {
             return Ok(Step::Event(String::from("turn end: drew card")));
         }
         if only_illegal_fusion(&self.players[idx]) {
-            return Ok(Step::Input(
-                idx,
-                InputRequest::Pass { can_redraw: true },
-            ));
+            return Ok(Step::Input(idx, InputRequest::Pass { can_redraw: true }));
         }
         self.advance_player();
         Ok(Step::Event(String::from("turn end: passed")))
@@ -610,15 +610,14 @@ impl Game {
             let active = self.chains.active_chains();
             for chain in active {
                 self.bank.update_largest_shareholders(&self.players);
-                self.bank
-                    .give_majority_shareholder_bonuses(
-                        &mut self.players,
-                        &chain,
-                        &self.chains,
-                        false,
-                        self.round_number,
-                        &mut self.log,
-                    )?;
+                self.bank.give_majority_shareholder_bonuses(
+                    &mut self.players,
+                    &chain,
+                    &self.chains,
+                    false,
+                    self.round_number,
+                    &mut self.log,
+                )?;
                 for player in &mut self.players {
                     let held = *player.owned_stocks.stocks_for_hotel(&chain);
                     if held > 0 {
@@ -634,18 +633,12 @@ impl Game {
             .map(|p| (p.name.clone(), p.money))
             .collect();
         ranking.sort_by(|a, b| b.1.cmp(&a.1));
-        let winner = ranking
-            .first()
-            .map(|(n, _)| n.clone())
-            .unwrap_or_default();
+        let winner = ranking.first().map(|(n, _)| n.clone()).unwrap_or_default();
         self.log.push(LogEntry::everyone(
             self.round_number,
             format!("Final ranking: winner is {}", winner),
         ));
-        Ok(Step::Finished(FinalResult {
-            ranking,
-            winner,
-        }))
+        Ok(Step::Finished(FinalResult { ranking, winner }))
     }
 
     /// Applies a decision for the pending [`InputRequest`] and advances the engine.
@@ -677,14 +670,15 @@ impl Game {
             .ok_or_else(|| miette!("the chosen card is not in the player's hand"))?
             .clone();
         if card.is_illegal() {
-            return Err(miette!("the chosen card is illegal: {}",
+            return Err(miette!(
+                "the chosen card is illegal: {}",
                 match &card.place_hotel_case {
                     PlaceHotelCase::Illegal(reason) => reason.description(),
                     _ => String::new(),
-                }));
+                }
+            ));
         }
-        let card_index = self
-            .players[player]
+        let card_index = self.players[player]
             .analyzed_cards
             .iter()
             .position(|c| c.position == position)
@@ -697,7 +691,10 @@ impl Game {
                 self.log.push(LogEntry::others(
                     self.round_number,
                     self.players[player].id,
-                    format!("{} has placed a hotel on {}", self.players[player].name, position),
+                    format!(
+                        "{} has placed a hotel on {}",
+                        self.players[player].name, position
+                    ),
                 ));
                 self.placed_this_turn = true;
                 self.after_placement();
@@ -715,9 +712,7 @@ impl Game {
                     self.round_number,
                     format!(
                         "{} has extended the chain {} by {} hotel(s)",
-                        self.players[player].name,
-                        chain,
-                        count
+                        self.players[player].name, chain, count
                     ),
                 ));
                 self.placed_this_turn = true;
@@ -741,7 +736,10 @@ impl Game {
                 self.phase = Phase::Fusion;
             }
             PlaceHotelCase::Illegal(reason) => {
-                return Err(miette!("the chosen card is illegal: {}", reason.description()));
+                return Err(miette!(
+                    "the chosen card is illegal: {}",
+                    reason.description()
+                ));
             }
         }
         Ok(())
@@ -763,12 +761,20 @@ impl Game {
         if !available.contains(&chain) {
             return Err(miette!("the chosen chain is not available to start"));
         }
-        self.chains
-            .start_chain(chain, positions, &mut self.board, &mut self.players[player], &mut self.bank)?;
+        self.chains.start_chain(
+            chain,
+            positions,
+            &mut self.board,
+            &mut self.players[player],
+            &mut self.bank,
+        )?;
         self.bank.update_largest_shareholders(&self.players);
         self.log.push(LogEntry::everyone(
             self.round_number,
-            format!("{} has started the new chain {}", self.players[player].name, chain),
+            format!(
+                "{} has started the new chain {}",
+                self.players[player].name, chain
+            ),
         ));
         self.placed_this_turn = true;
         self.after_placement();
@@ -807,12 +813,7 @@ impl Game {
         Ok(())
     }
 
-    fn apply_fusion_stocks(
-        &mut self,
-        player: usize,
-        exchange: u32,
-        sell: u32,
-    ) -> Result<()> {
+    fn apply_fusion_stocks(&mut self, player: usize, exchange: u32, sell: u32) -> Result<()> {
         let f = self.fusion.as_ref().unwrap();
         if f.item_index >= f.items.len() {
             return Err(miette!("there are no more fusion stock decisions to make"));
@@ -827,22 +828,22 @@ impl Game {
         }
         let available = *self.bank.stocks_available(&alive, &self.chains);
         if exchange / 2 > available {
-            return Err(miette!("not enough stocks of the surviving chain to exchange"));
+            return Err(miette!(
+                "not enough stocks of the surviving chain to exchange"
+            ));
         }
         if exchange + sell > holdings {
-            return Err(miette!("cannot exchange or sell more stocks than are owned"));
+            return Err(miette!(
+                "cannot exchange or sell more stocks than are owned"
+            ));
         }
         if exchange > 0 {
             self.bank
                 .exchange_stock(&mut self.players[player], exchange, &dead, &alive)?;
         }
         if sell > 0 {
-            self.bank.sell_stock(
-                &mut self.players[player],
-                sell,
-                &dead,
-                &self.chains,
-            )?;
+            self.bank
+                .sell_stock(&mut self.players[player], sell, &dead, &self.chains)?;
         }
         self.log.push(LogEntry::others(
             self.round_number,
@@ -874,10 +875,7 @@ impl Game {
             }
             let available = *self.bank.stocks_available(chain, &self.chains);
             if *amount > available {
-                return Err(miette!(
-                    "not enough stocks of {} available to buy",
-                    chain
-                ));
+                return Err(miette!("not enough stocks of {} available to buy", chain));
             }
             let price = Bank::stock_price(&self.chains, chain);
             cost = cost.saturating_add(price.saturating_mul(*amount));
@@ -927,7 +925,10 @@ impl Game {
                     self.log.push(LogEntry::others(
                         self.round_number,
                         self.players[player].id,
-                        format!("{} redrew their hand: new card {}", self.players[player].name, card),
+                        format!(
+                            "{} redrew their hand: new card {}",
+                            self.players[player].name, card
+                        ),
                     ));
                 }
                 None => {
@@ -959,10 +960,7 @@ impl Game {
                         .filter(|c| !c.is_illegal())
                         .map(|c| c.position)
                         .collect();
-                    Some((
-                        self.current_player,
-                        InputRequest::ChooseCard { legal },
-                    ))
+                    Some((self.current_player, InputRequest::ChooseCard { legal }))
                 }
             }
             _ => None,
@@ -979,10 +977,7 @@ impl Game {
     ///
     /// This is the headless driver used by the bot-vs-bot tests and (in the future) by the
     /// TUI to run bot turns automatically. One decider per seat is required.
-    pub fn run_until_finished(
-        &mut self,
-        deciders: &[Box<dyn Decider>],
-    ) -> Result<FinalResult> {
+    pub fn run_until_finished(&mut self, deciders: &[Box<dyn Decider>]) -> Result<FinalResult> {
         if deciders.len() != self.players.len() {
             return Err(miette!(
                 "decider count {} does not match player count {}",

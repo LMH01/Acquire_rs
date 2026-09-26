@@ -1,141 +1,146 @@
-/// Contains all base functionalities that the game needs to work.
-/// This includes all basic data types and the playfield, some game logic and more.
-mod base_game;
-/// The bot that answers the engine's input requests in single-player mode
+/// TUI-based Acquire.
+///
+/// The pure game engine lives in `core/`; this binary only parses the CLI flags, builds the
+/// settings + roster, and hands control to the ratatui TUI.
 mod bot;
 /// Pure game engine with zero I/O
 mod core;
-/// Contains functions that help to read and parse the user input
-mod data_stream;
-/// Contains some code to print the board without that the game has to be started
-mod demo;
-/// Contains all functionalities that are required to play the game. This includes the setting up
-/// of new games, round, turn and player managemnt and more.
-mod game;
-/// Contains the most part of the game logic.
-/// Does not contain the logic of the different managers. Their logic is implemented in their main impl block.
-mod logic;
-/// Contains all functionalities required to play the game fia lan.
-mod network;
 /// TUI built with ratatui
 mod tui;
-/// Contains some functions that dont fit in another module.
-mod utils;
 
-use base_game::settings::Settings;
-use clap::{App, Arg};
-use demo::test_things;
-use game::{print_info_card, GameManager};
-use network::{start_client, start_server};
+use clap::{App as ClapApp, Arg};
+use miette::Result;
 
-fn main() -> miette::Result<()> {
-    let matches = App::new("Acquire_rs")
-        .version("1.0.0")
+use core::settings::Settings;
+use tui::App;
+
+fn main() -> Result<()> {
+    let matches = ClapApp::new("Acquire_rs")
+        .version("1.0.1")
         .author("LMH01")
-        .about("The board game Acquire fia command line in Rust")
-        .arg(Arg::new("players")
-            .short('p')
-            .long("players")
-            .help("The number of players")
-            .value_name("NUMBER")
-            .possible_values(["2", "3", "4", "5", "6"])
-            .required_unless_present_any(&["lan_client", "demo", "demo_type", "info_card"])
-            .default_value_if("demo", None, Some("2")))
-        .arg(Arg::new("hide_extra_info")
-            .short('h')
-            .long("hide-extra-info")
-            .help("Use to hide additional information to the player")
-            .long_help("Use to hide additional information to the player. This will hide information that the player would normally have to give the game more variation. The following is hidden:\n - Who the largest or second largest shareholders are\nWhen this flag is not set a little star next to your bought stocks displayes if you are the largest (golden star) or second largest shareholder for that chain (silver star)."))
-        .arg(Arg::new("lan_client")
-            .long("lan-client")
-            .help("Use to play the game on multiplayer per lan and join a server")
-            .conflicts_with_all(&["hide_extra_info", "players", "skip_dialogues", "lan_server"]))
-        .arg(Arg::new("lan_server")
-            .long("lan-server")
-            .help("Start the game as server")
-            .conflicts_with_all(&["lan_client"]))
-        .arg(Arg::new("name")
-            .short('n')
-            .long("name")
-            .help("The name of the player")
-            .long_help("The name of the player. This can also be used to set the player name of the player that hosts the game.")
-            .takes_value(true)
-            .requires("lan_server"))
-        .arg(Arg::new("ip")
-            .long("ip")
-            .help("The ip and port to which to connect")
-            .long_help("The ip and port to wich to connect. Example: 192.168.178.10:11511")
-            .requires("lan_client")
-            .takes_value(true)
-            .value_name("IP")
-            .conflicts_with("lan_server"))
-        .arg(Arg::new("port")
-            .long("port")
-            .help("Overwrite the port at wich the game should be hosted")
-            .long_help("Overwrite the port at wich the game should be hosted\nDefault is 11511")
-            .default_value_if("lan_server", None, Some("11511"))
-            .requires("lan_server")
-            )
-        .arg(Arg::new("info_card")
-            .long("info-card")
-            .help("Print the stock info card")
-            .long_help("Print the stocks info card. This card displayes information on how much a stock is worth depending on the length of the hotel chain")
-            .exclusive(true))
-        .arg(Arg::new("small_board")
-            .short('s')
-            .long("small-board")
-            .help("Use to make the board smaller"))
-        .arg(Arg::new("skip_dialogues")
-            .long("skip-dialogues")
-            .help("Use to always skip some dialogues")
-            .long_help("Use to always skip some dialogues. Dialogues that are skipped include: The confirmation what card the player drew."))
-        .arg(Arg::new("demo")
-            .long("demo")
-            .help("Use to run some demo on how the game looks like instead of the main game")
-            .conflicts_with_all(&["lan_client", "lan_server"]))
-        .arg(Arg::new("demo_type")
-            .long("demo-type")
-            .help("Set what demo type to run")
-            .default_value_if("demo", None, Some("0"))
-            .requires("demo"))
+        .about("The board game Acquire as a TUI in Rust (single-player vs bots)")
+        .arg(
+            Arg::new("players")
+                .short('p')
+                .long("players")
+                .help("The total number of players (1 human + N-1 bots)")
+                .value_name("NUMBER")
+                .possible_values(&["2", "3", "4", "5", "6"])
+                .default_value("4"),
+        )
+        .arg(
+            Arg::new("hide_extra_info")
+                .short('h')
+                .long("hide-extra-info")
+                .help("Hide the largest/second-largest shareholder markers")
+                .long_help(
+                    "Hide the ★/☆ markers that show whether you are the largest (★) or second \
+                     largest (☆) shareholder of a chain.",
+                ),
+        )
+        .arg(
+            Arg::new("lan_client")
+                .long("lan-client")
+                .help("Join a LAN game (multiplayer placeholder)")
+                .conflicts_with_all(&[
+                    "hide_extra_info",
+                    "players",
+                    "skip_dialogues",
+                    "lan_server",
+                ]),
+        )
+        .arg(
+            Arg::new("lan_server")
+                .long("lan-server")
+                .help("Host a LAN game (multiplayer placeholder)")
+                .conflicts_with("lan_client"),
+        )
+        .arg(
+            Arg::new("name")
+                .short('n')
+                .long("name")
+                .help("The human player's name"),
+        )
+        .arg(
+            Arg::new("ip")
+                .long("ip")
+                .help("The ip and port to connect to (e.g. 192.168.178.10:11511)")
+                .requires("lan_client")
+                .value_name("IP")
+                .conflicts_with("lan_server"),
+        )
+        .arg(
+            Arg::new("port")
+                .long("port")
+                .help("The port to host on (default 11511)")
+                .requires("lan_server"),
+        )
+        .arg(
+            Arg::new("info_card")
+                .long("info-card")
+                .help("Open the TUI directly on the stock info card"),
+        )
+        .arg(
+            Arg::new("small_board")
+                .short('s')
+                .long("small-board")
+                .help("Use a compact board layout"),
+        )
+        .arg(
+            Arg::new("skip_dialogues")
+                .long("skip-dialogues")
+                .help("Auto-answer confirmation prompts"),
+        )
+        .arg(
+            Arg::new("demo")
+                .long("demo")
+                .help("Open the TUI on a demo board")
+                .conflicts_with_all(&["lan_client", "lan_server"]),
+        )
+        .arg(
+            Arg::new("demo_type")
+                .long("demo-type")
+                .help("Demo type: 0 = clever, 1 = random")
+                .default_value_if("demo", None, Some("0"))
+                .requires("demo"),
+        )
         .get_matches();
-    set_terminal_output();
-    print_welcome();
+
     let settings = Settings::new(
         matches.is_present("small_board"),
         matches.is_present("hide_extra_info"),
         matches.is_present("skip_dialogues"),
     );
-    if matches.is_present("demo") {
-        test_things(&matches, settings)?;
-    } else if matches.is_present("lan_server") {
-        start_server(&matches, settings)?;
-    } else if matches.is_present("lan_client") {
-        start_client(&matches)?;
+    let human_name = matches
+        .value_of("name")
+        .map(String::from)
+        .unwrap_or_else(|| String::from("You"));
+
+    // Build the terminal once.
+    let backend = ratatui::backend::CrosstermBackend::new(std::io::stdout());
+    let mut terminal = ratatui::Terminal::new(backend)
+        .map_err(|e| miette::miette!("failed to initialize terminal: {e}"))?;
+
+    // Dispatch: demo → lan → info-card → normal game.
+    let mut app = if matches.is_present("demo") {
+        let demo_type: u8 = matches
+            .value_of("demo_type")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
+        App::new_demo(settings, human_name, demo_type)?
+    } else if matches.is_present("lan_server") || matches.is_present("lan_client") {
+        App::new_lan(settings, human_name)?
     } else if matches.is_present("info_card") {
-        print_info_card();
+        let mut app = App::new(settings.clone(), human_name, 4)?;
+        app.overlay = Some(tui::Overlay::InfoCard);
+        app
     } else {
-        let mut game_manager = GameManager::new(
-            matches.value_of("players").unwrap().parse().unwrap(),
-            settings,
-        )?;
-        game_manager.start_game()?;
-    }
-    Ok(())
-}
+        let players: u8 = matches
+            .value_of("players")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(4);
+        App::new(settings, human_name, players)?
+    };
 
-fn print_welcome() {
-    println!("Welcome to the Game Acquire!");
-}
-
-// If the os is windows the virtual terminal will be set to true
-
-#[cfg(windows)]
-fn set_terminal_output() {
-    colored::control::set_virtual_terminal(true).unwrap();
-}
-
-#[cfg(unix)]
-fn set_terminal_output() {
-    // Nothing additional has to be setup
+    app.run(&mut terminal)
 }

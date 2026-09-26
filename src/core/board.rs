@@ -53,11 +53,13 @@ impl Board {
     pub fn place_hotel(&mut self, position: &Position) -> Result<()> {
         for x in self.pieces.iter_mut() {
             for y in x.iter_mut() {
-                if y.position.number.eq(&position.number)
-                    && y.position.letter == position.letter
-                {
+                if y.position.number.eq(&position.number) && y.position.letter == position.letter {
                     if y.piece_set {
-                        return Err(miette!("Unable to set hotel at [{}{:2}]: The hotel has already been placed!", position.letter, position.number));
+                        return Err(miette!(
+                            "Unable to set hotel at [{}{:2}]: The hotel has already been placed!",
+                            position.letter,
+                            position.number
+                        ));
                     } else {
                         y.piece_set = true;
                     }
@@ -243,7 +245,11 @@ impl Ord for AnalyzedPosition {
 
 impl AnalyzedPosition {
     /// Analyzes the position to return a new analyzed position.
-    pub fn new(position: Position, board: &Board, hotel_chain_manager: &super::chains_mgr::HotelChainManager) -> Self {
+    pub fn new(
+        position: Position,
+        board: &Board,
+        hotel_chain_manager: &super::chains_mgr::HotelChainManager,
+    ) -> Self {
         let place_hotel_case = analyze_position(&position, board, hotel_chain_manager);
         Self {
             position,
@@ -262,7 +268,11 @@ impl AnalyzedPosition {
     }
 
     /// Analyzes the position again and updates the place hotel case value.
-    pub fn check(&mut self, board: &Board, hotel_chain_manager: &super::chains_mgr::HotelChainManager) {
+    pub fn check(
+        &mut self,
+        board: &Board,
+        hotel_chain_manager: &super::chains_mgr::HotelChainManager,
+    ) {
         self.place_hotel_case = analyze_position(&self.position, board, hotel_chain_manager);
     }
 
@@ -324,11 +334,13 @@ mod tests {
     ) -> Result<()> {
         for x in board.pieces.iter_mut() {
             for y in x.iter_mut() {
-                if y.position.number.eq(&position.number)
-                    && y.position.letter == position.letter
-                {
+                if y.position.number.eq(&position.number) && y.position.letter == position.letter {
                     if y.piece_set {
-                        return Err(miette!("Unable to set hotel at [{}{:2}]: The hotel has already been placed!", position.letter, position.number));
+                        return Err(miette!(
+                            "Unable to set hotel at [{}{:2}]: The hotel has already been placed!",
+                            position.letter,
+                            position.number
+                        ));
                     } else {
                         y.piece_set = true;
                         y.chain = Some(chain);

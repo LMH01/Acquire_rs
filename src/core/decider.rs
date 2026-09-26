@@ -55,16 +55,21 @@ pub struct ScriptedDecider;
 impl Decider for ScriptedDecider {
     fn decide(&self, request: &InputRequest, _game: &Game) -> Decision {
         match request {
-            InputRequest::ChooseCard { legal } => {
-                Decision::Card(*legal.first().expect("a choose-card request must list a legal card"))
-            }
+            InputRequest::ChooseCard { legal } => Decision::Card(
+                *legal
+                    .first()
+                    .expect("a choose-card request must list a legal card"),
+            ),
             InputRequest::Pass { can_redraw: _ } => Decision::Pass { redraw: false },
             InputRequest::ChooseChain { available } => Decision::Chain(
-                *available.first().expect("a choose-chain request must list an available chain"),
+                *available
+                    .first()
+                    .expect("a choose-chain request must list an available chain"),
             ),
-            InputRequest::FusionOrder { chains, survivor: _ } => {
-                Decision::FusionOrder(chains.clone())
-            }
+            InputRequest::FusionOrder {
+                chains,
+                survivor: _,
+            } => Decision::FusionOrder(chains.clone()),
             InputRequest::FusionStocks { .. } => Decision::FusionStocks {
                 exchange: 0,
                 sell: 0,

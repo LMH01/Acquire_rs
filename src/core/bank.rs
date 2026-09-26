@@ -346,15 +346,13 @@ impl Bank {
             return Ok(());
         }
         let largest_shareholder_bonus = Bank::stock_price(hotel_chain_manager, chain) * 10;
-        let second_largest_shareholder_bonus =
-            Bank::stock_price(hotel_chain_manager, chain) * 5;
+        let second_largest_shareholder_bonus = Bank::stock_price(hotel_chain_manager, chain) * 5;
         match largest_shareholders.len() {
             1 => {
                 let largest_shareholder_id = largest_shareholders[0];
                 let largest_shareholder_name =
                     players[largest_shareholder_id as usize].name.clone();
-                players[largest_shareholder_id as usize]
-                    .add_money(largest_shareholder_bonus);
+                players[largest_shareholder_id as usize].add_money(largest_shareholder_bonus);
                 if inform_player {
                     log.push(LogEntry::others(
                         round,

@@ -15,7 +15,10 @@ pub enum OrderResolution {
     /// The order is fully determined by the chain lengths.
     /// `order` lists the chains that are fused, in order (each fused into the survivor);
     /// `survivor` is the chain that survives the fusion.
-    Determined { survivor: HotelChain, order: Vec<HotelChain> },
+    Determined {
+        survivor: HotelChain,
+        order: Vec<HotelChain>,
+    },
     /// A player must choose the order.
     ///
     /// `survivor` is the already-fixed survivor (the uniquely longest chain in the
@@ -40,10 +43,7 @@ pub fn resolve_order(chains: &[HotelChain], mgr: &HotelChainManager) -> OrderRes
         2 => {
             let c1 = chains[0];
             let c2 = chains[1];
-            match mgr
-                .chain_length(&c1)
-                .cmp(&mgr.chain_length(&c2))
-            {
+            match mgr.chain_length(&c1).cmp(&mgr.chain_length(&c2)) {
                 std::cmp::Ordering::Greater => OrderResolution::Determined {
                     survivor: c1,
                     order: vec![c2],
@@ -65,11 +65,8 @@ pub fn resolve_order(chains: &[HotelChain], mgr: &HotelChainManager) -> OrderRes
             match longest_chain(&c1, &c2, Some(&c3), None, mgr) {
                 Some(survivor) => {
                     // The uniquely longest chain survives; order the other two by length.
-                    let others: Vec<HotelChain> = chains
-                        .iter()
-                        .copied()
-                        .filter(|c| *c != *survivor)
-                        .collect();
+                    let others: Vec<HotelChain> =
+                        chains.iter().copied().filter(|c| *c != *survivor).collect();
                     let a = others[0];
                     let b = others[1];
                     match mgr.chain_length(&a).cmp(&mgr.chain_length(&b)) {
@@ -148,10 +145,7 @@ mod tests {
 
     #[test]
     fn two_chain_determined_by_length() {
-        let (mgr, _board) = mgr_with(&[
-            (HotelChain::Airport, 3),
-            (HotelChain::Luxor, 5),
-        ]);
+        let (mgr, _board) = mgr_with(&[(HotelChain::Airport, 3), (HotelChain::Luxor, 5)]);
         assert_eq!(
             resolve_order(&[HotelChain::Airport, HotelChain::Luxor], &mgr),
             OrderResolution::Determined {
@@ -163,10 +157,7 @@ mod tests {
 
     #[test]
     fn two_chain_equal_needs_order() {
-        let (mgr, _board) = mgr_with(&[
-            (HotelChain::Airport, 3),
-            (HotelChain::Luxor, 3),
-        ]);
+        let (mgr, _board) = mgr_with(&[(HotelChain::Airport, 3), (HotelChain::Luxor, 3)]);
         assert_eq!(
             resolve_order(&[HotelChain::Airport, HotelChain::Luxor], &mgr),
             OrderResolution::NeedsOrder {
@@ -178,10 +169,7 @@ mod tests {
 
     #[test]
     fn order_to_result_picks_last_as_survivor() {
-        let (survivor, order) = order_to_result(
-            None,
-            vec![HotelChain::Airport, HotelChain::Luxor],
-        );
+        let (survivor, order) = order_to_result(None, vec![HotelChain::Airport, HotelChain::Luxor]);
         assert_eq!(survivor, HotelChain::Luxor);
         assert_eq!(order, vec![HotelChain::Airport]);
     }

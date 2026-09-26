@@ -42,8 +42,7 @@ impl EndCondition {
                                 // If yes two single hotels stand next to each other and could
                                 // found a new chain.
                                 for neighbour in neighbours {
-                                    match analyze_position(&neighbour, board, hotel_chain_manager)
-                                    {
+                                    match analyze_position(&neighbour, board, hotel_chain_manager) {
                                         PlaceHotelCase::SingleHotel => return false,
                                         _ => continue,
                                     }

@@ -471,6 +471,7 @@ pub mod board {
 pub mod settings {
     //TODO Maybe add settings with which the board dimensions can be changed
     /// Stores the settings
+    #[derive(Debug)]
     pub struct Settings {
         pub small_board: bool,
         /// Stores if some extra information should be shown to the player.

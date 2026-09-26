@@ -93,9 +93,9 @@ impl Bot {
 
     /// Returns `true` if the bot holds a hand card that would extend `chain`.
     fn can_extend(&self, chain: &HotelChain, game: &Game) -> bool {
-        self.me(game).analyzed_cards.iter().any(|c| {
-            matches!(&c.place_hotel_case, PlaceHotelCase::ExtendsChain(c2, _) if *c2 == *chain)
-        })
+        self.me(game).analyzed_cards.iter().any(
+            |c| matches!(&c.place_hotel_case, PlaceHotelCase::ExtendsChain(c2, _) if *c2 == *chain),
+        )
     }
 }
 
@@ -134,7 +134,9 @@ impl Decider for Bot {
                 }
                 if scored.is_empty() {
                     // Fall back to the first offered card (should not happen for a legal list).
-                    return Decision::Card(*legal.first().expect("a legal card list must not be empty"));
+                    return Decision::Card(
+                        *legal.first().expect("a legal card list must not be empty"),
+                    );
                 }
                 let max = scored.iter().map(|(s, _)| *s).max().unwrap();
                 let ties: Vec<_> = scored
@@ -178,11 +180,8 @@ impl Decider for Bot {
                     // No fixed survivor: pick one (longest, tie by price level) and put it
                     // last; order the rest by ascending length.
                     let survivor = pick_survivor(chains, game);
-                    let mut rest: Vec<HotelChain> = chains
-                        .iter()
-                        .copied()
-                        .filter(|c| *c != survivor)
-                        .collect();
+                    let mut rest: Vec<HotelChain> =
+                        chains.iter().copied().filter(|c| *c != survivor).collect();
                     rest.sort_by(|a, b| {
                         game.chains
                             .chain_length(a)
@@ -346,7 +345,11 @@ mod tests {
         //    single letter's 12 hotels, so there is no small upper bound to assert here.)
         for chain in game.chains.active_chains().iter() {
             let len = game.chains.chain_length(chain);
-            assert!(len >= 1, "active chain {} must have >= 1 hotel", chain.name());
+            assert!(
+                len >= 1,
+                "active chain {} must have >= 1 hotel",
+                chain.name()
+            );
         }
 
         // 3. Money bookkeeping: no overflow/wraparound (debug underflow would have panicked
@@ -393,7 +396,10 @@ mod tests {
     fn bot_never_illegal() {
         let (result, game) = run_full(0x5EED, 4);
         assert_invariants(&game);
-        assert!(!result.ranking.is_empty(), "a finished game must produce a ranking");
+        assert!(
+            !result.ranking.is_empty(),
+            "a finished game must produce a ranking"
+        );
         assert_eq!(
             result.ranking[0].0, result.winner,
             "the top of the ranking should be the declared winner"

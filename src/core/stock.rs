@@ -53,8 +53,7 @@ impl Stocks {
 }
 
 /// The base prices for a single stock.
-pub const STOCK_BASE_PRICE: [u32; 11] =
-    [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200];
+pub const STOCK_BASE_PRICE: [u32; 11] = [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200];
 
 /// Calculates the current stock price for the hotel.
 /// # Arguments
