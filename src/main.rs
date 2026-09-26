@@ -1,6 +1,10 @@
 /// Contains all base functionalities that the game needs to work.
 /// This includes all basic data types and the playfield, some game logic and more.
 mod base_game;
+/// The bot that answers the engine's input requests in single-player mode
+mod bot;
+/// Pure game engine with zero I/O
+mod core;
 /// Contains functions that help to read and parse the user input
 mod data_stream;
 /// Contains some code to print the board without that the game has to be started
@@ -13,6 +17,8 @@ mod game;
 mod logic;
 /// Contains all functionalities required to play the game fia lan.
 mod network;
+/// TUI built with ratatui
+mod tui;
 /// Contains some functions that dont fit in another module.
 mod utils;
 
