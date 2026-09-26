@@ -13,7 +13,7 @@ bots. It is written to be followed phase by phase by an implementing agent.
 | R1 | The game is played in a TUI built with **ratatui** (crossterm backend). |
 | R2 | **Single-player vs bot must work properly** (2–6 total players: 1 human + N−1 bots). |
 | R3 | Multiplayer (LAN) does **not** need to work, but clean placeholders must exist so it can be re-implemented easily: keep the CLI flags, keep the wire-protocol documentation, and design the core so a network backend can be slotted in without touching game logic. |
-| R4 | **Keep all existing CLI options** that are still applicable: `-p/--players`, `--lan-client`, `--lan-server`, `-n/--name`, `--ip`, `--port`, `--info-card`, `--skip-dialogues`, `--demo`, `--demo-type`. |
+| R4 | **Keep all existing CLI options** that are still applicable: `-p/--players`, `--lan-client`, `--lan-server`, `-n/--name`, `--ip`, `--port`, `--info-card`, `--skip-dialogues`, `--demo`, `--demo-type`, `-h/--hide-extra-info`. |
 | R5 | The old CLI playing mode (stdin/stdout prompt loop) is **entirely replaced** by the TUI. |
 | R6 | **Do not change the game rules.** The existing rule implementation in `logic.rs` / `base_game.rs` is the source of truth. Only I/O and flow orchestration change. |
 | R7 | All existing unit tests must keep passing (port them if they touch I/O). |
@@ -309,20 +309,20 @@ src/tui/
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │ Acquire          Round 3 · Your turn: You                            │
-├───────────────────────────────────────┬──────────────────────────────┤
-│  1  2  3  4  5  6  7  8  9 10 11 12  │  YOU  (id 0)                 │
-│ A ·  ·  F  F  ·  ·  ·  ·  ·  ·  ·  · │  Money: 3 400 €              │
-│ B ·  A  A  ·  L  L  ·  ·  ·  ·  ·  · │  Hand:                       │
-│ C ·  ·  ·  L  L  ·  ·  C  C  C  ·  · │   1) B3  [Extend Luxor +2]   │
-│ D ·  ·  ·  ·  ·  ·  P  P  ·  ·  ·  · │   2) E7  [Start chain]       │
-│ E F  F  F  ·  ·  ·  P  ·  ·  ·  ·  · │   3) H2  [Illegal: fusion]   │
-│ F ·  ·  ·  ·  O  O  O  ·  ·  ·  ·  · │  Stocks: Luxor 2 · Airport 1 │
-│ G ·  ·  ·  O  O  ·  ·  ·  ·  ·  ·  · │ ┌──────────────────────────┐ │
-│ H ·  ·  ·  ·  ·  ·  ·  C  C  ·  ·  · │ │ Chains (7)               │ │
-│ I ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  P  P │ │ Luxor   M  4  [6-10] ... │ │
-│ 1  2  3  4  5  6  7  8  9 10 11 12  │ │ Airport L  3  [3]   ...   │ │
-├───────────────────────────────────────┴──────────────────────────────┤
-│ Log: Bot 2 extended Airport by 2 · Bot 2 bought 1× Airport (400 €)  │
+├──────────────────────────────────────┬───────────────────────────────┤
+│  1  2  3  4  5  6  7  8  9 10 11 12  │  YOU  (id 0)                  │
+│ A ·  ·  F  F  ·  ·  ·  ·  ·  ·  ·  · │  Money: 3 400 €               │
+│ B ·  A  A  ·  L  L  ·  ·  ·  ·  ·  · │  Hand:                        │
+│ C ·  ·  ·  L  L  ·  ·  C  C  C  ·  · │   1) B3  [Extend Luxor +2]    │
+│ D ·  ·  ·  ·  ·  ·  P  P  ·  ·  ·  · │   2) E7  [Start chain]        │
+│ E F  F  F  ·  ·  ·  P  ·  ·  ·  ·  · │   3) H2  [Illegal: fusion]    │
+│ F ·  ·  ·  ·  O  O  O  ·  ·  ·  ·  · │  Stocks: Luxor 2 · Airport 1  │
+│ G ·  ·  ·  O  O  ·  ·  ·  ·  ·  ·  · │ ┌──────────────────────────┐  │
+│ H ·  ·  ·  ·  ·  ·  ·  C  C  ·  ·  · │ │ Chains (7)               │  │
+│ I ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  P  P │ │ Luxor   M  4  [6-10] ... │  │
+│ 1  2  3  4  5  6  7  8  9 10 11 12   │ │ Airport L  3  [3]    ... │  │
+├──────────────────────────────────────┴─┴─────────────────────────────┤
+│ Log: Bot 2 extended Airport by 2 · Bot 2 bought 1× Airport (400 €)   │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -386,7 +386,6 @@ new build:
 | `-p/--players` (2–6) | Total players: **1 human + (N−1) bots**. Becomes optional with **default 4**; the setup screen also allows changing it (2–6). |
 | `-n/--name` | Human player name (no longer requires `--lan-server`; harmless if given with `--lan-*` too). |
 | `-h/--hide-extra-info` | Hides ★/☆ largest-shareholder markers in the chain table. |
-| `-s/--small-board` | Compact board layout (cell width 2, no log panel by default). |
 | `--skip-dialogues` | Engine auto-answers `Confirm` requests with `true` and omits `DrawCard` pause events. |
 | `--info-card` | Opens the TUI directly on the info-card screen. |
 | `--demo` / `--demo-type` (0/1) | Opens the TUI on the demo board (clever / random setup from `demo.rs`). |
@@ -527,7 +526,7 @@ start phase N+1 until phase N's acceptance criteria are met.
 
 ## 7. Manual Verification Checklist (final gate)
 
-- [ ] `cargo run` (defaults) → setup screen → playable game vs 3 bots, winnable.
+- [ ] `cargo run` (defaults) → setup screen → playable game vs 3 bots, winnable, the TUI is fully working
 - [ ] `-p 2` and `-p 6` work (1 + 1 / 1 + 5 bots).
 - [ ] Chain start: correct chain chosen, founder bonus stock, table updates.
 - [ ] 2-chain fusion: order by length, equal-length prompt, bonuses paid (10×/5×),
