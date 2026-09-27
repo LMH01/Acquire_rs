@@ -89,7 +89,7 @@ fn main() -> Result<()> {
         .arg(
             Arg::new("skip_dialogues")
                 .long("skip-dialogues")
-                .help("Auto-answer confirmation prompts"),
+                .help("Accepted for compatibility; currently a no-op (the engine has no explicit confirmation pauses to skip)"),
         )
         .arg(
             Arg::new("demo")

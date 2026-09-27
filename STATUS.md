@@ -1,6 +1,7 @@
 # Acquire_rs — Implementation Status
 
 Cross-check of the current codebase against `PLAN.md`. Generated 2026-09-27.
+Updated 2026-09-27: cleanup pass completed (see "Completed Cleanup" at the bottom).
 
 ## Summary
 
@@ -164,12 +165,26 @@ Cross-check of the current codebase against `PLAN.md`. Generated 2026-09-27.
 
 ## What Would Make This "Done" per PLAN.md §9
 
-1. ✅ All phases' acceptance criteria met (Phases 0-3 fully; Phase 4 partial — README)
+1. ✅ All phases' acceptance criteria met (Phases 0-3 fully; Phase 4 done — README updated)
 2. ⬜ Checklist in §7 fully ticked by a human
-3. ⬜ README.md reflects new TUI usage and multiplayer placeholder status
-4. ⬜ No `read_input` / `owo-colors` dependencies remain
+3. ✅ README.md reflects new TUI usage and multiplayer placeholder status
+4. ✅ No `read_input` / `owo-colors` dependencies remain (removed from Cargo.toml)
 5. ✅ `src/core` is I/O-free
-6. ⬜ Old dead files deleted (or archived)
-7. ⬜ `cargo build --release` verified
+6. ✅ Old dead files deleted (7 files removed from `src/`)
+7. ✅ `cargo build --release` verified green
 
-**Bottom line:** The game is playable end-to-end (setup → play vs bots → game over). The core engine, bot, and TUI are all functional. Remaining work is cleanup (dead files, unused deps, README) and manual verification of edge cases.
+**Bottom line:** The game is playable end-to-end (setup → play vs bots → game over). The core engine, bot, and TUI are all functional. All automated cleanup is done; only the manual §7 verification checklist remains (human-driven).
+
+---
+
+## Completed Cleanup (2026-09-27)
+
+- [x] Removed `read_input`, `owo-colors`, `local-ip-address`, `colored` from `Cargo.toml` (verified unused by active code; `Cargo.lock` shrank 95 lines).
+- [x] Deleted 7 dead legacy files: `src/base_game.rs`, `src/game.rs`, `src/logic.rs`, `src/network.rs`, `src/demo.rs`, `src/data_stream.rs`, `src/utils.rs` (git-tracked, so recoverable; verified unreferenced by `main.rs`/`core/`/`bot/`/`tui/`).
+- [x] Removed empty `src/tui/widgets/` and `src/tui/screens/` directories.
+- [x] Rewrote `README.md` for the TUI (build, keys, options, features, multiplayer placeholder, layout).
+- [x] Documented `--skip-dialogues` as a no-op in the CLI help text.
+- [x] Fixed the in-app help screen (`render.rs`) "Choose chain" line to match the actual arrow-key + Enter behavior.
+- [x] Verified: `cargo build` (0 errors/0 warnings), `cargo build --release` green, `cargo test` 19/19, `cargo fmt --check` clean, `cargo clippy` no errors.
+
+**Still open (manual only):** the §7 human verification checklist (play through real games, edge cases, 8-color sanity, resize stress, terminal restore on all quit paths).
