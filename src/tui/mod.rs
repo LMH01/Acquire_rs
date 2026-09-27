@@ -388,10 +388,16 @@ impl App {
 
     /// Handles a key press. Returns `true` when the app should quit.
     pub fn handle_key(&mut self, key: KeyEvent) -> Result<bool> {
-        // Overlay takes priority: Esc/q closes it, everything else is ignored.
+        // `q` always quits, no matter what is on screen (overlay, pending dialog, setup, play).
+        // It must be checked first so it is never swallowed by a context-specific handler.
+        if key.code == KeyCode::Char('q') {
+            return Ok(true);
+        }
+
+        // Overlay: Esc closes it, everything else is ignored while the overlay is up.
         if self.overlay.is_some() {
             return match key.code {
-                KeyCode::Esc | KeyCode::Char('q') => {
+                KeyCode::Esc => {
                     self.overlay = None;
                     Ok(false)
                 }
