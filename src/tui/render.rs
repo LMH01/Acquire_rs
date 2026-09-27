@@ -6,7 +6,7 @@
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    text::{Line, Span},
+    text::{Line, Span, Text},
     widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table},
     Frame,
 };
@@ -261,66 +261,55 @@ fn render_board(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     let small = app.settings.small_board;
-    let mut lines: Vec<Line> = Vec::new();
 
-    // Column header.
-    let mut header = Vec::new();
-    header.push(Span::raw(if small { "  " } else { "     " }));
-    for col in 1..=12u32 {
-        header.push(Span::raw(format!("{:>2} ", col)));
-    }
-    lines.push(Line::from(header));
-
-    // Rows A..I.
+    // Build the board as a Table so ratatui guarantees column alignment.
+    // Column 0 = row label (A–I); columns 1..=12 = the 12 cells.
+    let mut rows: Vec<Row> = Vec::new();
     for (r, row) in board.pieces.iter().enumerate() {
         let letter = crate::core::board::letter::LETTERS[r];
-        let mut spans = Vec::new();
-        spans.push(Span::raw(if small {
-            format!("{} ", letter)
-        } else {
-            format!("{}   ", letter)
-        }));
+        let mut cells = vec![
+            Cell::from(letter.to_string()).style(Style::default().add_modifier(Modifier::BOLD))
+        ];
         for piece in row {
-            let cell = board_cell(piece, &highlight_origin, &highlight_set, small);
-            spans.push(cell);
+            cells.push(board_cell(piece, &highlight_origin, &highlight_set));
         }
-        lines.push(Line::from(spans));
+        rows.push(Row::new(cells));
     }
 
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .title("Board");
-    let para = Paragraph::new(lines).block(block);
-    frame.render_widget(para, area);
+    // First (label) column is narrow; every cell column is a fixed width so empty
+    // and filled cells always line up.
+    let cell_w = if small { 2 } else { 3 };
+    let mut widths: Vec<Constraint> = vec![Constraint::Length(2)];
+    for _ in 0..12 {
+        widths.push(Constraint::Length(cell_w));
+    }
+
+    let table = Table::new(rows, widths).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title("Board"),
+    );
+    frame.render_widget(table, area);
 }
 
-/// Builds the styled span for a single board cell.
+/// Builds the styled cell for a single board position.
 fn board_cell(
     piece: &crate::core::board::Piece,
     highlight_origin: &Option<crate::core::board::Position>,
     highlight_set: &[crate::core::board::Position],
-    small: bool,
-) -> Span<'static> {
-    let _width = if small { 2 } else { 3 };
-    let content = if piece.piece_set {
+) -> Cell<'static> {
+    let (content, mut style): (String, Style) = if piece.piece_set {
         match piece.chain {
-            Some(chain) => chain.identifier().to_string(),
-            None => "X".to_string(),
+            Some(chain) => (
+                chain.identifier().to_string(),
+                Style::default().fg(chain_color(&chain)),
+            ),
+            None => ("X".to_string(), Style::default().fg(Color::White)),
         }
     } else {
-        String::new()
+        (String::new(), Style::default().fg(Color::DarkGray))
     };
-
-    let mut style = Style::default();
-    if piece.piece_set {
-        match piece.chain {
-            Some(chain) => style = style.fg(chain_color(&chain)),
-            None => style = style.fg(Color::White),
-        }
-    } else {
-        style = style.fg(Color::DarkGray);
-    }
 
     // Highlight the selected card's origin and the positions it would found/extend.
     if let Some(origin) = highlight_origin {
@@ -331,13 +320,8 @@ fn board_cell(
         }
     }
 
-    // Pad the content to the fixed cell width.
-    let padded = if small {
-        format!("{} ", content)
-    } else {
-        format!(" {} ", content)
-    };
-    Span::styled(padded, style)
+    let text = Text::from(Line::from(content).alignment(Alignment::Center));
+    Cell::new(text).style(style)
 }
 
 /// The right-hand column: player panel on top, chain table below.
@@ -921,37 +905,33 @@ fn render_demo(frame: &mut Frame, app: &App, size: Rect) {
 }
 
 fn render_demo_board(frame: &mut Frame, demo: &DemoState, area: Rect) {
-    let mut lines: Vec<Line> = Vec::new();
-    let mut header = Vec::new();
-    header.push(Span::raw("     "));
-    for col in 1..=12u32 {
-        header.push(Span::raw(format!("{:>2} ", col)));
-    }
-    lines.push(Line::from(header));
+    let no_highlight: Option<crate::core::board::Position> = None;
+    let empty: Vec<crate::core::board::Position> = Vec::new();
+
+    let mut rows: Vec<Row> = Vec::new();
     for (r, row) in demo.board.pieces.iter().enumerate() {
         let letter = crate::core::board::letter::LETTERS[r];
-        let mut spans = Vec::new();
-        spans.push(Span::raw(format!("{}   ", letter)));
+        let mut cells = vec![
+            Cell::from(letter.to_string()).style(Style::default().add_modifier(Modifier::BOLD))
+        ];
         for piece in row {
-            if piece.piece_set {
-                match piece.chain {
-                    Some(chain) => spans.push(Span::styled(
-                        format!(" {} ", chain.identifier()),
-                        Style::default().fg(chain_color(&chain)),
-                    )),
-                    None => spans.push(Span::styled(" X ", Style::default().fg(Color::White))),
-                }
-            } else {
-                spans.push(Span::raw("   "));
-            }
+            cells.push(board_cell(piece, &no_highlight, &empty));
         }
-        lines.push(Line::from(spans));
+        rows.push(Row::new(cells));
     }
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .title("Board");
-    frame.render_widget(Paragraph::new(lines).block(block), area);
+
+    let mut widths: Vec<Constraint> = vec![Constraint::Length(2)];
+    for _ in 0..12 {
+        widths.push(Constraint::Length(3));
+    }
+
+    let table = Table::new(rows, widths).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .title("Board"),
+    );
+    frame.render_widget(table, area);
 }
 
 fn render_demo_table(frame: &mut Frame, demo: &DemoState, area: Rect) {
