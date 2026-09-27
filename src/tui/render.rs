@@ -284,7 +284,18 @@ fn render_board(frame: &mut Frame, app: &App, area: Rect) {
         widths.push(Constraint::Length(cell_w));
     }
 
-    let table = Table::new(rows, widths).block(
+    // Header row: blank label cell + the column numbers 1..=12, centered.
+    let header = Row::new((0..=12).map(|c| {
+        let label = if c == 0 { String::new() } else { c.to_string() };
+        let text = Text::from(Line::from(label).alignment(Alignment::Center));
+        Cell::new(text).style(
+            Style::default()
+                .fg(Color::Gray)
+                .add_modifier(Modifier::BOLD),
+        )
+    }));
+
+    let table = Table::new(rows, widths).header(header).block(
         Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
@@ -925,7 +936,17 @@ fn render_demo_board(frame: &mut Frame, demo: &DemoState, area: Rect) {
         widths.push(Constraint::Length(3));
     }
 
-    let table = Table::new(rows, widths).block(
+    let header = Row::new((0..=12).map(|c| {
+        let label = if c == 0 { String::new() } else { c.to_string() };
+        let text = Text::from(Line::from(label).alignment(Alignment::Center));
+        Cell::new(text).style(
+            Style::default()
+                .fg(Color::Gray)
+                .add_modifier(Modifier::BOLD),
+        )
+    }));
+
+    let table = Table::new(rows, widths).header(header).block(
         Block::default()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
